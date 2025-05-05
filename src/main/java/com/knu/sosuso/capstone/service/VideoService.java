@@ -15,9 +15,9 @@ public class VideoService {  // 실제 YouTube API 요청
     private final ApiConfig config;
     private final RestTemplate restTemplate;
 
-    public VideoService(ApiConfig config) {
+    public VideoService(ApiConfig config, RestTemplate restTemplate) {
         this.config = config;
-        this.restTemplate = new RestTemplate();
+        this.restTemplate = restTemplate;
     }
 
     public boolean isVideoUrl(String url) {
