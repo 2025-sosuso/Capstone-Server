@@ -32,7 +32,7 @@ public class ChannelService {
             String searchApiUrl = "https://www.googleapis.com/youtube/v3/search"
                     + "?part=snippet"
                     + "&type=channel"
-                    + "&q=" + URLEncoder.encode(query, StandardCharsets.UTF_8.toString())
+                    + "&q=" + URLEncoder.encode(query, StandardCharsets.UTF_8)
                     + "&maxResults=25"
                     + "&relevanceLanguage=ko"
                     + "&key=" + apiKey;
@@ -129,7 +129,6 @@ public class ChannelService {
             return new ChannelApiResponse(results);
         } catch (Exception e) {
             System.err.println("Error searching channels: " + e.getMessage());
-            e.printStackTrace();
             return new ChannelApiResponse(List.of());
         }
     }
