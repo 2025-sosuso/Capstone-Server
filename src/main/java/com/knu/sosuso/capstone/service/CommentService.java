@@ -63,6 +63,17 @@ public class CommentService {
 
         } while (pageToken != null && !pageToken.trim().isEmpty());
 
+        // 좋아요 개수 기준으로 내림차순 정렬
+        allComments.sort((comment1, comment2) -> {
+            try {
+                int likes1 = comment1.likeCount();
+                int likes2 = comment2.likeCount();
+                return Integer.compare(likes2, likes1);
+            } catch (NumberFormatException e) {
+                return 0;
+            }
+        });
+
         return new CommentApiResponse(allComments);
     }
 }
