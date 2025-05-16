@@ -1,7 +1,10 @@
 package com.knu.sosuso.capstone.dto;
 
+import java.util.List;
+
 public record SearchUnifiedResponse(
         VideoApiResponse videoInfo,
-        CommentApiResponse commentInfo
+        List<CommentApiResponse.CommentData> commentInfo,
+        AIResult aiResult
 ) {
 }
