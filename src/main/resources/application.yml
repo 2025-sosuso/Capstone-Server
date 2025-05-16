@@ -20,3 +20,6 @@ youtube:
   api:
     key: AIzaSyCWWWB5MWaGQr3ygbqYeurqyReU4RnNC5o
 
+ai:
+  server:
+    url: http://localhost:5000  # AI 서버 주소 (나중에 변경)
