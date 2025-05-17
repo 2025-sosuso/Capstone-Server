@@ -3,7 +3,7 @@ package com.knu.sosuso.capstone.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.ChannelApiResponse;
+import com.knu.sosuso.capstone.dto.response.ChannelApiResponse;
 
 import org.springframework.stereotype.Service;
 

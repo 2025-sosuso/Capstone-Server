@@ -1,9 +1,9 @@
 package com.knu.sosuso.capstone.service;
 
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.CommentApiRawResponse;
-import com.knu.sosuso.capstone.dto.CommentApiResponse;
-import com.knu.sosuso.capstone.dto.CommentApiResponse.CommentData;
+import com.knu.sosuso.capstone.dto.response.CommentApiRawResponse;
+import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
+import com.knu.sosuso.capstone.dto.response.CommentApiResponse.CommentData;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;

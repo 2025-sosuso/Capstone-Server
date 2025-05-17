@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.dto;
+package com.knu.sosuso.capstone.dto.response;
 
 import java.util.List;
 

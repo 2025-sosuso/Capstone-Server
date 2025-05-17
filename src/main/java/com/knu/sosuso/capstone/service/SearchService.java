@@ -1,8 +1,8 @@
 package com.knu.sosuso.capstone.service;
 
-import com.knu.sosuso.capstone.dto.CommentApiResponse;
-import com.knu.sosuso.capstone.dto.SearchUnifiedResponse;
-import com.knu.sosuso.capstone.dto.VideoApiResponse;
+import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
+import com.knu.sosuso.capstone.dto.response.SearchUnifiedResponse;
+import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
 import org.springframework.stereotype.Service;
 
 @Service
