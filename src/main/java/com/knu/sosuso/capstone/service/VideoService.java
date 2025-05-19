@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,6 +50,22 @@ public class VideoService {  // 실제 YouTube API 요청
                 .toUriString();
 
         return restTemplate.getForObject(apiUrl, VideoApiResponse.class);
+    }
+
+    public List<VideoApiResponse.Item> getTrendingVideos(int maxResults) {
+        String apiUrl = UriComponentsBuilder.fromUriString("https://www.googleapis.com/youtube/v3/videos")
+                .queryParam("part", "snippet,statistics")
+                .queryParam("chart", "mostPopular")
+                .queryParam("regionCode", "KR")
+                .queryParam("maxResults", maxResults)
+                .queryParam("key", config.getKey())
+                .toUriString();
+
+        VideoApiResponse response = restTemplate.getForObject(apiUrl, VideoApiResponse.class);
+
+        if (response.items() == null) return List.of();
+
+        return List.of(response.items());
     }
 
 }
