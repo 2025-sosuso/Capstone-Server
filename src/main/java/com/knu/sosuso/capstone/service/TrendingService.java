@@ -3,11 +3,13 @@ package com.knu.sosuso.capstone.service;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.SearchUnifiedResponse;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Service
 public class TrendingService {
 
@@ -32,8 +34,7 @@ public class TrendingService {
 
                 results.add(new SearchUnifiedResponse(videoDetail, comments));
             } catch (Exception e) {
-                System.out.println("영상 처리 중 오류 발생 (videoId: " + videoId + ") 건너뜀");
-                e.printStackTrace();
+                log.warn("영상 처리 중 오류 발생 (videoId: {}) -> 건너뜀", videoId, e);
             }
         }
 

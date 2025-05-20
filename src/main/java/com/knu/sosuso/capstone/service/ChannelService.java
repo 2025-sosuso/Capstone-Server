@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
 import com.knu.sosuso.capstone.dto.response.ChannelApiResponse;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -16,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
-
+@Slf4j
 @Service
 public class ChannelService {
 
@@ -128,7 +129,7 @@ public class ChannelService {
 
             return new ChannelApiResponse(results);
         } catch (Exception e) {
-            System.err.println("Error searching channels: " + e.getMessage());
+            log.error("Error searching channels", e);
             return new ChannelApiResponse(List.of());
         }
     }
