@@ -19,15 +19,22 @@ public class TrendingService {
         this.commentService = commentService;
     }
 
-    public List<SearchUnifiedResponse> getTrendingVideoWithComment(int maxResults) {
-        List<VideoApiResponse.Item> videos = videoService.getTrendingVideos(maxResults);
+    public List<SearchUnifiedResponse> getTrendingVideoWithComments(String categoryId, int maxResults) {
+        List<VideoApiResponse.Item> videos = videoService.getTrendingVideos(categoryId, maxResults);
         List<SearchUnifiedResponse> results = new ArrayList<>();
 
         for (VideoApiResponse.Item video : videos) {
             String videoId = video.id();
-            VideoApiResponse singleVideo = videoService.getVideoInfo(videoId);
-            CommentApiResponse comments = commentService.getCommentInfo(videoId);
-            results.add(new SearchUnifiedResponse(singleVideo, comments));
+
+            try {
+                VideoApiResponse videoDetail = videoService.getVideoInfo(videoId);
+                CommentApiResponse comments = commentService.getCommentInfo(videoId);
+
+                results.add(new SearchUnifiedResponse(videoDetail, comments));
+            } catch (Exception e) {
+                System.out.println("영상 처리 중 오류 발생 (videoId: " + videoId + ") 건너뜀");
+                e.printStackTrace();
+            }
         }
 
         return results;

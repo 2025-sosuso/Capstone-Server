@@ -52,15 +52,16 @@ public class VideoService {  // 실제 YouTube API 요청
         return restTemplate.getForObject(apiUrl, VideoApiResponse.class);
     }
 
-    public List<VideoApiResponse.Item> getTrendingVideos(int maxResults) {
-        String apiUrl = UriComponentsBuilder.fromUriString("https://www.googleapis.com/youtube/v3/videos")
+    public List<VideoApiResponse.Item> getTrendingVideos(String categoryId, int maxResults) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString("https://www.googleapis.com/youtube/v3/videos")
                 .queryParam("part", "snippet,statistics")
                 .queryParam("chart", "mostPopular")
                 .queryParam("regionCode", "KR")
+                .queryParam("videoCategoryId", categoryId)
                 .queryParam("maxResults", maxResults)
-                .queryParam("key", config.getKey())
-                .toUriString();
+                .queryParam("key", config.getKey());
 
+        String apiUrl = builder.toUriString();
         VideoApiResponse response = restTemplate.getForObject(apiUrl, VideoApiResponse.class);
 
         if (response.items() == null) return List.of();
