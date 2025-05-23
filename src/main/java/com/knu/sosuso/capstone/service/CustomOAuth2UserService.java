@@ -17,6 +17,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
+    private static final String ROLE = "ROLE_USER";
+    private final UserRepository userRepository;
+
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oAuth2User = super.loadUser(userRequest);
@@ -30,6 +33,21 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             return null;
         }
 
-        return null;
+        String sub = oAuth2Response.getProviderId();
+        String email = oAuth2Response.getEmail();
+        String name = oAuth2Response.getName();
+        String picture = oAuth2Response.getPicture();
+        AuthRequest authRequest = new AuthRequest(sub, email, name, ROLE, picture);
+
+        User existData = userRepository.findBySub(sub);
+        if (existData == null) {
+            User signUpUser = User.signUp(authRequest);
+            userRepository.save(signUpUser);
+            return new CustomOAuth2User(authRequest);
+        } else {
+            existData.signIn(authRequest);
+            userRepository.save(existData);
+            return new CustomOAuth2User(authRequest);
+        }
     }
 }
