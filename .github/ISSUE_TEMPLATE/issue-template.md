@@ -1,6 +1,6 @@
 ---
 name: Issue template
-about: Suggest an idea for this project
+about: 소수소 이슈 템플릿
 title: ''
 labels: ''
 assignees: kyer5
