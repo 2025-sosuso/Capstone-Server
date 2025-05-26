@@ -97,6 +97,7 @@ public class ChannelService {
                             String channelId = channel.path("id").asText();
                             JsonNode snippetNode = channel.path("snippet");
                             String title = snippetNode.path("title").asText();
+                            String handle = snippetNode.path("customUrl").asText();
                             String description = snippetNode.path("description").asText();
 
                             JsonNode thumbnailsNode = snippetNode.path("thumbnails");
@@ -107,8 +108,10 @@ public class ChannelService {
                             JsonNode statisticsNode = channel.path("statistics");
                             String subscriberCountStr = statisticsNode.path("subscriberCount").asText();
 
+                            boolean isSubscribed = false;  // 추후에 변동 예정
+
                             results.add(new ChannelApiResponse.ChannelData(
-                                    channelId, title, description, thumbnailUrl, subscriberCountStr));
+                                    channelId, title, handle, description, thumbnailUrl, subscriberCountStr, isSubscribed));
                         }
                     }
 
