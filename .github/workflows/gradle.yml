@@ -27,7 +27,7 @@ jobs:
       run: chmod +x ./gradlew
     
     - name: Build with Gradle Wrapper
-      run: ./gradlew build -Dspring.profiles.active=test
+      run: ./gradlew build -x test -Dspring.profiles.active=prod
     
     - name: Set up SSH key
       run: |
