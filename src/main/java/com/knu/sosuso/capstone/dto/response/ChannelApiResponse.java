@@ -8,9 +8,11 @@ public record ChannelApiResponse(
     public record ChannelData(
             String channelId,
             String title,
+            String handle,
             String description,
             String thumbnailUrl,
-            String subscriberCount  // 구독자 수
+            String subscriberCount,
+            boolean isSubscribed
     ) {
     }
 }
