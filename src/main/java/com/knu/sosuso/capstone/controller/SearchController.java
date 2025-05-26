@@ -21,6 +21,11 @@ public class SearchController {
     @GetMapping
     public ResponseEntity<ResponseDto<Object>> search(@RequestParam String query) {
         try {
+            if (query == null || query.trim().isEmpty()) {
+                ResponseDto<Object> errorResponse = ResponseDto.of("검색어를 입력해주세요.");
+                return ResponseEntity.badRequest().body(errorResponse);
+            }
+
             Object searchResult = searchService.search(query);
             ResponseDto<Object> response = ResponseDto.of(searchResult, "검색이 완료되었습니다.");
             return ResponseEntity.ok(response);

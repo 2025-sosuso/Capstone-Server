@@ -5,6 +5,8 @@ import com.knu.sosuso.capstone.dto.response.SearchUnifiedResponse;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 public class SearchService {
 
@@ -20,10 +22,9 @@ public class SearchService {
 
     public Object search(String query) {
         if (videoService.isVideoUrl(query)) {
-            String videoId = videoService.extractVideoId(query);
-            if (videoId == null || videoId.isBlank()) {
-                throw new IllegalArgumentException("유효하지 않은 URL입니다.");
-            }
+            String videoId = Optional.ofNullable(videoService.extractVideoId(query))
+                    .filter(id -> !id.isBlank())
+                    .orElseThrow(() -> new IllegalArgumentException("유효하지 않은 YouTube URL입니다."));
 
             VideoApiResponse videoInfo = videoService.getVideoInfo(videoId);
             CommentApiResponse commentInfo = commentService.getCommentInfo(videoId);
