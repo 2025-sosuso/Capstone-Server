@@ -12,7 +12,6 @@ public class SearchService {
 
     private static final Logger logger = LoggerFactory.getLogger(SearchService.class);
 
-
     private final VideoService videoService;
     private final CommentService commentService;
     private final ChannelService channelService;
@@ -58,8 +57,8 @@ public class SearchService {
         logger.info("비디오 검색 시작: videoId={}", videoId);
 
         try {
-            VideoApiResponse videoInfo = videoService.getVideoInfo(videoId);
             CommentApiResponse commentInfo = commentService.getCommentInfo(videoId);
+            VideoApiResponse videoInfo = videoService.getVideoInfo(videoId, commentInfo.allComments().size());
 
             logger.info("비디오 검색 완료: videoId={}, 댓글수={}",
                     videoId, commentInfo.allComments().size());

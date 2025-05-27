@@ -1,7 +1,8 @@
 package com.knu.sosuso.capstone.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.response.CommentApiRawResponse;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse.CommentData;
 import org.slf4j.Logger;
@@ -23,10 +24,12 @@ public class CommentService {
 
     private final RestTemplate restTemplate;
     private final String apiKey;
+    private final ObjectMapper objectMapper;
 
     public CommentService(ApiConfig config, RestTemplate restTemplate) {
         this.apiKey = config.getKey();
         this.restTemplate = restTemplate;
+        this.objectMapper = new ObjectMapper();
     }
 
     public CommentApiResponse getCommentInfo(String videoId) {
@@ -69,20 +72,31 @@ public class CommentService {
 
         do {
             String apiUrl = buildApiUrl(videoId, pageToken);
-            CommentApiRawResponse response = callYouTubeApi(apiUrl);
+            String jsonResponse = callYouTubeApi(apiUrl);
 
-            if (response.items() == null || response.items().length == 0) {
+            try {
+                JsonNode rootNode = objectMapper.readTree(jsonResponse);
+                JsonNode itemsNode = rootNode.path("items");
+
+                if (!itemsNode.isArray() || itemsNode.isEmpty()) {
+                    break;
+                }
+                List<CommentData> pageComments = parseCommentsFromJson(itemsNode);
+                allComments.addAll(pageComments);
+
+                pageToken = rootNode.path("nextPageToken").asText();
+                if (pageToken.isEmpty()) {
+                    pageToken = null;
+                }
+
+                pageCount++;
+
+                if (pageCount % 10 == 0) {
+                    logger.info("댓글 수집 진행: videoId={}, 페이지={}, 누적={}", videoId, pageCount, allComments.size());
+                }
+            } catch (Exception e) {
+                logger.error("JSON 파싱 실패: videoId={}, error={}", videoId, e.getMessage(), e);
                 break;
-            }
-
-            List<CommentData> pageComments = parseComments(response);
-            allComments.addAll(pageComments);
-
-            pageToken = response.nextPageToken();
-            pageCount++;
-
-            if (pageCount % 10 == 0) {
-                logger.info("댓글 수집 진행: videoId={}, 페이지={}, 누적={}", videoId, pageCount, allComments.size());
             }
 
         } while (isValidPageToken(pageToken));
@@ -105,39 +119,48 @@ public class CommentService {
         return builder.build(false).toUriString();
     }
 
-    private CommentApiRawResponse callYouTubeApi(String apiUrl) {
-        return restTemplate.getForObject(apiUrl, CommentApiRawResponse.class);
+    private String callYouTubeApi(String apiUrl) {
+        return restTemplate.getForObject(apiUrl, String.class);
     }
 
-    private List<CommentData> parseComments(CommentApiRawResponse response) {
-        if (response == null || response.items() == null) {
-            return new ArrayList<>();
+    private List<CommentData> parseCommentsFromJson(JsonNode itemsNode) {
+        List<CommentData> comments = new ArrayList<>();
+
+        for (JsonNode item : itemsNode) {
+            CommentData commentData = extractCommentData(item);
+            if (commentData != null) {
+                comments.add(commentData);
+            }
         }
 
-        return Arrays.stream(response.items())
-                .map(this::convertToCommentData)
-                .filter(Objects::nonNull)
-                .toList();
+        return comments;
     }
 
-    private CommentData convertToCommentData(CommentApiRawResponse.CommentThread item) {
+
+    private CommentData extractCommentData(JsonNode item) {
         try {
-            if (item == null || item.snippet() == null) {
+            JsonNode snippet = item.path("snippet");
+            if (snippet.isMissingNode()) {
                 return null;
             }
 
-            var topLevelComment = item.snippet().topLevelComment();
-            if (topLevelComment == null || topLevelComment.snippet() == null) {
+            JsonNode topLevelComment = snippet.path("topLevelComment");
+            if (topLevelComment.isMissingNode()) {
                 return null;
             }
 
-            var snippet = topLevelComment.snippet();
-            return new CommentData(
-                    snippet.authorDisplayName(),
-                    snippet.textDisplay(),
-                    snippet.likeCount(),
-                    snippet.publishedAt()
-            );
+            JsonNode commentSnippet = topLevelComment.path("snippet");
+            if (commentSnippet.isMissingNode()) {
+                return null;
+            }
+
+            String authorName = commentSnippet.path("authorDisplayName").asText();
+            String commentText = commentSnippet.path("textDisplay").asText();
+            int likeCount = commentSnippet.path("likeCount").asInt(0);
+            String publishedAt = commentSnippet.path("publishedAt").asText();
+
+            return new CommentData(authorName, commentText, likeCount, publishedAt);
+
         } catch (Exception e) {
             logger.warn("댓글 파싱 실패: {}", e.getMessage());
             return null;

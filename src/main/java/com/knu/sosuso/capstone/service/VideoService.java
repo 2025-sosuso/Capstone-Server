@@ -45,7 +45,7 @@ public class VideoService {
         return matcher.find() ? matcher.group(1) : null;
     }
 
-    public VideoApiResponse getVideoInfo(String videoId) {
+    public VideoApiResponse getVideoInfo(String videoId, Integer actualCommentCount) {
         if (videoId == null || videoId.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다");
         }
@@ -71,7 +71,7 @@ public class VideoService {
             JsonNode channelItem = channelJson.get("items").get(0);
 
             // 3. 응답 생성
-            VideoApiResponse response = buildVideoResponse(videoItem, channelItem);
+            VideoApiResponse response = buildVideoResponse(videoItem, channelItem, actualCommentCount);
 
             logger.info("비디오 정보 조회 완료: videoId={}", videoId);
             return response;
@@ -117,7 +117,7 @@ public class VideoService {
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
-    private VideoApiResponse buildVideoResponse(JsonNode videoItem, JsonNode channelItem) {
+    private VideoApiResponse buildVideoResponse(JsonNode videoItem, JsonNode channelItem, Integer actualCommentCount) {
         JsonNode snippet = videoItem.get("snippet");
         JsonNode statistics = videoItem.get("statistics");
         JsonNode channelSnippet = channelItem.get("snippet");
@@ -132,6 +132,14 @@ public class VideoService {
         if (snippet.has("tags") && snippet.get("tags").isArray()) {
             tags = objectMapper.convertValue(snippet.get("tags"), String[].class);
         }
+
+        String commentCount;
+        if (actualCommentCount != null) {
+            commentCount = String.valueOf(actualCommentCount);
+        } else {
+            commentCount = statistics.has("commentCount") ? statistics.get("commentCount").asText() : "0";
+        }
+
 
         return new VideoApiResponse(
                 videoItem.get("id").asText(),
@@ -149,7 +157,7 @@ public class VideoService {
                 snippet.has("defaultAudioLanguage") ? snippet.get("defaultAudioLanguage").asText() : "",
                 statistics.has("viewCount") ? statistics.get("viewCount").asText() : "0",
                 statistics.has("likeCount") ? statistics.get("likeCount").asText() : "0",
-                statistics.has("commentCount") ? statistics.get("commentCount").asText() : "0"
+                commentCount
         );
     }
 
