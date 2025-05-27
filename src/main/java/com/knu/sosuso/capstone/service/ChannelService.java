@@ -3,7 +3,7 @@ package com.knu.sosuso.capstone.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.response.ChannelApiResponse;
+import com.knu.sosuso.capstone.dto.response.SearchChannelResponse;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +34,7 @@ public class ChannelService {
         this.objectMapper = new ObjectMapper();
     }
 
-    public ChannelApiResponse searchChannels(String query) {
+    public SearchChannelResponse searchChannels(String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new IllegalArgumentException("검색어는 필수입니다");
         }
@@ -50,17 +50,17 @@ public class ChannelService {
 
             if (channelIds.isEmpty()) {
                 logger.info("검색된 채널이 없음: query={}", query);
-                return new ChannelApiResponse(List.of());
+                return new SearchChannelResponse(List.of());
             }
 
             // 3. 채널 상세 정보 조회
             String channelsResponse = getChannelsDetails(channelIds);
 
             // 4. 결과 변환 및 정렬
-            List<ChannelApiResponse.ChannelData> results = parseChannelsResponse(channelsResponse);
+            List<SearchChannelResponse.ChannelData> results = parseChannelsResponse(channelsResponse);
 
             logger.info("채널 검색 완료: query={}, resultCount={}", query, results.size());
-            return new ChannelApiResponse(results);
+            return new SearchChannelResponse(results);
 
         } catch (HttpClientErrorException.Forbidden e) {
             logger.warn("YouTube API 접근 금지: query={}", query);
@@ -128,12 +128,12 @@ public class ChannelService {
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
-    private List<ChannelApiResponse.ChannelData> parseChannelsResponse(String channelsResponse) {
+    private List<SearchChannelResponse.ChannelData> parseChannelsResponse(String channelsResponse) {
         try {
             JsonNode channelsRootNode = objectMapper.readTree(channelsResponse);
             JsonNode channelsItemsNode = channelsRootNode.path("items");
 
-            List<ChannelApiResponse.ChannelData> results = new ArrayList<>();
+            List<SearchChannelResponse.ChannelData> results = new ArrayList<>();
 
             if (channelsItemsNode.isArray()) {
                 for (JsonNode channel : channelsItemsNode) {
@@ -152,7 +152,7 @@ public class ChannelService {
 
                     boolean isSubscribed = false; // 추후에 변동 예정
 
-                    results.add(new ChannelApiResponse.ChannelData(
+                    results.add(new SearchChannelResponse.ChannelData(
                             channelId, title, handle, description, thumbnailUrl, subscriberCount, isSubscribed));
                 }
             }

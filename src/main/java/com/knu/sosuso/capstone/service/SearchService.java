@@ -1,7 +1,8 @@
 package com.knu.sosuso.capstone.service;
 
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
-import com.knu.sosuso.capstone.dto.response.SearchUnifiedResponse;
+import com.knu.sosuso.capstone.dto.response.SearchResponse;
+import com.knu.sosuso.capstone.dto.response.SearchUrlResponse;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,20 +23,22 @@ public class SearchService {
         this.channelService = channelService;
     }
 
-    public Object search(String query) {
+    public SearchResponse search(String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new IllegalArgumentException("검색어는 필수입니다");
         }
 
         String trimmedQuery = query.trim();
         logger.info("검색 요청: query={}, type={}", trimmedQuery,
-                isVideoUrl(trimmedQuery) ? "VIDEO" : "CHANNEL");
+                isVideoUrl(trimmedQuery) ? "URL" : "CHANNEL");
 
         try {
             if (isVideoUrl(trimmedQuery)) {
-                return searchVideo(trimmedQuery);
+                SearchUrlResponse videoResult = searchVideo(trimmedQuery);
+                return new SearchResponse("URL", videoResult);
             } else {
-                return searchChannels(trimmedQuery);
+                var channelResult = searchChannels(trimmedQuery);
+                return new SearchResponse("CHANNEL", channelResult);
             }
         } catch (Exception e) {
             logger.error("검색 실패: query={}, error={}", trimmedQuery, e.getMessage(), e);
@@ -47,7 +50,7 @@ public class SearchService {
         return url.contains("youtube.com/watch?v=") || url.contains("youtu.be/");
     }
 
-    private SearchUnifiedResponse searchVideo(String videoUrl) {
+    private SearchUrlResponse searchVideo(String videoUrl) {
         String videoId = videoService.extractVideoId(videoUrl);
 
         if (videoId == null || videoId.trim().isEmpty()) {
@@ -63,7 +66,7 @@ public class SearchService {
             logger.info("비디오 검색 완료: videoId={}, 댓글수={}",
                     videoId, commentInfo.allComments().size());
 
-            return new SearchUnifiedResponse(videoInfo, commentInfo);
+            return new SearchUrlResponse(videoInfo, commentInfo);
 
         } catch (Exception e) {
             logger.error("비디오 검색 실패: videoId={}, error={}", videoId, e.getMessage());

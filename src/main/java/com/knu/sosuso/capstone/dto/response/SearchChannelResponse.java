@@ -2,7 +2,7 @@ package com.knu.sosuso.capstone.dto.response;
 
 import java.util.List;
 
-public record ChannelApiResponse(
+public record SearchChannelResponse(
         List<ChannelData> channels
 ) {
     public record ChannelData(
