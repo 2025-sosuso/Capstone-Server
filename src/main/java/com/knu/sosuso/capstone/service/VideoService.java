@@ -57,7 +57,7 @@ public class VideoService {
             String videoResponse = getVideoData(videoId.trim());
             JsonNode videoJson = objectMapper.readTree(videoResponse);
 
-            if (!videoJson.has("items") || videoJson.get("items").size() == 0) {
+            if (!videoJson.has("items") || videoJson.get("items").isEmpty()) {
                 throw new IllegalArgumentException("존재하지 않는 비디오입니다");
             }
 
