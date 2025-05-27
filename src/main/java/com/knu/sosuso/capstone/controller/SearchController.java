@@ -21,11 +21,6 @@ public class SearchController {
     @GetMapping
     public ResponseEntity<ResponseDto<Object>> search(@RequestParam String query) {
         try {
-            if (query == null || query.trim().isEmpty()) {
-                ResponseDto<Object> errorResponse = ResponseDto.of("검색어를 입력해주세요.");
-                return ResponseEntity.badRequest().body(errorResponse);
-            }
-
             Object searchResult = searchService.search(query);
             ResponseDto<Object> response = ResponseDto.of(searchResult, "검색이 완료되었습니다.");
             return ResponseEntity.ok(response);
@@ -33,8 +28,8 @@ public class SearchController {
             ResponseDto<Object> errorResponse = ResponseDto.of("잘못된 요청: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
-            ResponseDto<Object> errerResponse = ResponseDto.of("검색 중 오류 발생: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errerResponse);
+            ResponseDto<Object> errorResponse = ResponseDto.of("검색 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
 }

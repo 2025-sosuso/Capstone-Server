@@ -5,14 +5,14 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
 import com.knu.sosuso.capstone.dto.response.ChannelApiResponse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,119 +20,177 @@ import java.util.List;
 @Service
 public class ChannelService {
 
-    private final String apiKey;
+    private static final Logger logger = LoggerFactory.getLogger(ChannelService.class);
+    private static final String YOUTUBE_SEARCH_API_URL = "https://www.googleapis.com/youtube/v3/search";
+    private static final String YOUTUBE_CHANNELS_API_URL = "https://www.googleapis.com/youtube/v3/channels";
 
-    public ChannelService(ApiConfig config) {
+    private final RestTemplate restTemplate;
+    private final String apiKey;
+    private final ObjectMapper objectMapper;
+
+    public ChannelService(ApiConfig config, RestTemplate restTemplate) {
         this.apiKey = config.getKey();
+        this.restTemplate = restTemplate;
+        this.objectMapper = new ObjectMapper();
     }
 
     public ChannelApiResponse searchChannels(String query) {
+        if (query == null || query.trim().isEmpty()) {
+            throw new IllegalArgumentException("검색어는 필수입니다");
+        }
+
         try {
+            logger.info("채널 검색 시작: query={}", query);
+
             // 1. 채널 검색
-            String searchApiUrl = "https://www.googleapis.com/youtube/v3/search"
-                    + "?part=snippet"
-                    + "&type=channel"
-                    + "&q=" + URLEncoder.encode(query, StandardCharsets.UTF_8)
-                    + "&maxResults=25"
-                    + "&relevanceLanguage=ko"
-                    + "&key=" + apiKey;
+            String searchResponse = searchChannelsByQuery(query.trim());
 
-            URL searchUrl = new URL(searchApiUrl);
-            HttpURLConnection searchConnection = (HttpURLConnection) searchUrl.openConnection();
-            searchConnection.setRequestMethod("GET");
+            // 2. 채널 ID 수집
+            List<String> channelIds = extractChannelIds(searchResponse);
 
-            BufferedReader searchReader = new BufferedReader(
-                    new InputStreamReader(searchConnection.getInputStream()));
-            StringBuilder searchResponse = new StringBuilder();
-            String line;
-            while ((line = searchReader.readLine()) != null) {
-                searchResponse.append(line);
+            if (channelIds.isEmpty()) {
+                logger.info("검색된 채널이 없음: query={}", query);
+                return new ChannelApiResponse(List.of());
             }
-            searchReader.close();
 
-            // 2. JSON 파싱
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode rootNode = mapper.readTree(searchResponse.toString());
+            // 3. 채널 상세 정보 조회
+            String channelsResponse = getChannelsDetails(channelIds);
+
+            // 4. 결과 변환 및 정렬
+            List<ChannelApiResponse.ChannelData> results = parseChannelsResponse(channelsResponse);
+
+            logger.info("채널 검색 완료: query={}, resultCount={}", query, results.size());
+            return new ChannelApiResponse(results);
+
+        } catch (HttpClientErrorException.Forbidden e) {
+            logger.warn("YouTube API 접근 금지: query={}", query);
+            throw new IllegalStateException("YouTube API에 접근할 수 없습니다", e);
+
+        } catch (RestClientException e) {
+            logger.error("YouTube API 호출 실패: query={}, error={}", query, e.getMessage(), e);
+            throw new RuntimeException("채널 검색을 수행할 수 없습니다", e);
+
+        } catch (Exception e) {
+            logger.error("채널 검색 실패: query={}, error={}", query, e.getMessage(), e);
+            throw new RuntimeException("채널 검색 중 오류 발생", e);
+        }
+    }
+
+    private String searchChannelsByQuery(String query) {
+        String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_SEARCH_API_URL)
+                .queryParam("part", "snippet")
+                .queryParam("type", "channel")
+                .queryParam("q", query)
+                .queryParam("maxResults", 25)
+                .queryParam("relevanceLanguage", "ko")
+                .queryParam("key", apiKey)
+                .build(false)
+                .toUriString();
+
+        return restTemplate.getForObject(apiUrl, String.class);
+    }
+
+    private List<String> extractChannelIds(String searchResponse) {
+        try {
+            JsonNode rootNode = objectMapper.readTree(searchResponse);
             JsonNode itemsNode = rootNode.path("items");
 
-            List<ChannelApiResponse.ChannelData> results = new ArrayList<>();
+            List<String> channelIds = new ArrayList<>();
 
             if (itemsNode.isArray()) {
-                // 3. 발견된 모든 채널 ID 수집
-                List<String> channelIds = new ArrayList<>();
                 for (JsonNode item : itemsNode) {
                     JsonNode idNode = item.path("id");
                     String channelId = idNode.path("channelId").asText();
-                    if (channelId != null && !channelId.isEmpty()) {
+                    if (channelId != null && !channelId.trim().isEmpty()) {
                         channelIds.add(channelId);
                     }
                 }
+            }
 
-                if (!channelIds.isEmpty()) {
-                    // 4. 채널 ID 목록으로 구독자 수 포함한 상세 정보 요청
-                    String channelIdsStr = String.join(",", channelIds);
-                    String channelsApiUrl = "https://www.googleapis.com/youtube/v3/channels"
-                            + "?part=snippet,statistics"
-                            + "&id=" + channelIdsStr
-                            + "&key=" + apiKey;
+            return channelIds;
+        } catch (Exception e) {
+            logger.error("채널 ID 추출 실패: {}", e.getMessage(), e);
+            return List.of();
+        }
+    }
 
-                    URL channelsUrl = new URL(channelsApiUrl);
-                    HttpURLConnection channelsConnection = (HttpURLConnection) channelsUrl.openConnection();
-                    channelsConnection.setRequestMethod("GET");
 
-                    BufferedReader channelsReader = new BufferedReader(
-                            new InputStreamReader(channelsConnection.getInputStream()));
-                    StringBuilder channelsResponse = new StringBuilder();
-                    while ((line = channelsReader.readLine()) != null) {
-                        channelsResponse.append(line);
-                    }
-                    channelsReader.close();
+    private String getChannelsDetails(List<String> channelIds) {
+        String channelIdsStr = String.join(",", channelIds);
 
-                    // 5. 상세 정보 파싱 및 결과 생성
-                    JsonNode channelsRootNode = mapper.readTree(channelsResponse.toString());
-                    JsonNode channelsItemsNode = channelsRootNode.path("items");
+        String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_CHANNELS_API_URL)
+                .queryParam("part", "snippet,statistics")
+                .queryParam("id", channelIdsStr)
+                .queryParam("key", apiKey)
+                .build(false)
+                .toUriString();
 
-                    if (channelsItemsNode.isArray()) {
-                        for (JsonNode channel : channelsItemsNode) {
-                            String channelId = channel.path("id").asText();
-                            JsonNode snippetNode = channel.path("snippet");
-                            String title = snippetNode.path("title").asText();
-                            String handle = snippetNode.path("customUrl").asText();
-                            String description = snippetNode.path("description").asText();
+        return restTemplate.getForObject(apiUrl, String.class);
+    }
 
-                            JsonNode thumbnailsNode = snippetNode.path("thumbnails");
-                            JsonNode mediumNode = thumbnailsNode.path("medium");
-                            String thumbnailUrl = mediumNode.path("url").asText();
+    private List<ChannelApiResponse.ChannelData> parseChannelsResponse(String channelsResponse) {
+        try {
+            JsonNode channelsRootNode = objectMapper.readTree(channelsResponse);
+            JsonNode channelsItemsNode = channelsRootNode.path("items");
 
-                            // 구독자 수 정보 가져오기
-                            JsonNode statisticsNode = channel.path("statistics");
-                            String subscriberCountStr = statisticsNode.path("subscriberCount").asText();
+            List<ChannelApiResponse.ChannelData> results = new ArrayList<>();
 
-                            boolean isSubscribed = false;  // 추후에 변동 예정
+            if (channelsItemsNode.isArray()) {
+                for (JsonNode channel : channelsItemsNode) {
+                    String channelId = channel.path("id").asText();
+                    JsonNode snippetNode = channel.path("snippet");
+                    String title = snippetNode.path("title").asText();
+                    String handle = snippetNode.path("customUrl").asText();
+                    String description = snippetNode.path("description").asText();
 
-                            results.add(new ChannelApiResponse.ChannelData(
-                                    channelId, title, handle, description, thumbnailUrl, subscriberCountStr, isSubscribed));
-                        }
-                    }
+                    // 썸네일 URL 추출
+                    String thumbnailUrl = extractThumbnailUrl(snippetNode.path("thumbnails"));
 
-                    // 6. 구독자 수 기준으로 정렬 (내림차순)
-                    results.sort((a, b) -> {
-                        try {
-                            long aSubscribers = Long.parseLong(a.subscriberCount());
-                            long bSubscribers = Long.parseLong(b.subscriberCount());
-                            return Long.compare(bSubscribers, aSubscribers); // 내림차순
-                        } catch (NumberFormatException e) {
-                            // 숫자로 변환 불가능한 경우 처리
-                            return 0;
-                        }
-                    });
+                    // 구독자 수 정보 가져오기
+                    JsonNode statisticsNode = channel.path("statistics");
+                    String subscriberCount = statisticsNode.path("subscriberCount").asText();
+
+                    boolean isSubscribed = false; // 추후에 변동 예정
+
+                    results.add(new ChannelApiResponse.ChannelData(
+                            channelId, title, handle, description, thumbnailUrl, subscriberCount, isSubscribed));
                 }
             }
 
-            return new ChannelApiResponse(results);
+            // 구독자 수 기준으로 정렬 (내림차순)
+            results.sort((a, b) -> {
+                try {
+                    long aSubscribers = Long.parseLong(a.subscriberCount());
+                    long bSubscribers = Long.parseLong(b.subscriberCount());
+                    return Long.compare(bSubscribers, aSubscribers);
+                } catch (NumberFormatException e) {
+                    logger.warn("구독자 수 파싱 실패: a={}, b={}", a.subscriberCount(), b.subscriberCount());
+                    return 0;
+                }
+            });
+
+            return results;
         } catch (Exception e) {
-            System.err.println("Error searching channels: " + e.getMessage());
-            return new ChannelApiResponse(List.of());
+            logger.error("채널 응답 파싱 실패: {}", e.getMessage(), e);
+            return List.of();
         }
+    }
+
+    private String extractThumbnailUrl(JsonNode thumbnailsNode) {
+        // medium 썸네일 우선, 없으면 default
+        JsonNode mediumNode = thumbnailsNode.path("medium");
+        if (!mediumNode.isMissingNode()) {
+            String url = mediumNode.path("url").asText();
+            if (!url.isEmpty()) {
+                return url;
+            }
+        }
+
+        JsonNode defaultNode = thumbnailsNode.path("default");
+        if (!defaultNode.isMissingNode()) {
+            return defaultNode.path("url").asText();
+        }
+
+        return "";
     }
 }
