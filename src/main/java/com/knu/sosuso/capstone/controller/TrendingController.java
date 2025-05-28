@@ -1,6 +1,8 @@
 package com.knu.sosuso.capstone.controller;
 
+import com.knu.sosuso.capstone.dto.ResponseDto;
 import com.knu.sosuso.capstone.service.TrendingService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -8,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Slf4j
 @RequestMapping("/api/trending")
 public class TrendingController {
 
@@ -19,23 +22,24 @@ public class TrendingController {
 
     @GetMapping("/category")
     public ResponseEntity<?> getByCategory(
-            @RequestParam(defaultValue = "latest") String type,
-            @RequestParam(defaultValue = "5") int count) {
+            @RequestParam(defaultValue = "latest") String categoryType,
+            @RequestParam(defaultValue = "KR") String regionCode,
+            @RequestParam(defaultValue = "5") int maxResults) {
         try {
-            String categoryId = switch (type.toLowerCase()) {
-                case "latest" -> "0";
-                case "music" -> "10";
-                case "game" -> "20";
-                case "movie" -> "30";
-                default -> throw new IllegalArgumentException("지원하지 않는 카테고리입니다: " + type);
-            };
+            log.info("인기급상승 영상 조회 요청: categoryType={}, regionCode={}, maxResults={}", categoryType, regionCode, maxResults);
 
-            var result = trendingService.getTrendingVideoWithComments(categoryId, count);
+            var result = trendingService.getTrendingVideoWithComments(categoryType, regionCode, maxResults);
 
-            return ResponseEntity.ok(result);
+            log.info("인기급상승 영상 조회 완료: 영상 수={}", result.size());
+            return ResponseEntity.ok(ResponseDto.of(result, "인기급상승 영상 조회 성공"));
+
+        } catch (IllegalArgumentException e) {
+            log.warn("잘못된 요청: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(ResponseDto.of("잘못된 요청: " + e.getMessage()));
 
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("카테고리별 조회 실패: " + e.getMessage());
+            log.error("인기급상승 영상 조회 실패: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(ResponseDto.of("인기급상승 영상 조회 실패: " + e.getMessage()));
         }
     }
 }
