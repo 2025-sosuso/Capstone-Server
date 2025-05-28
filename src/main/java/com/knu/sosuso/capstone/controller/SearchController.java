@@ -1,5 +1,7 @@
 package com.knu.sosuso.capstone.controller;
 
+import com.knu.sosuso.capstone.dto.ResponseDto;
+import com.knu.sosuso.capstone.dto.response.SearchResponse;
 import com.knu.sosuso.capstone.service.SearchService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,11 +20,17 @@ public class SearchController {
     }
 
     @GetMapping
-    public ResponseEntity<?> search(@RequestParam String query) {
+    public ResponseEntity<ResponseDto<SearchResponse>> search(@RequestParam String query) {
         try {
-            return ResponseEntity.ok(searchService.search(query));
+            SearchResponse searchResult = searchService.search(query);
+            ResponseDto<SearchResponse> response = ResponseDto.of(searchResult, "검색이 완료되었습니다.");
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            ResponseDto<SearchResponse> errorResponse = ResponseDto.of("잘못된 요청: " + e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("검색 중 오류 발생: " + e.getMessage());
+            ResponseDto<SearchResponse> errorResponse = ResponseDto.of("검색 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
 }
