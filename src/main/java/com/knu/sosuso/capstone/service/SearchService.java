@@ -60,7 +60,7 @@ public class SearchService {
         logger.info("비디오 검색 시작: videoId={}", videoId);
 
         try {
-            CommentApiResponse commentInfo = commentService.getCommentInfo(videoId);
+            CommentApiResponse commentInfo = commentService.getCommentInfoAndSave(videoId);
             VideoApiResponse videoInfo = videoService.getVideoInfo(videoId, commentInfo.allComments().size());
 
             logger.info("비디오 검색 완료: videoId={}, 댓글수={}",
