@@ -46,7 +46,7 @@ public class TrendingService {
                 try {
                     log.debug("비디오 정보 조회 중: videoId={}", videoId);
 
-                    CommentApiResponse commentInfo = commentService.getCommentInfo(videoId);
+                    CommentApiResponse commentInfo = commentService.getCommentInfoAndSave(videoId);
 
                     VideoApiResponse videoInfo = videoService.getVideoInfo(videoId, commentInfo.allComments().size());
 

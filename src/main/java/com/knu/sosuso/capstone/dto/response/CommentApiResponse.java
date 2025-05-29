@@ -9,6 +9,7 @@ public record CommentApiResponse(
             String authorName,                       // 작성자 이름
             String commentText,                      // 댓글 본문
             int likeCount,                           // 좋아요 수
+            String emotion,                          // 감정 분석
             String publishedAt                       // 작성 시각
     ) {
     }
