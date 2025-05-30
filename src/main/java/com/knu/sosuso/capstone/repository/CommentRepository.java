@@ -13,7 +13,7 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     List<Comment> findByVideoIdOrderByLikeCountDesc(String videoId);
 
     // 중복 댓글 체크
-    boolean existsByApiCommentId(String apiCommentId);
+    boolean existsByCommentId(String apiCommentId);
 
     // 비디오별 댓글 삭제
     void deleteByVideoId(String videoId);

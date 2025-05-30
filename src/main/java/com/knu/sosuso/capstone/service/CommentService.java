@@ -108,14 +108,14 @@ public class CommentService {
             List<Comment> commentsToSave = comments.stream()
                     .map(commentData -> Comment.builder()
                             .videoId(videoId)
-                            .apiCommentId(generateApiCommentId(videoId, commentData))
+                            .CommentId(commentData.id())
                             .commentContent(commentData.commentText())
                             .likeCount(commentData.likeCount())
                             .emotion(Emotion.other) // 임시로 other 설정
                             .writer(commentData.authorName())
                             .writtenAt(commentData.publishedAt())
                             .build())
-                    .filter(comment -> !commentRepository.existsByApiCommentId(comment.getApiCommentId()))
+                    .filter(comment -> !commentRepository.existsByCommentId(comment.getCommentId()))
                     .collect(Collectors.toList());
 
             List<Comment> savedComments = commentRepository.saveAll(commentsToSave);
@@ -154,6 +154,7 @@ public class CommentService {
 
         List<CommentData> commentDataList = dbComments.stream()
                 .map(comment -> new CommentData(
+                        comment.getCommentId(),
                         comment.getWriter(),
                         comment.getCommentContent(),
                         comment.getLikeCount(),
@@ -253,6 +254,7 @@ public class CommentService {
                 return null;
             }
 
+            String commentId = topLevelComment.path("id").asText();
             String authorName = commentSnippet.path("authorDisplayName").asText();
             String commentText = commentSnippet.path("textDisplay").asText();
             int likeCount = commentSnippet.path("likeCount").asInt(0);
@@ -261,7 +263,7 @@ public class CommentService {
             // 추후 변동 예정
             String emotion = "other";
 
-            return new CommentData(authorName, commentText, likeCount, emotion, publishedAt);
+            return new CommentData(commentId, authorName, commentText, likeCount, emotion, publishedAt);
 
         } catch (Exception e) {
             logger.warn("댓글 파싱 실패: {}", e.getMessage());
@@ -274,11 +276,5 @@ public class CommentService {
                 .map(String::trim)
                 .filter(token -> !token.isEmpty())
                 .isPresent();
-    }
-
-    private String generateApiCommentId(String videoId, CommentData commentData) {
-        String combined = videoId + commentData.authorName() +
-                commentData.publishedAt() + commentData.commentText();
-        return String.valueOf(combined.hashCode());
     }
 }
