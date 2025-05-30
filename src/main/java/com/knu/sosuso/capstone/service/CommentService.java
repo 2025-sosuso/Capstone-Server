@@ -108,7 +108,7 @@ public class CommentService {
             List<Comment> commentsToSave = comments.stream()
                     .map(commentData -> Comment.builder()
                             .videoId(videoId)
-                            .CommentId(commentData.id())
+                            .commentId(commentData.id())
                             .commentContent(commentData.commentText())
                             .likeCount(commentData.likeCount())
                             .emotion(Emotion.other) // 임시로 other 설정
