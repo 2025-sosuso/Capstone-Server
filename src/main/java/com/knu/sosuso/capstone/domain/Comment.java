@@ -15,8 +15,8 @@ public class Comment extends BaseEntity{
     @Column(name = "video_id", nullable = false)
     private String videoId;
 
-    @Column(name = "api_comment_id", nullable = false)
-    private String apiCommentId;
+    @Column(name = "comment_id", nullable = false)
+    private String commentId;
 
     @Column(name = "comment_content", columnDefinition = "TEXT")
     private String commentContent;
@@ -35,10 +35,10 @@ public class Comment extends BaseEntity{
     private String writtenAt;
 
     @Builder
-    public Comment(String videoId, String apiCommentId, String commentContent,
+    public Comment(String videoId, String commentId, String commentContent,
                    Integer likeCount, Emotion emotion, String writer, String writtenAt) {
         this.videoId = videoId;
-        this.apiCommentId = apiCommentId;
+        this.commentId = commentId;
         this.commentContent = commentContent;
         this.likeCount = likeCount;
         this.emotion = emotion;
