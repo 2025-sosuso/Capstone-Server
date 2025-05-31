@@ -1,6 +1,6 @@
-package com.knu.sosuso.capstone.dto.request;
+package com.knu.sosuso.capstone.dto.oauth2;
 
-public record AuthRequest(
+public record GoogleUserInfo(
         String sub,
         String email,
         String name,

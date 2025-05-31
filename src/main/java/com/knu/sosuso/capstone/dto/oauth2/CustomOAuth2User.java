@@ -1,6 +1,5 @@
-package com.knu.sosuso.capstone.dto;
+package com.knu.sosuso.capstone.dto.oauth2;
 
-import com.knu.sosuso.capstone.dto.request.AuthRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -12,11 +11,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CustomOAuth2User implements OAuth2User {
 
-    private final AuthRequest authRequest;
+    private final GoogleUserInfo googleUserInfo;
 
     @Override
     public Map<String, Object> getAttributes() {
-
         return null;
     }
 
@@ -27,7 +25,7 @@ public class CustomOAuth2User implements OAuth2User {
         collection.add(new GrantedAuthority() {
             @Override
             public String getAuthority() {
-                return authRequest.role();
+                return googleUserInfo.role();
             }
         });
         return collection;
@@ -35,10 +33,19 @@ public class CustomOAuth2User implements OAuth2User {
 
     @Override
     public String getName() {
-        return authRequest.name();
+        return googleUserInfo.name();
     }
 
     public String getSub() {
-            return authRequest.sub();
+        return googleUserInfo.sub();
     }
+
+    public String getEmail() {
+        return googleUserInfo.email();
+    }
+
+    public String getPicture() {
+        return googleUserInfo.picture();
+    }
+
 }

@@ -1,7 +1,9 @@
 package com.knu.sosuso.capstone.oauth2;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knu.sosuso.capstone.dto.response.LoginResponse;
 import com.knu.sosuso.capstone.jwt.JwtUtil;
-import com.knu.sosuso.capstone.dto.CustomOAuth2User;
+import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
 import io.jsonwebtoken.io.IOException;
 import io.jsonwebtoken.io.SerialException;
 import jakarta.servlet.http.Cookie;
@@ -21,6 +23,7 @@ import java.util.Iterator;
 public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, SerialException, java.io.IOException {
@@ -34,18 +37,23 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String role = auth.getAuthority();
 
         String token = jwtUtil.createJwt(username, role, 60*60*60L);
-
         response.addCookie(createCookie("Authorization", token));
-        response.sendRedirect("http://localhost:3000/");
+        System.out.println("token = " + token);
+        String name = customUserDetails.getName();
+        String email = customUserDetails.getEmail();
+        String picture = customUserDetails.getPicture();
+        LoginResponse loginResponse = new LoginResponse(name, email, picture);
+
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        objectMapper.writeValue(response.getWriter(), loginResponse);
     }
 
     private Cookie createCookie(String key, String value) {
         Cookie cookie = new Cookie(key, value);
         cookie.setMaxAge(60*60*60);
-//        cookie.setSecure(true);
         cookie.setPath("/");
         cookie.setHttpOnly(true);
-
         return cookie;
     }
 }

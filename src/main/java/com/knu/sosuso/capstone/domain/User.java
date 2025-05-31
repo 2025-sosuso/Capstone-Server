@@ -1,6 +1,6 @@
 package com.knu.sosuso.capstone.domain;
 
-import com.knu.sosuso.capstone.dto.request.AuthRequest;
+import com.knu.sosuso.capstone.dto.oauth2.GoogleUserInfo;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -37,19 +37,19 @@ public class User extends BaseEntity {
         this.picture = picture;
     }
 
-    public static User signUp(AuthRequest authRequest) {
+    public static User signUp(GoogleUserInfo googleUserInfo) {
         return User.builder()
-                .sub(authRequest.sub())
-                .email(authRequest.email())
-                .name(authRequest.name())
-                .role(authRequest.role())
-                .picture(authRequest.picture())
+                .sub(googleUserInfo.sub())
+                .email(googleUserInfo.email())
+                .name(googleUserInfo.name())
+                .role(googleUserInfo.role())
+                .picture(googleUserInfo.picture())
                 .build();
     }
 
-    public void signIn(AuthRequest authRequest) {
-        this.email = authRequest.email();
-        this.name = authRequest.name();
-        this.picture = authRequest.picture();
+    public void signIn(GoogleUserInfo googleUserInfo) {
+        this.email = googleUserInfo.email();
+        this.name = googleUserInfo.name();
+        this.picture = googleUserInfo.picture();
     }
 }

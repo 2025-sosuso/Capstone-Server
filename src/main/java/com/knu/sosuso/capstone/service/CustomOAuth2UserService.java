@@ -1,8 +1,8 @@
 package com.knu.sosuso.capstone.service;
 
 import com.knu.sosuso.capstone.domain.User;
-import com.knu.sosuso.capstone.dto.CustomOAuth2User;
-import com.knu.sosuso.capstone.dto.request.AuthRequest;
+import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
+import com.knu.sosuso.capstone.dto.oauth2.GoogleUserInfo;
 import com.knu.sosuso.capstone.dto.response.GoogleResponse;
 import com.knu.sosuso.capstone.dto.response.OAuth2Response;
 import com.knu.sosuso.capstone.repository.UserRepository;
@@ -37,17 +37,17 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String email = oAuth2Response.getEmail();
         String name = oAuth2Response.getName();
         String picture = oAuth2Response.getPicture();
-        AuthRequest authRequest = new AuthRequest(sub, email, name, ROLE, picture);
+        GoogleUserInfo googleUserInfo = new GoogleUserInfo(sub, email, name, ROLE, picture);
 
-        User existData = userRepository.findBySub(sub);
-        if (existData == null) {
-            User signUpUser = User.signUp(authRequest);
+        User existUser = userRepository.findBySub(sub);
+        if (existUser == null) {
+            User signUpUser = User.signUp(googleUserInfo);
             userRepository.save(signUpUser);
-            return new CustomOAuth2User(authRequest);
+            return new CustomOAuth2User(googleUserInfo);
         } else {
-            existData.signIn(authRequest);
-            userRepository.save(existData);
-            return new CustomOAuth2User(authRequest);
+            existUser.signIn(googleUserInfo);
+            userRepository.save(existUser);
+            return new CustomOAuth2User(googleUserInfo);
         }
     }
 }
