@@ -1,5 +1,7 @@
 package com.knu.sosuso.capstone.oauth2;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knu.sosuso.capstone.dto.response.LoginResponse;
 import com.knu.sosuso.capstone.jwt.JwtUtil;
 import com.knu.sosuso.capstone.dto.CustomOAuth2User;
 import io.jsonwebtoken.io.IOException;
@@ -21,6 +23,7 @@ import java.util.Iterator;
 public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
+    private final ObjectMapper objectMapper;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, SerialException, java.io.IOException {
@@ -34,9 +37,16 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         String role = auth.getAuthority();
 
         String token = jwtUtil.createJwt(username, role, 60*60*60L);
-
         response.addCookie(createCookie("Authorization", token));
-        response.sendRedirect("http://localhost:3000/");
+
+        String name = jwtUtil.getName(token);
+        String email = jwtUtil.getEmail(token);
+        String profileImage = jwtUtil.getPicture(token);
+        LoginResponse loginResponse = new LoginResponse(name, email, profileImage);
+
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        objectMapper.writeValue(response.getWriter(), loginResponse);
     }
 
     private Cookie createCookie(String key, String value) {
