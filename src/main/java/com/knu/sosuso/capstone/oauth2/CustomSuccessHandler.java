@@ -3,7 +3,7 @@ package com.knu.sosuso.capstone.oauth2;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.dto.response.LoginResponse;
 import com.knu.sosuso.capstone.jwt.JwtUtil;
-import com.knu.sosuso.capstone.dto.CustomOAuth2User;
+import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
 import io.jsonwebtoken.io.IOException;
 import io.jsonwebtoken.io.SerialException;
 import jakarta.servlet.http.Cookie;
@@ -38,11 +38,11 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         String token = jwtUtil.createJwt(username, role, 60*60*60L);
         response.addCookie(createCookie("Authorization", token));
-
-        String name = jwtUtil.getName(token);
-        String email = jwtUtil.getEmail(token);
-        String profileImage = jwtUtil.getPicture(token);
-        LoginResponse loginResponse = new LoginResponse(name, email, profileImage);
+        System.out.println("token = " + token);
+        String name = customUserDetails.getName();
+        String email = customUserDetails.getEmail();
+        String picture = customUserDetails.getPicture();
+        LoginResponse loginResponse = new LoginResponse(name, email, picture);
 
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
@@ -52,10 +52,8 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private Cookie createCookie(String key, String value) {
         Cookie cookie = new Cookie(key, value);
         cookie.setMaxAge(60*60*60);
-//        cookie.setSecure(true);
         cookie.setPath("/");
         cookie.setHttpOnly(true);
-
         return cookie;
     }
 }
