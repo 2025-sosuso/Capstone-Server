@@ -39,14 +39,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String picture = oAuth2Response.getPicture();
         AuthRequest authRequest = new AuthRequest(sub, email, name, ROLE, picture);
 
-        User existData = userRepository.findBySub(sub);
-        if (existData == null) {
+        User existUser = userRepository.findBySub(sub);
+        if (existUser == null) {
             User signUpUser = User.signUp(authRequest);
             userRepository.save(signUpUser);
             return new CustomOAuth2User(authRequest);
         } else {
-            existData.signIn(authRequest);
-            userRepository.save(existData);
+            existUser.signIn(authRequest);
+            userRepository.save(existUser);
             return new CustomOAuth2User(authRequest);
         }
     }
