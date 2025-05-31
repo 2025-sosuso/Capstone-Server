@@ -1,6 +1,6 @@
 package com.knu.sosuso.capstone.domain;
 
-import com.knu.sosuso.capstone.dto.request.GoogleUserInfo;
+import com.knu.sosuso.capstone.dto.oauth2.GoogleUserInfo;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;

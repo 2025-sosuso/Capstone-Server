@@ -1,7 +1,7 @@
 package com.knu.sosuso.capstone.jwt;
 
-import com.knu.sosuso.capstone.dto.CustomOAuth2User;
-import com.knu.sosuso.capstone.dto.request.GoogleUserInfo;
+import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
+import com.knu.sosuso.capstone.dto.oauth2.GoogleUserInfo;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
