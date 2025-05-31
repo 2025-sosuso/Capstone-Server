@@ -1,7 +1,7 @@
 package com.knu.sosuso.capstone.jwt;
 
 import com.knu.sosuso.capstone.dto.CustomOAuth2User;
-import com.knu.sosuso.capstone.dto.request.AuthRequest;
+import com.knu.sosuso.capstone.dto.request.GoogleUserInfo;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -58,10 +58,10 @@ public class JwtFilter extends OncePerRequestFilter {
         String picture = jwtUtil.getPicture(token);
 
         // userDto를 생성하여 값 set
-        AuthRequest authRequest = new AuthRequest(sub, email, name, role, picture);
+        GoogleUserInfo googleUserInfo = new GoogleUserInfo(sub, email, name, role, picture);
 
         // UserDetails에 회원 정보 객체 담기
-        CustomOAuth2User customOAuth2User = new CustomOAuth2User(authRequest);
+        CustomOAuth2User customOAuth2User = new CustomOAuth2User(googleUserInfo);
 
         // 스프링 시큐리티 인증 토큰 생성
         Authentication authToken = new UsernamePasswordAuthenticationToken(customOAuth2User, null, customOAuth2User.getAuthorities());
