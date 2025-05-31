@@ -17,6 +17,10 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -50,13 +54,15 @@ public class CommentService {
             List<CommentData> allComments = fetchAllComments(videoId.trim());
             allComments.sort(Comparator.comparingInt(CommentData::likeCount).reversed());
 
+            Map<Integer, Integer> hourlyDistribution = analyzeHourlyDistribution(allComments);
+
             logger.info("댓글 정보 조회 완료: videoId={}, 댓글 수={}", videoId, allComments.size());
-            return new CommentApiResponse(allComments);
+            return new CommentApiResponse(hourlyDistribution, allComments);
 
         } catch (HttpClientErrorException.Forbidden e) {
             logger.warn("댓글 접근 금지: videoId={}", videoId);
             // 빈 댓글 리스트 반환 (댓글 비활성화는 정상적인 상황)
-            return new CommentApiResponse(new ArrayList<>());
+            return new CommentApiResponse(new HashMap<>(), new ArrayList<>());
 
         } catch (HttpClientErrorException.NotFound e) {
             logger.warn("비디오를 찾을 수 없음: videoId={}", videoId);
@@ -163,7 +169,9 @@ public class CommentService {
                 ))
                 .collect(Collectors.toList());
 
-        return new CommentApiResponse(commentDataList);
+        Map<Integer, Integer> hourlyDistribution = analyzeHourlyDistribution(commentDataList);
+
+        return new CommentApiResponse(hourlyDistribution, commentDataList);
     }
 
     private List<CommentData> fetchAllComments(String videoId) {
@@ -269,6 +277,42 @@ public class CommentService {
             logger.warn("댓글 파싱 실패: {}", e.getMessage());
             return null;
         }
+    }
+
+    private Map<Integer, Integer> analyzeHourlyDistribution(List<CommentData> comments) {
+        Map<Integer, Integer> hourlyCount = new HashMap<>();
+
+        // 0~23시 초기화
+        for (int i = 0; i < 24; i++) {
+            hourlyCount.put(i, 0);
+        }
+
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+
+        for (CommentData comment : comments) {
+            try {
+                // YouTube API 시간 형식: "2025-05-24T16:10:53Z" (UTC)
+                String timeString = comment.publishedAt();
+
+                ZonedDateTime utcTime = ZonedDateTime.parse(timeString);
+                ZonedDateTime koreaTime = utcTime.withZoneSameInstant(koreaZone);
+
+                int hour = koreaTime.getHour();
+                hourlyCount.put(hour, hourlyCount.get(hour) + 1);
+
+                if (hourlyCount.values().stream().mapToInt(Integer::intValue).sum() <= 5) {
+                    logger.info("시간 변환 예시: UTC={} -> KST={} ({}시)",
+                            timeString, koreaTime.toString(), hour);
+                }
+
+            } catch (Exception e) {
+                logger.warn("댓글 시간 파싱 실패: publishedAt={}, error={}",
+                        comment.publishedAt(), e.getMessage());
+            }
+        }
+
+        logger.info("시간대별 댓글 분포 분석 완료 (한국시간): 총 댓글 수={}", comments.size());
+        return hourlyCount;
     }
 
     private boolean isValidPageToken(String pageToken) {
