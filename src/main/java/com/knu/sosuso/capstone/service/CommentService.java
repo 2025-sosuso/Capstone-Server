@@ -2,12 +2,15 @@ package com.knu.sosuso.capstone.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knu.sosuso.capstone.ai.dto.AnalysisResponse;
 import com.knu.sosuso.capstone.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.Comment;
-import com.knu.sosuso.capstone.domain.enums.Emotion;
+import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse.CommentData;
 import com.knu.sosuso.capstone.repository.CommentRepository;
+import com.knu.sosuso.capstone.repository.VideoRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,26 +27,22 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @Service
 public class CommentService {
 
     private static final Logger logger = LoggerFactory.getLogger(CommentService.class);
     private static final String YOUTUBE_COMMENT_API_URL = "https://www.googleapis.com/youtube/v3/commentThreads";
-    private static final int MAX_RESULTS_PER_REQUEST = 100;
     private static final Pattern HOUR_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2}):(\\d{2})\\b");
     private static final Pattern MINUTE_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2})\\b");
+    private static final int MAX_RESULTS_PER_REQUEST = 100;
 
+    private final ApiConfig apiConfig = new ApiConfig();
     private final RestTemplate restTemplate;
-    private final String apiKey;
-    private final ObjectMapper objectMapper;
+    private final String apiKey = apiConfig.getKey();
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private final CommentRepository commentRepository;
-
-    public CommentService(ApiConfig config, RestTemplate restTemplate, CommentRepository commentRepository) {
-        this.apiKey = config.getKey();
-        this.restTemplate = restTemplate;
-        this.objectMapper = new ObjectMapper();
-        this.commentRepository = commentRepository;
-    }
+    private final VideoRepository videoRepository;
 
     public CommentApiResponse getCommentInfo(String videoId) {
         if (videoId == null || videoId.trim().isEmpty()) {
@@ -51,7 +50,7 @@ public class CommentService {
         }
 
         try {
-            logger.info("댓글 정보 조회 시작: videoId={}", videoId);
+            logger.info("댓글 정보 조회 시작: apiVideoId={}", videoId);
 
             List<CommentData> allComments = fetchAllComments(videoId.trim());
             allComments.sort(Comparator.comparingInt(CommentData::likeCount).reversed());
@@ -59,23 +58,22 @@ public class CommentService {
             Map<Integer, Integer> hourlyDistribution = analyzeHourlyDistribution(allComments);
             Map<String, Integer> mentionedTimestamp = analyzeMentionedTimestamp(allComments);
 
-            logger.info("댓글 정보 조회 완료: videoId={}, 댓글 수={}", videoId, allComments.size());
+            logger.info("댓글 정보 조회 완료: apiVideoId={}, 댓글 수={}", videoId, allComments.size());
             return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, allComments);
-
         } catch (HttpClientErrorException.Forbidden e) {
-            logger.warn("댓글 접근 금지: videoId={}", videoId);
+            logger.warn("댓글 접근 금지: apiVideoId={}", videoId);
             // 빈 댓글 리스트 반환 (댓글 비활성화는 정상적인 상황)
             return new CommentApiResponse(new HashMap<>(), new HashMap<>(), new ArrayList<>());
         } catch (HttpClientErrorException.NotFound e) {
-            logger.warn("비디오를 찾을 수 없음: videoId={}", videoId);
+            logger.warn("비디오를 찾을 수 없음: apiVideoId={}", videoId);
             throw new IllegalArgumentException("존재하지 않는 비디오입니다", e);
 
         } catch (RestClientException e) {
-            logger.error("YouTube API 호출 실패: videoId={}, error={}", videoId, e.getMessage(), e);
+            logger.error("YouTube API 호출 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
             throw new IllegalStateException("댓글 정보를 가져올 수 없습니다", e);
 
         } catch (Exception e) {
-            logger.error("댓글 정보 조회 실패: videoId={}, error={}", videoId, e.getMessage(), e);
+            logger.error("댓글 정보 조회 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
             throw new RuntimeException("댓글 정보 조회 중 오류 발생", e);
         }
     }
@@ -84,57 +82,62 @@ public class CommentService {
      * 댓글 조회 + DB 저장 (통합 메서드)
      */
     public CommentApiResponse getCommentInfoAndSave(String videoId) {
-        CommentApiResponse commentResponse = getCommentInfo(videoId);
+        return getCommentInfo(videoId);
+    }
+
+    @Transactional
+    public void saveComments(CommentApiResponse commentApiResponse, AnalysisResponse analysisResponse) {
+        String videoId = analysisResponse.apiVideoId();
 
         try {
-            int savedCount = saveCommentsToDb(videoId, commentResponse.allComments());
-            logger.info("댓글 DB 저장 완료: videoId={}, 저장된 개수={}", videoId, savedCount);
+            int savedCount = saveCommentsToDb(commentApiResponse.allComments(), analysisResponse);
+            logger.info("댓글 DB 저장 완료: apiVideoId={}, 저장된 개수={}", videoId, savedCount);
         } catch (Exception e) {
-            logger.error("댓글 DB 저장 실패: videoId={}, error={}", videoId, e.getMessage());
+            logger.error("댓글 DB 저장 실패: apiVideoId={}, error={}", videoId, e.getMessage());
         }
-
-        return commentResponse;
     }
 
     /**
      * 댓글 리스트를 DB에 저장
      */
     @Transactional
-    public int saveCommentsToDb(String videoId, List<CommentData> comments) {
-        if (videoId == null || videoId.trim().isEmpty()) {
+    public int saveCommentsToDb(List<CommentData> comments, AnalysisResponse analysisResponse) {
+        String api_video_id = analysisResponse.apiVideoId();
+        if (api_video_id == null || api_video_id.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다");
         }
 
         if (comments == null || comments.isEmpty()) {
-            logger.info("저장할 댓글이 없습니다: videoId={}", videoId);
+            logger.info("저장할 댓글이 없습니다: apiVideoId={}", api_video_id);
             return 0;
         }
 
-        logger.info("댓글 DB 저장 시작: videoId={}, 댓글수={}", videoId, comments.size());
-
+        logger.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", api_video_id, comments.size());
+        Video video = videoRepository.findById(analysisResponse.videoId()).orElseThrow();
         try {
+//            videoService.saveVideoAnalysisInformation(analysisResponse);
             List<Comment> commentsToSave = comments.stream()
                     .map(commentData -> Comment.builder()
-                            .videoId(videoId)
-                            .commentId(commentData.id())
+                            .video(video)
+                            .apiCommentId(commentData.id())
                             .commentContent(commentData.commentText())
                             .likeCount(commentData.likeCount())
-                            .emotion(Emotion.other) // 임시로 other 설정
+                            .sentimentType(analysisResponse.sentimentComments().get(commentData.id()))
                             .writer(commentData.authorName())
                             .writtenAt(commentData.publishedAt())
                             .build())
-                    .filter(comment -> !commentRepository.existsByCommentId(comment.getCommentId()))
+                    .filter(comment -> !commentRepository.existsByApiCommentId(comment.getApiCommentId()))
                     .collect(Collectors.toList());
 
             List<Comment> savedComments = commentRepository.saveAll(commentsToSave);
 
-            logger.info("댓글 DB 저장 완료: videoId={}, 저장={}, 중복 제외={}",
-                    videoId, savedComments.size(), comments.size() - savedComments.size());
+            logger.info("댓글 DB 저장 완료: apiVideoId={}, 저장={}, 중복 제외={}",
+                    api_video_id, savedComments.size(), comments.size() - savedComments.size());
 
             return savedComments.size();
 
         } catch (Exception e) {
-            logger.error("댓글 DB 저장 실패: videoId={}, error={}", videoId, e.getMessage(), e);
+            logger.error("댓글 DB 저장 실패: apiVideoId={}, error={}", api_video_id, e.getMessage(), e);
             throw new RuntimeException("댓글 저장 중 오류 발생", e);
         }
     }
@@ -142,8 +145,8 @@ public class CommentService {
     /**
      * 기존 댓글 삭제 후 새로 저장
      */
-    @Transactional
-    public int replaceCommentsInDb(String videoId, List<CommentData> comments) {
+    /*@Transactional
+    public int replaceCommentsInDb(Long videoId, List<CommentData> comments) {
         logger.info("댓글 교체 시작: videoId={}", videoId);
 
         // 기존 댓글 삭제
@@ -151,22 +154,22 @@ public class CommentService {
 
         // 새 댓글 저장
         return saveCommentsToDb(videoId, comments);
-    }
+    }*/
 
     /**
      * DB에서 댓글 조회
      */
     @Transactional(readOnly = true)
-    public CommentApiResponse getCommentsFromDb(String videoId) {
+    public CommentApiResponse getCommentsFromDb(Long videoId) {
         List<Comment> dbComments = commentRepository.findByVideoIdOrderByLikeCountDesc(videoId);
 
         List<CommentData> commentDataList = dbComments.stream()
                 .map(comment -> new CommentData(
-                        comment.getCommentId(),
+                        comment.getApiCommentId(),
                         comment.getWriter(),
                         comment.getCommentContent(),
                         comment.getLikeCount(),
-                        comment.getEmotion().name().toLowerCase(), // enum을 문자열로 변환
+                        comment.getSentimentType().name().toLowerCase(),
                         comment.getWrittenAt()
                 ))
                 .collect(Collectors.toList());
@@ -204,10 +207,10 @@ public class CommentService {
                 pageCount++;
 
                 if (pageCount % 10 == 0) {
-                    logger.info("댓글 수집 진행: videoId={}, 페이지={}, 누적={}", videoId, pageCount, allComments.size());
+                    logger.info("댓글 수집 진행: apiVideoId={}, 페이지={}, 누적={}", videoId, pageCount, allComments.size());
                 }
             } catch (Exception e) {
-                logger.error("JSON 파싱 실패: videoId={}, error={}", videoId, e.getMessage(), e);
+                logger.error("JSON 파싱 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
                 break;
             }
 
@@ -221,7 +224,7 @@ public class CommentService {
                 .queryParam("part", "snippet")
                 .queryParam("maxResults", MAX_RESULTS_PER_REQUEST)
                 .queryParam("textFormat", "plainText")
-                .queryParam("videoId", videoId)
+                .queryParam("apiVideoId", videoId)
                 .queryParam("key", apiKey);
 
         if (isValidPageToken(pageToken)) {
