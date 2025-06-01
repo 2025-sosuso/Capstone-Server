@@ -44,15 +44,15 @@ public class TrendingService {
 
             for (String videoId : videoIds) {
                 try {
-                    log.debug("비디오 정보 조회 중: videoId={}", videoId);
+                    log.debug("비디오 정보 조회 중: apiVideoId={}", videoId);
 
-                    CommentApiResponse commentInfo = commentService.getCommentInfoAndSave(videoId);
+                    CommentApiResponse commentInfo = commentService.getCommentInfo(videoId);
 
                     VideoApiResponse videoInfo = videoService.getVideoInfo(videoId, commentInfo.allComments().size());
 
                     results.add(new SearchUrlResponse(videoInfo, commentInfo));
                 } catch (Exception e) {
-                    log.error("개별 비디오 처리 실패: videoId={}, error={}", videoId, e.getMessage(), e);
+                    log.error("개별 비디오 처리 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
                 }
             }
 
