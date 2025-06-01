@@ -10,12 +10,13 @@ import java.util.List;
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     // 특정 비디오의 댓글들 조회 (좋아요 수 내림차순)
-    List<Comment> findByVideoIdOrderByLikeCountDesc(String videoId);
+    List<Comment> findByVideoIdOrderByLikeCountDesc(Long videoId);
 
     // 중복 댓글 체크
-    boolean existsByCommentId(String CommentId);
+    boolean existsByApiCommentId(String apiCommentId);
 
     // 비디오별 댓글 삭제
-    void deleteByVideoId(String videoId);
+    void deleteByVideoId(Long videoId);
 
+    List<Comment> findAllByVideoId(Long videoId);
 }
