@@ -4,22 +4,17 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record VideoApiResponse(
-        String id,
-        String publishedAt,
+        String apiVideoId,
         String title,
         String description,
+        String thumbnailUrl,
         String channelId,
         String channelTitle,
         String channelThumbnailUrl,
+        String publishedAt,
         String subscriberCount,
-        String thumbnailUrl,
-        String[] tags,
-        String categoryId,
-        String liveBroadcastContent,
-        String defaultAudioLanguage,
         String viewCount,
         String likeCount,
         String commentCount
-
 ) {
 }
