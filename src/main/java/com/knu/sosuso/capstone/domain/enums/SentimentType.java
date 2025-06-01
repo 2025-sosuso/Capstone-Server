@@ -1,6 +1,6 @@
 package com.knu.sosuso.capstone.domain.enums;
 
-public enum Emotion {
+public enum SentimentType {
     positive,
     negative,
     other

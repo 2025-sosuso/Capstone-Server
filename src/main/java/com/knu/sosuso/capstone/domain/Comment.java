@@ -1,6 +1,6 @@
 package com.knu.sosuso.capstone.domain;
 
-import com.knu.sosuso.capstone.domain.enums.Emotion;
+import com.knu.sosuso.capstone.domain.enums.SentimentType;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -12,11 +12,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class Comment extends BaseEntity{
 
-    @Column(name = "video_id", nullable = false)
-    private String videoId;
+    @JoinColumn(name = "video_id")
+    @ManyToOne
+    private Video video;
 
-    @Column(name = "comment_id", nullable = false)
-    private String commentId;
+    @Column(name = "api_comment_id", nullable = false)
+    private String apiCommentId;
 
     @Column(name = "comment_content", columnDefinition = "TEXT")
     private String commentContent;
@@ -25,8 +26,8 @@ public class Comment extends BaseEntity{
     private Integer likeCount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "emotion")
-    private Emotion emotion;
+    @Column(name = "sentiment_type")
+    private SentimentType sentimentType;
 
     @Column(name = "writer")
     private String writer;
@@ -35,13 +36,13 @@ public class Comment extends BaseEntity{
     private String writtenAt;
 
     @Builder
-    public Comment(String videoId, String commentId, String commentContent,
-                   Integer likeCount, Emotion emotion, String writer, String writtenAt) {
-        this.videoId = videoId;
-        this.commentId = commentId;
+    public Comment(Video video, String apiCommentId, String commentContent,
+                   Integer likeCount, SentimentType sentimentType, String writer, String writtenAt) {
+        this.video = video;
+        this.apiCommentId = apiCommentId;
         this.commentContent = commentContent;
         this.likeCount = likeCount;
-        this.emotion = emotion;
+        this.sentimentType = sentimentType;
         this.writer = writer;
         this.writtenAt = writtenAt;
     }
