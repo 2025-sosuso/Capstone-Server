@@ -2,8 +2,12 @@ package com.knu.sosuso.capstone.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knu.sosuso.capstone.ai.dto.AnalysisResponse;
 import com.knu.sosuso.capstone.config.ApiConfig;
+import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
+import com.knu.sosuso.capstone.repository.VideoRepository;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -15,6 +19,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@RequiredArgsConstructor
 @Service
 public class VideoService {
 
@@ -26,16 +31,16 @@ public class VideoService {
             "(?:youtube\\.com/(?:watch\\?v=|embed/|v/)|youtu\\.be/|m\\.youtube\\.com/watch\\?v=)([\\w-]{11})"
     );
 
-    private final ApiConfig config;
+    private final ApiConfig config = new ApiConfig();
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final VideoRepository videoRepository;
 
-    public VideoService(ApiConfig config, RestTemplate restTemplate) {
-        this.config = config;
-        this.restTemplate = restTemplate;
-        this.objectMapper = new ObjectMapper();
-    }
-
+    /**
+     * 비디오 id 추출
+     * @param url
+     * @return
+     */
     public String extractVideoId(String url) {
         if (url == null || url.trim().isEmpty()) {
             return null;
@@ -51,7 +56,7 @@ public class VideoService {
         }
 
         try {
-            logger.info("비디오 정보 조회 시작: videoId={}", videoId);
+            logger.info("비디오 정보 조회 시작: apiVideoId={}", videoId);
 
             // 1. 비디오 정보 조회
             String videoResponse = getVideoData(videoId.trim());
@@ -73,27 +78,55 @@ public class VideoService {
             // 3. 응답 생성
             VideoApiResponse response = buildVideoResponse(videoItem, channelItem, actualCommentCount);
 
-            logger.info("비디오 정보 조회 완료: videoId={}", videoId);
+            logger.info("비디오 정보 조회 완료: apiVideoId={}", videoId);
             return response;
 
         } catch (HttpClientErrorException.NotFound e) {
-            logger.warn("비디오를 찾을 수 없음: videoId={}", videoId);
+            logger.warn("비디오를 찾을 수 없음: apiVideoId={}", videoId);
             throw new IllegalArgumentException("존재하지 않는 비디오입니다", e);
 
         } catch (HttpClientErrorException.Forbidden e) {
-            logger.warn("비디오 접근 금지: videoId={}", videoId);
+            logger.warn("비디오 접근 금지: apiVideoId={}", videoId);
             throw new IllegalStateException("이 비디오에 접근할 수 없습니다", e);
 
         } catch (RestClientException e) {
-            logger.error("YouTube API 호출 실패: videoId={}, error={}", videoId, e.getMessage(), e);
+            logger.error("YouTube API 호출 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
             throw new RuntimeException("비디오 정보를 가져올 수 없습니다", e);
 
         } catch (Exception e) {
-            logger.error("비디오 정보 조회 실패: videoId={}, error={}", videoId, e.getMessage(), e);
+            logger.error("비디오 정보 조회 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
             throw new RuntimeException("비디오 정보 조회 중 오류 발생", e);
         }
     }
 
+    /**
+     * 비디오 데이터(분석 결과 포함) 저장 메서드
+     * @param videoApiResponse
+     * @param analysisResponse
+     */
+    public void saveVideoAnalysisInformation(VideoApiResponse videoApiResponse, AnalysisResponse analysisResponse) {
+        Video video = Video.builder()
+                .apiVideoId(videoApiResponse.apiVideoId())
+                .title(videoApiResponse.title())
+                .thumbnailUrl(videoApiResponse.thumbnailUrl())
+                .channelId(videoApiResponse.channelId())
+                .channelName((videoApiResponse.channelTitle()))
+                .uploadedAt(videoApiResponse.publishedAt())
+                .subscriberCount(videoApiResponse.subscriberCount())
+                .viewCount(videoApiResponse.viewCount())
+                .likeCount(videoApiResponse.likeCount())
+                .commentCount(videoApiResponse.commentCount())
+                .summation(analysisResponse.summation())
+                .isWarning(analysisResponse.isWarning())
+                .build();
+        videoRepository.save(video);
+    }
+
+    /**
+     * 유튜브에 해당 영상 데이터를 요청
+     * @param videoId
+     * @return
+     */
     private String getVideoData(String videoId) {
         String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_VIDEOS_API_URL)
                 .queryParam("part", "snippet,statistics")
@@ -106,6 +139,11 @@ public class VideoService {
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
+    /**
+     * 유튜브로부터 채널 데이터를 받아옴
+     * @param channelId
+     * @return
+     */
     private String getChannelData(String channelId) {
         String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_CHANNELS_API_URL)
                 .queryParam("part", "snippet,statistics")
@@ -117,6 +155,13 @@ public class VideoService {
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
+    /**
+     * 유튜브로부터 영상 데이터를 받아옴
+     * @param videoItem
+     * @param channelItem
+     * @param actualCommentCount
+     * @return
+     */
     private VideoApiResponse buildVideoResponse(JsonNode videoItem, JsonNode channelItem, Integer actualCommentCount) {
         JsonNode snippet = videoItem.get("snippet");
         JsonNode statistics = videoItem.get("statistics");
@@ -127,19 +172,12 @@ public class VideoService {
         String thumbnailUrl = extractThumbnailUrl(snippet.get("thumbnails"));
         String channelThumbnailUrl = extractThumbnailUrl(channelSnippet.get("thumbnails"));
 
-        // tags 배열 처리
-        String[] tags = null;
-        if (snippet.has("tags") && snippet.get("tags").isArray()) {
-            tags = objectMapper.convertValue(snippet.get("tags"), String[].class);
-        }
-
         String commentCount;
         if (actualCommentCount != null) {
             commentCount = String.valueOf(actualCommentCount);
         } else {
             commentCount = statistics.has("commentCount") ? statistics.get("commentCount").asText() : "0";
         }
-
 
         return new VideoApiResponse(
                 videoItem.get("id").asText(),
@@ -151,10 +189,6 @@ public class VideoService {
                 channelThumbnailUrl,
                 channelStatistics.has("subscriberCount") ? channelStatistics.get("subscriberCount").asText() : "0",
                 thumbnailUrl,
-                tags != null ? tags : new String[0],
-                snippet.has("categoryId") ? snippet.get("categoryId").asText() : "",
-                snippet.has("liveBroadcastContent") ? snippet.get("liveBroadcastContent").asText() : "",
-                snippet.has("defaultAudioLanguage") ? snippet.get("defaultAudioLanguage").asText() : "",
                 statistics.has("viewCount") ? statistics.get("viewCount").asText() : "0",
                 statistics.has("likeCount") ? statistics.get("likeCount").asText() : "0",
                 commentCount
