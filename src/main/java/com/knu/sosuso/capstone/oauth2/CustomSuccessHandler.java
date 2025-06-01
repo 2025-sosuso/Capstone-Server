@@ -46,6 +46,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
+        response.sendRedirect("http://localhost:3000/login/success");
         objectMapper.writeValue(response.getWriter(), loginResponse);
     }
 
