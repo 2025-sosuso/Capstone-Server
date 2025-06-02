@@ -7,14 +7,14 @@ public record VideoApiResponse(
         String apiVideoId,
         String title,
         String description,
+        String viewCount,
+        String likeCount,
+        String commentCount,
         String thumbnailUrl,
         String channelId,
         String channelTitle,
         String channelThumbnailUrl,
-        String publishedAt,
         String subscriberCount,
-        String viewCount,
-        String likeCount,
-        String commentCount
+        String publishedAt
 ) {
 }

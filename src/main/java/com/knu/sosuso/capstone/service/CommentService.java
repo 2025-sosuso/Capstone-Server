@@ -36,43 +36,42 @@ public class CommentService {
     private static final Pattern MINUTE_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2})\\b");
     private static final int MAX_RESULTS_PER_REQUEST = 100;
 
-    private final ApiConfig apiConfig = new ApiConfig();
+    private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;
-    private final String apiKey = apiConfig.getKey();
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final ObjectMapper objectMapper;
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
 
-    public CommentApiResponse getCommentInfo(String videoId) {
-        if (videoId == null || videoId.trim().isEmpty()) {
+    public CommentApiResponse getCommentInfo(String apiVideoId) {
+        if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다");
         }
 
         try {
-            log.info("댓글 정보 조회 시작: apiVideoId={}", videoId);
+            log.info("댓글 정보 조회 시작: apiVideoId={}", apiVideoId);
 
-            List<CommentData> allComments = fetchAllComments(videoId.trim());
+            List<CommentData> allComments = fetchAllComments(apiVideoId.trim());
             allComments.sort(Comparator.comparingInt(CommentData::likeCount).reversed());
 
             Map<Integer, Integer> hourlyDistribution = analyzeHourlyDistribution(allComments);
             Map<String, Integer> mentionedTimestamp = analyzeMentionedTimestamp(allComments);
 
-            log.info("댓글 정보 조회 완료: apiVideoId={}, 댓글 수={}", videoId, allComments.size());
+            log.info("댓글 정보 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, allComments.size());
             return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, allComments);
         } catch (HttpClientErrorException.Forbidden e) {
-            log.warn("댓글 접근 금지: apiVideoId={}", videoId);
+            log.warn("댓글 접근 금지: apiVideoId={}", apiVideoId);
             // 빈 댓글 리스트 반환 (댓글 비활성화는 정상적인 상황)
             return new CommentApiResponse(new HashMap<>(), new HashMap<>(), new ArrayList<>());
         } catch (HttpClientErrorException.NotFound e) {
-            log.warn("비디오를 찾을 수 없음: apiVideoId={}", videoId);
+            log.warn("비디오를 찾을 수 없음: apiVideoId={}", apiVideoId);
             throw new IllegalArgumentException("존재하지 않는 비디오입니다", e);
 
         } catch (RestClientException e) {
-            log.error("YouTube API 호출 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
+            log.error("YouTube API 호출 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
             throw new IllegalStateException("댓글 정보를 가져올 수 없습니다", e);
 
         } catch (Exception e) {
-            log.error("댓글 정보 조회 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
+            log.error("댓글 정보 조회 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
             throw new RuntimeException("댓글 정보 조회 중 오류 발생", e);
         }
     }
@@ -179,13 +178,13 @@ public class CommentService {
         return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, commentDataList);
     }
 
-    private List<CommentData> fetchAllComments(String videoId) {
+    private List<CommentData> fetchAllComments(String apiVideoId) {
         List<CommentData> allComments = new ArrayList<>();
         String pageToken = null;
         int pageCount = 0;
 
         do {
-            String apiUrl = buildApiUrl(videoId, pageToken);
+            String apiUrl = buildApiUrl(apiVideoId, pageToken);
             String jsonResponse = callYouTubeApi(apiUrl);
 
             try {
@@ -206,10 +205,10 @@ public class CommentService {
                 pageCount++;
 
                 if (pageCount % 10 == 0) {
-                    log.info("댓글 수집 진행: apiVideoId={}, 페이지={}, 누적={}", videoId, pageCount, allComments.size());
+                    log.info("댓글 수집 진행: apiVideoId={}, 페이지={}, 누적={}", apiVideoId, pageCount, allComments.size());
                 }
             } catch (Exception e) {
-                log.error("JSON 파싱 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
+                log.error("JSON 파싱 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
                 break;
             }
 
@@ -218,13 +217,13 @@ public class CommentService {
         return allComments;
     }
 
-    private String buildApiUrl(String videoId, String pageToken) {
+    private String buildApiUrl(String apiVideoId, String pageToken) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(YOUTUBE_COMMENT_API_URL)
                 .queryParam("part", "snippet")
                 .queryParam("maxResults", MAX_RESULTS_PER_REQUEST)
                 .queryParam("textFormat", "plainText")
-                .queryParam("apiVideoId", videoId)
-                .queryParam("key", apiKey);
+                .queryParam("videoId", apiVideoId)
+                .queryParam("key", apiConfig.getKey());
 
         if (isValidPageToken(pageToken)) {
             builder.queryParam("pageToken", pageToken);

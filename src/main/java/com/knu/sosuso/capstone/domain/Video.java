@@ -19,11 +19,8 @@ public class Video extends BaseEntity {
     @Column(name = "title")
     private String title;
 
-    @Column(name = "channel_name")
-    private String channelName;
-
-    @Column(name = "subscriber_count")
-    private String subscriberCount;
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 
     @Column(name = "view_count")
     private String viewCount;
@@ -34,20 +31,23 @@ public class Video extends BaseEntity {
     @Column(name = "comment_count")
     private String commentCount;
 
-    @Column(name = "summation")
-    private String summation;
-
-    @Column(name = "warning")
-    private boolean isWarning;
-
     @Column(name = "thumbnail_url")
     private String thumbnailUrl;
 
     @Column(name = "channel_id")
     private String channelId;
 
-    @Column(name = "category_id")
-    private String categoryId;
+    @Column(name = "channel_name")
+    private String channelName;
+
+    @Column(name = "subscriber_count")
+    private String subscriberCount;
+
+    @Column(name = "summation")
+    private String summation;
+
+    @Column(name = "warning")
+    private boolean isWarning;
 
     /*@Column(name = "language")
     @Convert(converter = JsonConverter.class)
@@ -61,32 +61,20 @@ public class Video extends BaseEntity {
     private String uploadedAt;
 
     @Builder
-    public Video(String apiVideoId,
-                 String title,
-                 String channelName,
-                 String subscriberCount,
-                 String viewCount,
-                 String likeCount,
-                 String commentCount,
-                 String summation,
-                 boolean isWarning,
-                 String uploadedAt,
-                 String thumbnailUrl,
-                 String channelId,
-                 String categoryId) {
+    public Video(String apiVideoId, String title, String description, String viewCount, String likeCount, String commentCount, String thumbnailUrl, String channelId, String channelName, String subscriberCount, String summation, boolean isWarning, String uploadedAt) {
         this.apiVideoId = apiVideoId;
         this.title = title;
-        this.channelName = channelName;
-        this.subscriberCount = subscriberCount;
+        this.description = description;
         this.viewCount = viewCount;
         this.likeCount = likeCount;
         this.commentCount = commentCount;
+        this.thumbnailUrl = thumbnailUrl;
+        this.channelId = channelId;
+        this.channelName = channelName;
+        this.subscriberCount = subscriberCount;
         this.summation = summation;
         this.isWarning = isWarning;
         this.uploadedAt = uploadedAt;
-        this.thumbnailUrl = thumbnailUrl;
-        this.channelId = channelId;
-        this.categoryId = categoryId;
     }
 }
 
