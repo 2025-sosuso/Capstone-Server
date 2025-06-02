@@ -8,8 +8,7 @@ import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
@@ -19,11 +18,11 @@ import org.springframework.web.util.UriComponentsBuilder;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+@Slf4j
 @RequiredArgsConstructor
 @Service
 public class VideoService {
 
-    private static final Logger logger = LoggerFactory.getLogger(VideoService.class);
     private static final String YOUTUBE_VIDEOS_API_URL = "https://www.googleapis.com/youtube/v3/videos";
     private static final String YOUTUBE_CHANNELS_API_URL = "https://www.googleapis.com/youtube/v3/channels";
 
@@ -56,7 +55,7 @@ public class VideoService {
         }
 
         try {
-            logger.info("비디오 정보 조회 시작: apiVideoId={}", videoId);
+            log.info("비디오 정보 조회 시작: apiVideoId={}", videoId);
 
             // 1. 비디오 정보 조회
             String videoResponse = getVideoData(videoId.trim());
@@ -78,23 +77,23 @@ public class VideoService {
             // 3. 응답 생성
             VideoApiResponse response = buildVideoResponse(videoItem, channelItem, actualCommentCount);
 
-            logger.info("비디오 정보 조회 완료: apiVideoId={}", videoId);
+            log.info("비디오 정보 조회 완료: apiVideoId={}", videoId);
             return response;
 
         } catch (HttpClientErrorException.NotFound e) {
-            logger.warn("비디오를 찾을 수 없음: apiVideoId={}", videoId);
+            log.warn("비디오를 찾을 수 없음: apiVideoId={}", videoId);
             throw new IllegalArgumentException("존재하지 않는 비디오입니다", e);
 
         } catch (HttpClientErrorException.Forbidden e) {
-            logger.warn("비디오 접근 금지: apiVideoId={}", videoId);
+            log.warn("비디오 접근 금지: apiVideoId={}", videoId);
             throw new IllegalStateException("이 비디오에 접근할 수 없습니다", e);
 
         } catch (RestClientException e) {
-            logger.error("YouTube API 호출 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
+            log.error("YouTube API 호출 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
             throw new RuntimeException("비디오 정보를 가져올 수 없습니다", e);
 
         } catch (Exception e) {
-            logger.error("비디오 정보 조회 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
+            log.error("비디오 정보 조회 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
             throw new RuntimeException("비디오 정보 조회 중 오류 발생", e);
         }
     }
@@ -189,7 +188,7 @@ public class VideoService {
 
         // 썸네일 URL 추출 (standard 우선, 없으면 high, 없으면 medium, 없으면 default)
         String thumbnailUrl = extractThumbnailUrl(snippet.get("thumbnails"));
-        logger.info("썸네일 url: {}", thumbnailUrl);
+        log.info("썸네일 url: {}", thumbnailUrl);
         String channelThumbnailUrl = extractThumbnailUrl(channelSnippet.get("thumbnails"));
 
         String commentCount;
