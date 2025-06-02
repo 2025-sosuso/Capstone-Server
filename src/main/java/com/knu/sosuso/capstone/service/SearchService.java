@@ -56,37 +56,55 @@ public class SearchService {
 
     // 3. 영상 정보 가져옴
     private SearchUrlResponse searchVideo(String videoUrl) {
-        String videoId = videoService.extractVideoId(videoUrl);
+        String apiVideoId = videoService.extractVideoId(videoUrl);
 
-        if (videoId == null || videoId.trim().isEmpty()) {
+        if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new IllegalArgumentException("유효하지 않은 YouTube URL입니다");
         }
 
-        log.info("비디오 검색 시작: apiVideoId={}", videoId);
+        log.info("비디오 검색 시작: apiVideoId={}", apiVideoId);
 
         try {
-            CommentApiResponse commentInfo = commentService.getCommentInfo(videoId)
-                    ;
+            CommentApiResponse commentInfo = commentService.getCommentInfo(apiVideoId);
+
+            if (commentInfo.allComments().isEmpty()) {
+                log.info("댓글 불러오기 실패, AI 분석을 건너뜁니다: apiVideoId={}", apiVideoId);
+
+                VideoApiResponse videoApiResponse = videoService.getVideoInfo(apiVideoId, 0);
+                videoService.saveVideoInformation(videoApiResponse);
+                return new SearchUrlResponse(videoApiResponse, commentInfo);
+            }
+
             Map<String, String> comments = new HashMap<>();
             List<CommentApiResponse.CommentData> commentData = commentInfo.allComments();
             for (CommentApiResponse.CommentData commentDatum : commentData) {
                 comments.put(commentDatum.id(), commentDatum.commentText());
             }
-            AnalysisRequest analysisRequest = new AnalysisRequest(videoId, comments);
-            AnalysisResponse analysisResponse = analysisService.requestAnalysis(analysisRequest);
-            commentService.saveComments(commentInfo, analysisResponse);
 
             int totalCommentCount = commentInfo.allComments().size();
-            VideoApiResponse videoInfo = videoService.getVideoInfo(videoId, totalCommentCount);
-            videoService.saveVideoAnalysisInformation(videoInfo, analysisResponse);
+            VideoApiResponse videoInfo = null;
+            try {
+                AnalysisRequest analysisRequest = new AnalysisRequest(apiVideoId, comments);
+                AnalysisResponse analysisResponse = analysisService.requestAnalysis(analysisRequest);
+                commentService.saveComments(commentInfo, analysisResponse);
+
+                videoInfo = videoService.getVideoInfo(apiVideoId, totalCommentCount);
+                videoService.saveVideoAnalysisInformation(videoInfo, analysisResponse);
+            } catch (Exception e) {
+                log.warn("AI 분석 실패, 분석 없이 진행: {}", e.getMessage());
+
+                VideoApiResponse videoApiResponse = videoService.getVideoInfo(apiVideoId, totalCommentCount);
+                videoInfo = videoService.saveVideoInformation(videoApiResponse);
+            }
+
 
             log.info("비디오 검색 완료: apiVideoId={}, 댓글수={}",
-                    videoId, commentInfo.allComments().size());
+                    apiVideoId, commentInfo.allComments().size());
 
             return new SearchUrlResponse(videoInfo, commentInfo);
 
         } catch (Exception e) {
-            log.error("비디오 검색 실패: apiVideoId={}, error={}", videoId, e.getMessage());
+            log.error("비디오 검색 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
             throw e;
         }
     }

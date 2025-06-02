@@ -31,7 +31,7 @@ public class VideoService {
             "(?:youtube\\.com/(?:watch\\?v=|embed/|v/)|youtu\\.be/|m\\.youtube\\.com/watch\\?v=)([\\w-]{11})"
     );
 
-    private final ApiConfig config = new ApiConfig();
+    private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final VideoRepository videoRepository;
@@ -99,12 +99,30 @@ public class VideoService {
         }
     }
 
+    public VideoApiResponse saveVideoInformation(VideoApiResponse videoApiResponse) {
+        Video video = Video.builder()
+                .apiVideoId(videoApiResponse.apiVideoId())
+                .title(videoApiResponse.title())
+                .description(videoApiResponse.description())
+                .thumbnailUrl(videoApiResponse.thumbnailUrl())
+                .channelId(videoApiResponse.channelId())
+                .channelName((videoApiResponse.channelTitle()))
+                .uploadedAt(videoApiResponse.publishedAt())
+                .subscriberCount(videoApiResponse.subscriberCount())
+                .viewCount(videoApiResponse.viewCount())
+                .likeCount(videoApiResponse.likeCount())
+                .commentCount(videoApiResponse.commentCount())
+                .build();
+        videoRepository.save(video);
+        return videoApiResponse;
+    }
+
     /**
      * 비디오 데이터(분석 결과 포함) 저장 메서드
      * @param videoApiResponse
      * @param analysisResponse
      */
-    public void saveVideoAnalysisInformation(VideoApiResponse videoApiResponse, AnalysisResponse analysisResponse) {
+    public VideoApiResponse saveVideoAnalysisInformation(VideoApiResponse videoApiResponse, AnalysisResponse analysisResponse) {
         Video video = Video.builder()
                 .apiVideoId(videoApiResponse.apiVideoId())
                 .title(videoApiResponse.title())
@@ -120,6 +138,7 @@ public class VideoService {
                 .isWarning(analysisResponse.isWarning())
                 .build();
         videoRepository.save(video);
+        return videoApiResponse;
     }
 
     /**
@@ -131,7 +150,7 @@ public class VideoService {
         String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_VIDEOS_API_URL)
                 .queryParam("part", "snippet,statistics")
                 .queryParam("id", videoId)
-                .queryParam("key", config.getKey())
+                .queryParam("key", apiConfig.getKey())
                 .queryParam("hl", "ko")
                 .build(false)
                 .toUriString();
@@ -148,7 +167,7 @@ public class VideoService {
         String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_CHANNELS_API_URL)
                 .queryParam("part", "snippet,statistics")
                 .queryParam("id", channelId)
-                .queryParam("key", config.getKey())
+                .queryParam("key", apiConfig.getKey())
                 .build(false)
                 .toUriString();
 
@@ -170,6 +189,7 @@ public class VideoService {
 
         // 썸네일 URL 추출 (standard 우선, 없으면 high, 없으면 medium, 없으면 default)
         String thumbnailUrl = extractThumbnailUrl(snippet.get("thumbnails"));
+        logger.info("썸네일 url: {}", thumbnailUrl);
         String channelThumbnailUrl = extractThumbnailUrl(channelSnippet.get("thumbnails"));
 
         String commentCount;
@@ -181,17 +201,17 @@ public class VideoService {
 
         return new VideoApiResponse(
                 videoItem.get("id").asText(),
-                snippet.get("publishedAt").asText(),
                 snippet.get("title").asText(),
                 snippet.has("description") ? snippet.get("description").asText() : "",
+                statistics.has("viewCount") ? statistics.get("viewCount").asText() : "0",
+                statistics.has("likeCount") ? statistics.get("likeCount").asText() : "0",
+                commentCount,
+                thumbnailUrl,
                 snippet.get("channelId").asText(),
                 snippet.get("channelTitle").asText(),
                 channelThumbnailUrl,
                 channelStatistics.has("subscriberCount") ? channelStatistics.get("subscriberCount").asText() : "0",
-                thumbnailUrl,
-                statistics.has("viewCount") ? statistics.get("viewCount").asText() : "0",
-                statistics.has("likeCount") ? statistics.get("likeCount").asText() : "0",
-                commentCount
+                snippet.get("publishedAt").asText()
         );
     }
 
