@@ -14,8 +14,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -43,47 +41,173 @@ public class CommentService {
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
 
-    public CommentApiResponse getCommentInfo(String apiVideoId) {
-        if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
-            throw new IllegalArgumentException("비디오 ID는 필수입니다");
-        }
-
-        try {
-            log.info("댓글 정보 조회 시작: apiVideoId={}", apiVideoId);
-
-            List<CommentData> allComments = fetchAllComments(apiVideoId.trim());
-            allComments.sort(Comparator.comparingInt(CommentData::likeCount).reversed());
-
-            Map<Integer, Integer> hourlyDistribution = analyzeHourlyDistribution(allComments);
-            Map<String, Integer> mentionedTimestamp = analyzeMentionedTimestamp(allComments);
-
-            log.info("댓글 정보 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, allComments.size());
-            return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, allComments);
-        } catch (HttpClientErrorException.Forbidden e) {
-            log.warn("댓글 접근 금지: apiVideoId={}", apiVideoId);
-            // 빈 댓글 리스트 반환 (댓글 비활성화는 정상적인 상황)
+    /**
+     * 클라이언트용 댓글 응답 생성 (메모리에서 처리, API 호출 X)
+     */
+    public CommentApiResponse processCommentsForClient(List<CommentData> allComments) {
+        if (allComments == null || allComments.isEmpty()) {
             return new CommentApiResponse(new HashMap<>(), new HashMap<>(), new ArrayList<>());
-        } catch (HttpClientErrorException.NotFound e) {
-            log.warn("비디오를 찾을 수 없음: apiVideoId={}", apiVideoId);
-            throw new IllegalArgumentException("존재하지 않는 비디오입니다", e);
-
-        } catch (RestClientException e) {
-            log.error("YouTube API 호출 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-            throw new IllegalStateException("댓글 정보를 가져올 수 없습니다", e);
-
-        } catch (Exception e) {
-            log.error("댓글 정보 조회 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-            throw new RuntimeException("댓글 정보 조회 중 오류 발생", e);
         }
+
+        // 좋아요순 정렬
+        List<CommentData> sortedComments = new ArrayList<>(allComments);
+        sortedComments.sort(Comparator.comparingInt(CommentData::likeCount).reversed());
+
+        // 분석 데이터 생성
+        Map<Integer, Integer> hourlyDistribution = analyzeHourlyDistribution(sortedComments);
+        Map<String, Integer> mentionedTimestamp = analyzeMentionedTimestamp(sortedComments);
+
+        log.info("클라이언트용 댓글 처리 완료: 댓글 수={}", sortedComments.size());
+        return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, sortedComments);
     }
 
     /**
-     * 댓글 조회 + DB 저장 (통합 메서드)
+     * AI 분석용 댓글 추출 (메모리에서 처리, API 호출 X)
      */
-    public CommentApiResponse getCommentInfoAndSave(String videoId) {
-        return getCommentInfo(videoId);
+    public Map<String, String> extractCommentsForAI(List<CommentData> allComments, int maxComments) {
+        if (allComments == null || allComments.isEmpty()) {
+            return new HashMap<>();
+        }
+
+        Map<String, String> commentsForAI = new HashMap<>();
+        int commentsToAnalyze = Math.min(allComments.size(), maxComments);
+
+        for (int i = 0; i < commentsToAnalyze; i++) {
+            CommentData commentData = allComments.get(i);
+            commentsForAI.put(commentData.id(), commentData.commentText());
+        }
+
+        log.info("AI 분석용 댓글 추출: 전체={}, 추출={}", allComments.size(), commentsForAI.size());
+        return commentsForAI;
     }
 
+    /**
+     * 관련도순으로 모든 댓글 가져오기 (YouTube API 호출)
+     */
+    public List<CommentData> fetchAllComments(String apiVideoId) {
+        List<CommentData> allComments = new ArrayList<>();
+        String pageToken = null;
+        int pageCount = 0;
+
+        do {
+            String apiUrl = buildApiUrl(apiVideoId, pageToken);
+            String jsonResponse = callYouTubeApi(apiUrl);
+
+            try {
+                JsonNode rootNode = objectMapper.readTree(jsonResponse);
+                JsonNode itemsNode = rootNode.path("items");
+
+                if (!itemsNode.isArray() || itemsNode.isEmpty()) {
+                    break;
+                }
+                List<CommentData> pageComments = parseCommentsFromJson(itemsNode);
+                allComments.addAll(pageComments);
+
+                // 1000개 제한 확인
+                if (allComments.size() >= MAX_TOTAL_COMMENTS) {
+                    log.info("댓글 수집 제한 도달: apiVideoId={}, 수집된 댓글 수={}", apiVideoId, allComments.size());
+                    allComments = allComments.subList(0, Math.min(allComments.size(), MAX_TOTAL_COMMENTS));
+                    break;
+                }
+
+                pageToken = rootNode.path("nextPageToken").asText();
+                if (pageToken.isEmpty()) {
+                    pageToken = null;
+                }
+
+                pageCount++;
+
+                if (pageCount % 10 == 0) {
+                    log.info("댓글 수집 진행: apiVideoId={}, 페이지={}, 누적={}", apiVideoId, pageCount, allComments.size());
+                }
+            } catch (Exception e) {
+                log.error("JSON 파싱 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
+                break;
+            }
+
+        } while (isValidPageToken(pageToken));
+
+        return allComments;
+    }
+
+    /**
+     * 시간대별 댓글 분포 분석
+     */
+    public Map<Integer, Integer> analyzeHourlyDistribution(List<CommentData> comments) {
+        Map<Integer, Integer> hourlyCount = new HashMap<>();
+
+        // 0~23시 초기화
+        for (int i = 0; i < 24; i++) {
+            hourlyCount.put(i, 0);
+        }
+
+        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
+
+        for (CommentData comment : comments) {
+            try {
+                // YouTube API 시간 형식: "2025-05-24T16:10:53Z" (UTC)
+                String timeString = comment.publishedAt();
+                ZonedDateTime utcTime = ZonedDateTime.parse(timeString);
+                ZonedDateTime koreaTime = utcTime.withZoneSameInstant(koreaZone);
+
+                int hour = koreaTime.getHour();
+                hourlyCount.put(hour, hourlyCount.get(hour) + 1);
+
+                if (hourlyCount.values().stream().mapToInt(Integer::intValue).sum() <= 3) {
+                    log.info("시간 변환 예시: UTC={} -> KST={} ({}시)",
+                            timeString, koreaTime.toString(), hour);
+                }
+
+            } catch (Exception e) {
+                log.warn("댓글 시간 파싱 실패: publishedAt={}, error={}",
+                        comment.publishedAt(), e.getMessage());
+            }
+        }
+
+        log.info("시간대별 댓글 분포 분석 완료 (한국시간): 총 댓글 수={}", comments.size());
+        return hourlyCount;
+    }
+
+    /**
+     * 타임스탬프 언급 분석
+     */
+    public Map<String, Integer> analyzeMentionedTimestamp(List<CommentData> comments) {
+        Map<String, Integer> timestampCount = new HashMap<>();
+
+        if (comments == null || comments.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+
+        for (CommentData comment : comments) {
+            Set<String> uniqueTimestamps = extractAllTimestamps(comment.commentText(), HOUR_PATTERN, MINUTE_PATTERN);
+
+            if (uniqueTimestamps.isEmpty()) {
+                continue;
+            }
+
+            for (String timestamp : uniqueTimestamps) {
+                timestampCount.merge(timestamp, 1, Integer::sum);
+            }
+        }
+
+        log.info("시간대 언급 분석 완료: 총 {}개의 서로 다른 시간대가 언급됨", timestampCount.size());
+
+        // 언급 횟수 기준으로 정렬하고 Top 5개 반환
+        return timestampCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                .limit(5)
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (e1, e2) -> e1,
+                        LinkedHashMap::new
+                ));
+    }
+
+
+    /**
+     * 댓글 DB 저장 (AI 분석 결과 포함)
+     */
     @Transactional
     public void saveComments(CommentApiResponse commentApiResponse, AnalysisResponse analysisResponse) {
         String videoId = analysisResponse.apiVideoId();
@@ -114,7 +238,6 @@ public class CommentService {
         log.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", api_video_id, comments.size());
         Video video = videoRepository.findById(analysisResponse.videoId()).orElseThrow();
         try {
-//            videoService.saveVideoAnalysisInformation(analysisResponse);
             List<Comment> commentsToSave = comments.stream()
                     .map(commentData -> Comment.builder()
                             .video(video)
@@ -177,52 +300,6 @@ public class CommentService {
         Map<String, Integer> mentionedTimestamp = analyzeMentionedTimestamp(commentDataList);
 
         return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, commentDataList);
-    }
-
-    public List<CommentData> fetchAllComments(String apiVideoId) {
-        List<CommentData> allComments = new ArrayList<>();
-        String pageToken = null;
-        int pageCount = 0;
-
-        do {
-            String apiUrl = buildApiUrl(apiVideoId, pageToken);
-            String jsonResponse = callYouTubeApi(apiUrl);
-
-            try {
-                JsonNode rootNode = objectMapper.readTree(jsonResponse);
-                JsonNode itemsNode = rootNode.path("items");
-
-                if (!itemsNode.isArray() || itemsNode.isEmpty()) {
-                    break;
-                }
-                List<CommentData> pageComments = parseCommentsFromJson(itemsNode);
-                allComments.addAll(pageComments);
-
-                // 1000개 제한 확인
-                if (allComments.size() >= MAX_TOTAL_COMMENTS) {
-                    log.info("댓글 수집 제한 도달: apiVideoId={}, 수집된 댓글 수={}", apiVideoId, allComments.size());
-                    allComments = allComments.subList(0, Math.min(allComments.size(), MAX_TOTAL_COMMENTS));
-                    break;
-                }
-
-                pageToken = rootNode.path("nextPageToken").asText();
-                if (pageToken.isEmpty()) {
-                    pageToken = null;
-                }
-
-                pageCount++;
-
-                if (pageCount % 10 == 0) {
-                    log.info("댓글 수집 진행: apiVideoId={}, 페이지={}, 누적={}", apiVideoId, pageCount, allComments.size());
-                }
-            } catch (Exception e) {
-                log.error("JSON 파싱 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-                break;
-            }
-
-        } while (isValidPageToken(pageToken));
-
-        return allComments;
     }
 
     private String buildApiUrl(String apiVideoId, String pageToken) {
@@ -290,75 +367,6 @@ public class CommentService {
             log.warn("댓글 파싱 실패: {}", e.getMessage());
             return null;
         }
-    }
-
-    public Map<Integer, Integer> analyzeHourlyDistribution(List<CommentData> comments) {
-        Map<Integer, Integer> hourlyCount = new HashMap<>();
-
-        // 0~23시 초기화
-        for (int i = 0; i < 24; i++) {
-            hourlyCount.put(i, 0);
-        }
-
-        ZoneId koreaZone = ZoneId.of("Asia/Seoul");
-
-        for (CommentData comment : comments) {
-            try {
-                // YouTube API 시간 형식: "2025-05-24T16:10:53Z" (UTC)
-                String timeString = comment.publishedAt();
-
-                ZonedDateTime utcTime = ZonedDateTime.parse(timeString);
-                ZonedDateTime koreaTime = utcTime.withZoneSameInstant(koreaZone);
-
-                int hour = koreaTime.getHour();
-                hourlyCount.put(hour, hourlyCount.get(hour) + 1);
-
-                if (hourlyCount.values().stream().mapToInt(Integer::intValue).sum() <= 5) {
-                    log.info("시간 변환 예시: UTC={} -> KST={} ({}시)",
-                            timeString, koreaTime.toString(), hour);
-                }
-
-            } catch (Exception e) {
-                log.warn("댓글 시간 파싱 실패: publishedAt={}, error={}",
-                        comment.publishedAt(), e.getMessage());
-            }
-        }
-
-        log.info("시간대별 댓글 분포 분석 완료 (한국시간): 총 댓글 수={}", comments.size());
-        return hourlyCount;
-    }
-
-    public Map<String, Integer> analyzeMentionedTimestamp(List<CommentData> comments) {
-        Map<String, Integer> timestampCount = new HashMap<>();
-
-        if (comments == null || comments.isEmpty()) {
-            return new LinkedHashMap<>();
-        }
-
-        for (CommentData comment : comments) {
-            Set<String> uniqueTimestamps = extractAllTimestamps(comment.commentText(), HOUR_PATTERN, MINUTE_PATTERN);
-
-            if (uniqueTimestamps.isEmpty()) {
-                continue;
-            }
-
-            for (String timestamp : uniqueTimestamps) {
-                timestampCount.merge(timestamp, 1, Integer::sum);
-            }
-        }
-
-        log.info("시간대 언급 분석 완료: 총 {}개의 서로 다른 시간대가 언급됨", timestampCount.size());
-
-        // 언급 횟수 기준으로 정렬하고 Top 5개 반환
-        return timestampCount.entrySet().stream()
-                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                .limit(5)
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
-                        (e1, e2) -> e1,
-                        LinkedHashMap::new
-                ));
     }
 
     // 모든 타임스탬프를 위치 기반으로 추출 (중복 자동 제거)

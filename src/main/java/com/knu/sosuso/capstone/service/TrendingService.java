@@ -3,9 +3,7 @@ package com.knu.sosuso.capstone.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.SearchUrlResponse;
-import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -13,9 +11,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Slf4j
@@ -23,8 +19,7 @@ import java.util.Map;
 public class TrendingService {
     private static final String YOUTUBE_VIDEOS_API_URL = "https://www.googleapis.com/youtube/v3/videos";
 
-    private final VideoService videoService;
-    private final CommentService commentService;
+    private final VideoProcessingService videoProcessingService;
     private final ApiConfig config;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -34,7 +29,6 @@ public class TrendingService {
 
         try {
             String categoryId = getCategoryId(categoryType);
-
             List<String> videoIds = fetchTrendingVideoIds(categoryId, regionCode, maxResults);
 
             if (videoIds.isEmpty()) {
@@ -48,18 +42,9 @@ public class TrendingService {
                 try {
                     log.debug("비디오 정보 조회 중: apiVideoId={}", videoId);
 
-                    List<CommentApiResponse.CommentData> allComments = commentService.fetchAllComments(videoId);
+                    SearchUrlResponse result = videoProcessingService.processVideo(videoId, true);
+                    results.add(result);
 
-                    List<CommentApiResponse.CommentData> sortedComments = new ArrayList<>(allComments);
-                    sortedComments.sort(Comparator.comparingInt(CommentApiResponse.CommentData::likeCount).reversed());
-
-                    Map<Integer, Integer> hourlyDistribution = commentService.analyzeHourlyDistribution(sortedComments);
-                    Map<String, Integer> mentionedTimestamp = commentService.analyzeMentionedTimestamp(sortedComments);
-                    CommentApiResponse commentInfo = new CommentApiResponse(hourlyDistribution, mentionedTimestamp, sortedComments);
-
-                    VideoApiResponse videoInfo = videoService.getVideoInfo(videoId, commentInfo.allComments().size());
-
-                    results.add(new SearchUrlResponse(videoInfo, commentInfo));
                 } catch (Exception e) {
                     log.error("개별 비디오 처리 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
                 }
