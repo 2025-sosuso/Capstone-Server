@@ -3,9 +3,7 @@ package com.knu.sosuso.capstone.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.SearchUrlResponse;
-import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,8 +19,7 @@ import java.util.List;
 public class TrendingService {
     private static final String YOUTUBE_VIDEOS_API_URL = "https://www.googleapis.com/youtube/v3/videos";
 
-    private final VideoService videoService;
-    private final CommentService commentService;
+    private final VideoProcessingService videoProcessingService;
     private final ApiConfig config;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -32,7 +29,6 @@ public class TrendingService {
 
         try {
             String categoryId = getCategoryId(categoryType);
-
             List<String> videoIds = fetchTrendingVideoIds(categoryId, regionCode, maxResults);
 
             if (videoIds.isEmpty()) {
@@ -46,11 +42,9 @@ public class TrendingService {
                 try {
                     log.debug("비디오 정보 조회 중: apiVideoId={}", videoId);
 
-                    CommentApiResponse commentInfo = commentService.getCommentInfo(videoId);
+                    SearchUrlResponse result = videoProcessingService.processVideo(videoId, true);
+                    results.add(result);
 
-                    VideoApiResponse videoInfo = videoService.getVideoInfo(videoId, commentInfo.allComments().size());
-
-                    results.add(new SearchUrlResponse(videoInfo, commentInfo));
                 } catch (Exception e) {
                     log.error("개별 비디오 처리 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
                 }
@@ -106,7 +100,7 @@ public class TrendingService {
                 .queryParam("part", "id")
                 .queryParam("chart", "mostPopular")
                 .queryParam("regionCode", regionCode)
-                .queryParam("maxResults", Math.min(maxResults, 50))  // YouTube API 제한
+                .queryParam("maxResults", Math.min(maxResults, 30))  // YouTube API 제한
                 .queryParam("key", config.getKey());
 
         builder.queryParam("videoCategoryId", categoryId);

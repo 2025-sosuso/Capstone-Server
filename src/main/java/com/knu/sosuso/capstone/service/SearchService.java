@@ -11,19 +11,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class SearchService {
 
     private final VideoService videoService;
-    private final CommentService commentService;
     private final ChannelService channelService;
-    private final AnalysisService analysisService;
+    private final VideoProcessingService videoProcessingService;
 
     // 1. 검색어 입력
     public SearchResponse search(String query) {
@@ -50,10 +45,6 @@ public class SearchService {
         }
     }
 
-    private boolean isVideoUrl(String url) {
-        return url.contains("youtube.com/watch?v=") || url.contains("youtu.be/");
-    }
-
     // 3. 영상 정보 가져옴
     private SearchUrlResponse searchVideo(String videoUrl) {
         String apiVideoId = videoService.extractVideoId(videoUrl);
@@ -64,49 +55,11 @@ public class SearchService {
 
         log.info("비디오 검색 시작: apiVideoId={}", apiVideoId);
 
-        try {
-            CommentApiResponse commentInfo = commentService.getCommentInfo(apiVideoId);
+        return videoProcessingService.processVideo(apiVideoId, true);
+    }
 
-            if (commentInfo.allComments().isEmpty()) {
-                log.info("댓글 불러오기 실패, AI 분석을 건너뜁니다: apiVideoId={}", apiVideoId);
-
-                VideoApiResponse videoApiResponse = videoService.getVideoInfo(apiVideoId, 0);
-                videoService.saveVideoInformation(videoApiResponse);
-                return new SearchUrlResponse(videoApiResponse, commentInfo);
-            }
-
-            Map<String, String> comments = new HashMap<>();
-            List<CommentApiResponse.CommentData> commentData = commentInfo.allComments();
-            for (CommentApiResponse.CommentData commentDatum : commentData) {
-                comments.put(commentDatum.id(), commentDatum.commentText());
-            }
-
-            int totalCommentCount = commentInfo.allComments().size();
-            VideoApiResponse videoInfo = null;
-            try {
-                AnalysisRequest analysisRequest = new AnalysisRequest(apiVideoId, comments);
-                AnalysisResponse analysisResponse = analysisService.requestAnalysis(analysisRequest);
-                commentService.saveComments(commentInfo, analysisResponse);
-
-                videoInfo = videoService.getVideoInfo(apiVideoId, totalCommentCount);
-                videoService.saveVideoAnalysisInformation(videoInfo, analysisResponse);
-            } catch (Exception e) {
-                log.warn("AI 분석 실패, 분석 없이 진행: {}", e.getMessage());
-
-                VideoApiResponse videoApiResponse = videoService.getVideoInfo(apiVideoId, totalCommentCount);
-                videoInfo = videoService.saveVideoInformation(videoApiResponse);
-            }
-
-
-            log.info("비디오 검색 완료: apiVideoId={}, 댓글수={}",
-                    apiVideoId, commentInfo.allComments().size());
-
-            return new SearchUrlResponse(videoInfo, commentInfo);
-
-        } catch (Exception e) {
-            log.error("비디오 검색 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
-            throw e;
-        }
+    private boolean isVideoUrl(String url) {
+        return url.contains("youtube.com/watch?v=") || url.contains("youtu.be/");
     }
 
     private Object searchChannels(String query) {
