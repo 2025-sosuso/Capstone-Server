@@ -43,6 +43,12 @@ public class Video extends BaseEntity {
     @Column(name = "subscriber_count")
     private String subscriberCount;
 
+    @Column(name = "hourly_distribution", columnDefinition = "JSON")
+    private String hourlyDistribution;
+
+    @Column(name = "mentioned_timestamp", columnDefinition = "JSON")
+    private String mentionedTimestamp;
+
     @Column(name = "summation")
     private String summation;
 
@@ -61,7 +67,9 @@ public class Video extends BaseEntity {
     private String uploadedAt;
 
     @Builder
-    public Video(String apiVideoId, String title, String description, String viewCount, String likeCount, String commentCount, String thumbnailUrl, String channelId, String channelName, String subscriberCount, String summation, boolean isWarning, String uploadedAt) {
+    public Video(String apiVideoId, String title, String description, String viewCount, String likeCount, String commentCount, String thumbnailUrl, String channelId, String channelName, String subscriberCount, String hourlyDistribution,
+                 String mentionedTimestamp, String summation,
+                 boolean isWarning, String uploadedAt) {
         this.apiVideoId = apiVideoId;
         this.title = title;
         this.description = description;
@@ -72,6 +80,8 @@ public class Video extends BaseEntity {
         this.channelId = channelId;
         this.channelName = channelName;
         this.subscriberCount = subscriberCount;
+        this.hourlyDistribution = hourlyDistribution;
+        this.mentionedTimestamp = mentionedTimestamp;
         this.summation = summation;
         this.isWarning = isWarning;
         this.uploadedAt = uploadedAt;
