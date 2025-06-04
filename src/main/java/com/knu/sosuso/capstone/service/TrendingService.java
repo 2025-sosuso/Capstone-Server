@@ -13,7 +13,9 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -46,7 +48,14 @@ public class TrendingService {
                 try {
                     log.debug("비디오 정보 조회 중: apiVideoId={}", videoId);
 
-                    CommentApiResponse commentInfo = commentService.getCommentInfo(videoId);
+                    List<CommentApiResponse.CommentData> allComments = commentService.fetchAllComments(videoId);
+
+                    List<CommentApiResponse.CommentData> sortedComments = new ArrayList<>(allComments);
+                    sortedComments.sort(Comparator.comparingInt(CommentApiResponse.CommentData::likeCount).reversed());
+
+                    Map<Integer, Integer> hourlyDistribution = commentService.analyzeHourlyDistribution(sortedComments);
+                    Map<String, Integer> mentionedTimestamp = commentService.analyzeMentionedTimestamp(sortedComments);
+                    CommentApiResponse commentInfo = new CommentApiResponse(hourlyDistribution, mentionedTimestamp, sortedComments);
 
                     VideoApiResponse videoInfo = videoService.getVideoInfo(videoId, commentInfo.allComments().size());
 
@@ -106,7 +115,7 @@ public class TrendingService {
                 .queryParam("part", "id")
                 .queryParam("chart", "mostPopular")
                 .queryParam("regionCode", regionCode)
-                .queryParam("maxResults", Math.min(maxResults, 50))  // YouTube API 제한
+                .queryParam("maxResults", Math.min(maxResults, 30))  // YouTube API 제한
                 .queryParam("key", config.getKey());
 
         builder.queryParam("videoCategoryId", categoryId);
