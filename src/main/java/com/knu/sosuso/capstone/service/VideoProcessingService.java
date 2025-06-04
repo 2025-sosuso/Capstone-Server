@@ -55,7 +55,6 @@ public class VideoProcessingService {
             }
 
             int totalCommentCount = allComments.size();
-            VideoApiResponse videoInfo;
 
             // 2. AI 분석 (이미 가져온 댓글에서 상위 500개만 추출)
             boolean aiAnalysisSuccess = false;
@@ -97,17 +96,21 @@ public class VideoProcessingService {
             // 3. 클라이언트용 응답 생성
             CommentApiResponse commentInfo = commentService.processCommentsForClient(allComments);
 
-            // 4. 비디오 정보 조회 및 저장
-            videoInfo = videoService.getVideoInfo(apiVideoId, totalCommentCount);
+            Map<Integer, Integer> hourlyDistribution = commentInfo.hourlyDistribution();
+            Map<String, Integer> mentionedTimestamp = commentInfo.mentionedTimestamp();
 
+            // 4. 비디오 정보 조회
+            VideoApiResponse videoInfo = videoService.getVideoInfo(apiVideoId, totalCommentCount);
+
+            // 5. DB 저장 - 케이스 구분
             if (aiAnalysisSuccess && analysisResponse != null) {
-                // AI 분석 성공: 결과와 함께 저장
+                // AI 분석 성공: 모든 분석 데이터 저장
                 commentService.saveComments(commentInfo, analysisResponse);  // 댓글 + 감정
-                videoInfo = videoService.saveVideoAnalysisInformation(videoInfo, analysisResponse);
+                videoInfo = videoService.saveVideoInformation(videoInfo, hourlyDistribution, mentionedTimestamp, analysisResponse);
                 log.info("비디오 저장 완료 (AI 분석 포함): apiVideoId={}", apiVideoId);
             } else {
-                // AI 분석 실패 또는 비활성화: 기본 저장
-                videoInfo = videoService.saveVideoInformation(videoInfo);
+                // AI 분석 실패
+                videoInfo = videoService.saveVideoInformation(videoInfo, hourlyDistribution, mentionedTimestamp);
                 log.info("비디오 저장 완료 (AI 분석 미포함): apiVideoId={}", apiVideoId);
             }
 
