@@ -11,14 +11,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class SearchService {
+
+    private static final int MAX_AI_ANALYSIS_COMMENTS = 500;
 
     private final VideoService videoService;
     private final CommentService commentService;
@@ -65,26 +65,41 @@ public class SearchService {
         log.info("비디오 검색 시작: apiVideoId={}", apiVideoId);
 
         try {
-            CommentApiResponse commentInfo = commentService.getCommentInfo(apiVideoId);
+            // 관련도순 상한선 기준 전체 댓글 가져오기
+            List<CommentApiResponse.CommentData> allComments = commentService.fetchAllComments(apiVideoId);
 
-            if (commentInfo.allComments().isEmpty()) {
+            if (allComments.isEmpty()) {
                 log.info("댓글 불러오기 실패, AI 분석을 건너뜁니다: apiVideoId={}", apiVideoId);
 
                 VideoApiResponse videoApiResponse = videoService.getVideoInfo(apiVideoId, 0);
                 videoService.saveVideoInformation(videoApiResponse);
-                return new SearchUrlResponse(videoApiResponse, commentInfo);
+                CommentApiResponse emptyComment = new CommentApiResponse(new HashMap<>(), new HashMap<>(), new ArrayList<>());
+                return new SearchUrlResponse(videoApiResponse, emptyComment);
             }
 
-            Map<String, String> comments = new HashMap<>();
-            List<CommentApiResponse.CommentData> commentData = commentInfo.allComments();
-            for (CommentApiResponse.CommentData commentDatum : commentData) {
-                comments.put(commentDatum.id(), commentDatum.commentText());
+            // AI 분석용: 관련도순 상위 500개
+            Map<String, String> commentsForAI = new HashMap<>();
+            int commentsToAnalyze = Math.min(allComments.size(), MAX_AI_ANALYSIS_COMMENTS);
+            for (int i = 0; i < commentsToAnalyze; i++) {
+                CommentApiResponse.CommentData commentDatum = allComments.get(i);
+                commentsForAI.put(commentDatum.id(), commentDatum.commentText());
             }
+
+            // 클라이언트용: 좋아요순 정렬
+            List<CommentApiResponse.CommentData> sortedComments = new ArrayList<>(allComments);
+            sortedComments.sort(Comparator.comparingInt(CommentApiResponse.CommentData::likeCount).reversed());
+
+            // 분석 데이터 생성
+            Map<Integer, Integer> hourlyDistribution = commentService.analyzeHourlyDistribution(sortedComments);
+            Map<String, Integer> mentionedTimestamp = commentService.analyzeMentionedTimestamp(sortedComments);
+            CommentApiResponse commentInfo = new CommentApiResponse(hourlyDistribution, mentionedTimestamp, sortedComments);
+
+            log.info("AI 분석 대상 댓글: 전체={}, 분석대상={}", allComments.size(), commentsForAI.size());
 
             int totalCommentCount = commentInfo.allComments().size();
             VideoApiResponse videoInfo = null;
             try {
-                AnalysisRequest analysisRequest = new AnalysisRequest(apiVideoId, comments);
+                AnalysisRequest analysisRequest = new AnalysisRequest(apiVideoId, commentsForAI);
                 AnalysisResponse analysisResponse = analysisService.requestAnalysis(analysisRequest);
                 commentService.saveComments(commentInfo, analysisResponse);
 
@@ -96,7 +111,6 @@ public class SearchService {
                 VideoApiResponse videoApiResponse = videoService.getVideoInfo(apiVideoId, totalCommentCount);
                 videoInfo = videoService.saveVideoInformation(videoApiResponse);
             }
-
 
             log.info("비디오 검색 완료: apiVideoId={}, 댓글수={}",
                     apiVideoId, commentInfo.allComments().size());

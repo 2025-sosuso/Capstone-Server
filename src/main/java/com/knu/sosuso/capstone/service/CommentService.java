@@ -36,6 +36,9 @@ public class CommentService {
     private static final Pattern MINUTE_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2})\\b");
     private static final int MAX_RESULTS_PER_REQUEST = 100;
 
+    private static final int MAX_TOTAL_COMMENTS = 1000;
+    private static final int MAX_AI_ANALYSIS_COMMENTS = 500;
+
     private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -178,7 +181,7 @@ public class CommentService {
         return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, commentDataList);
     }
 
-    private List<CommentData> fetchAllComments(String apiVideoId) {
+    public List<CommentData> fetchAllComments(String apiVideoId) {
         List<CommentData> allComments = new ArrayList<>();
         String pageToken = null;
         int pageCount = 0;
@@ -196,6 +199,13 @@ public class CommentService {
                 }
                 List<CommentData> pageComments = parseCommentsFromJson(itemsNode);
                 allComments.addAll(pageComments);
+
+                // 1000개 제한 확인
+                if (allComments.size() >= MAX_TOTAL_COMMENTS) {
+                    log.info("댓글 수집 제한 도달: apiVideoId={}, 수집된 댓글 수={}", apiVideoId, allComments.size());
+                    allComments = allComments.subList(0, Math.min(allComments.size(), MAX_TOTAL_COMMENTS));
+                    break;
+                }
 
                 pageToken = rootNode.path("nextPageToken").asText();
                 if (pageToken.isEmpty()) {
@@ -222,6 +232,7 @@ public class CommentService {
                 .queryParam("part", "snippet")
                 .queryParam("maxResults", MAX_RESULTS_PER_REQUEST)
                 .queryParam("textFormat", "plainText")
+                .queryParam("order", "relevance")
                 .queryParam("videoId", apiVideoId)
                 .queryParam("key", apiConfig.getKey());
 
@@ -283,7 +294,7 @@ public class CommentService {
         }
     }
 
-    private Map<Integer, Integer> analyzeHourlyDistribution(List<CommentData> comments) {
+    public Map<Integer, Integer> analyzeHourlyDistribution(List<CommentData> comments) {
         Map<Integer, Integer> hourlyCount = new HashMap<>();
 
         // 0~23시 초기화
@@ -319,7 +330,7 @@ public class CommentService {
         return hourlyCount;
     }
 
-    private Map<String, Integer> analyzeMentionedTimestamp(List<CommentData> comments) {
+    public Map<String, Integer> analyzeMentionedTimestamp(List<CommentData> comments) {
         Map<String, Integer> timestampCount = new HashMap<>();
 
         if (comments == null || comments.isEmpty()) {
