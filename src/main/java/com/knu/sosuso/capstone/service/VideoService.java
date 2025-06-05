@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -98,6 +99,9 @@ public class VideoService {
         }
     }
 
+    /**
+     * 1. 댓글이 없는 경우 - 기본 저장 (분석 데이터 없음)
+     */
     public VideoApiResponse saveVideoInformation(VideoApiResponse videoApiResponse) {
         Video video = Video.builder()
                 .apiVideoId(videoApiResponse.apiVideoId())
@@ -105,7 +109,7 @@ public class VideoService {
                 .description(videoApiResponse.description())
                 .thumbnailUrl(videoApiResponse.thumbnailUrl())
                 .channelId(videoApiResponse.channelId())
-                .channelName((videoApiResponse.channelTitle()))
+                .channelName(videoApiResponse.channelTitle())
                 .uploadedAt(videoApiResponse.publishedAt())
                 .subscriberCount(videoApiResponse.subscriberCount())
                 .viewCount(videoApiResponse.viewCount())
@@ -117,27 +121,70 @@ public class VideoService {
     }
 
     /**
-     * 비디오 데이터(분석 결과 포함) 저장 메서드
-     * @param videoApiResponse
-     * @param analysisResponse
+     * 2. AI 분석 실패했지만 댓글은 있는 경우 - 백엔드 분석만 저장
      */
-    public VideoApiResponse saveVideoAnalysisInformation(VideoApiResponse videoApiResponse, AnalysisResponse analysisResponse) {
-        Video video = Video.builder()
-                .apiVideoId(videoApiResponse.apiVideoId())
-                .title(videoApiResponse.title())
-                .thumbnailUrl(videoApiResponse.thumbnailUrl())
-                .channelId(videoApiResponse.channelId())
-                .channelName((videoApiResponse.channelTitle()))
-                .uploadedAt(videoApiResponse.publishedAt())
-                .subscriberCount(videoApiResponse.subscriberCount())
-                .viewCount(videoApiResponse.viewCount())
-                .likeCount(videoApiResponse.likeCount())
-                .commentCount(videoApiResponse.commentCount())
-                .summation(analysisResponse.summation())
-                .isWarning(analysisResponse.isWarning())
-                .build();
-        videoRepository.save(video);
-        return videoApiResponse;
+    public VideoApiResponse saveVideoInformation(
+            VideoApiResponse videoApiResponse,
+            Map<Integer, Integer> hourlyDistribution,
+            Map<String, Integer> mentionedTimestamp) {
+
+        try {
+            Video video = Video.builder()
+                    .apiVideoId(videoApiResponse.apiVideoId())
+                    .title(videoApiResponse.title())
+                    .description(videoApiResponse.description())
+                    .thumbnailUrl(videoApiResponse.thumbnailUrl())
+                    .channelId(videoApiResponse.channelId())
+                    .channelName(videoApiResponse.channelTitle())
+                    .uploadedAt(videoApiResponse.publishedAt())
+                    .subscriberCount(videoApiResponse.subscriberCount())
+                    .viewCount(videoApiResponse.viewCount())
+                    .likeCount(videoApiResponse.likeCount())
+                    .commentCount(videoApiResponse.commentCount())
+                    .hourlyDistribution(objectMapper.writeValueAsString(hourlyDistribution))
+                    .mentionedTimestamp(objectMapper.writeValueAsString(mentionedTimestamp))
+                    .build();
+            videoRepository.save(video);
+            return videoApiResponse;
+        } catch (Exception e) {
+            log.error("JSON 직렬화 실패: {}", e.getMessage());
+            throw new RuntimeException("비디오 저장 중 오류 발생", e);
+        }
+    }
+
+    /**
+     * 3. AI 분석 성공한 경우 - 모든 분석 데이터 저장
+     */
+    public VideoApiResponse saveVideoInformation(
+            VideoApiResponse videoApiResponse,
+            Map<Integer, Integer> hourlyDistribution,
+            Map<String, Integer> mentionedTimestamp,
+            AnalysisResponse analysisResponse) {
+
+        try {
+            Video video = Video.builder()
+                    .apiVideoId(videoApiResponse.apiVideoId())
+                    .title(videoApiResponse.title())
+                    .description(videoApiResponse.description())
+                    .thumbnailUrl(videoApiResponse.thumbnailUrl())
+                    .channelId(videoApiResponse.channelId())
+                    .channelName(videoApiResponse.channelTitle())
+                    .uploadedAt(videoApiResponse.publishedAt())
+                    .subscriberCount(videoApiResponse.subscriberCount())
+                    .viewCount(videoApiResponse.viewCount())
+                    .likeCount(videoApiResponse.likeCount())
+                    .commentCount(videoApiResponse.commentCount())
+                    .hourlyDistribution(objectMapper.writeValueAsString(hourlyDistribution))
+                    .mentionedTimestamp(objectMapper.writeValueAsString(mentionedTimestamp))
+                    .summation(analysisResponse.summation())
+                    .isWarning(analysisResponse.isWarning())
+                    .build();
+            videoRepository.save(video);
+            return videoApiResponse;
+        } catch (Exception e) {
+            log.error("JSON 직렬화 실패: {}", e.getMessage());
+            throw new RuntimeException("비디오 저장 중 오류 발생", e);
+        }
     }
 
     /**
