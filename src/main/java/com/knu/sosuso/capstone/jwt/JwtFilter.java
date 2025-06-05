@@ -1,7 +1,9 @@
 package com.knu.sosuso.capstone.jwt;
 
+import com.knu.sosuso.capstone.domain.User;
 import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
 import com.knu.sosuso.capstone.dto.oauth2.GoogleUserInfo;
+import com.knu.sosuso.capstone.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -19,66 +21,109 @@ import java.io.IOException;
 public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
+
+    private static final String[] WHITELIST_PATHS = {
+            "/swagger-ui", "/v3/api-docs", "/swagger-ui.html", "/oauth2", "/login"
+    };
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-
         String path = request.getRequestURI();
-        if (path.startsWith("/swagger-ui")
-        || path.startsWith("/v3/api-docs")
-        || path.equals("/swagger-ui.html")) {
+        if (isWhitelistPath(path)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String authorization = null;
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) { // 임시
-            for (Cookie cookie : cookies) {
-                System.out.println(cookie.getName());
-                if (cookie.getName().equals("Authorization")) {
-                    authorization = cookie.getValue();
-                }
+        // 쿠키에서 JWT 토큰 추출
+        String token = extractTokenFromCookies(request);
+
+        if (token == null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (!jwtUtil.isValidToken(token)) {
+            clearAuthCookie(response);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String sub = jwtUtil.getSub(token);
+        String role = jwtUtil.getRole(token);
+
+        User user = userRepository.findBySub(sub);
+        if (user == null) {
+            clearAuthCookie(response);
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        setAuthentication(user, role);
+        filterChain.doFilter(request, response);
+    }
+
+    /**
+     * 화이트리스트 경로 확인
+     * @param path
+     * @return
+     */
+    private boolean isWhitelistPath(String path) {
+        for (String whitelistPath : WHITELIST_PATHS) {
+            if (path.startsWith(whitelistPath)) {
+                return true;
             }
         }
+        return false;
+    }
 
-        if (authorization == null) {
-            System.out.println("token null");
-            filterChain.doFilter(request, response);
-
-            return;
+    private String extractTokenFromCookies(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
         }
 
-        // 토큰
-        String token = authorization;
-
-        // 토큰 소멸 시간 검증
-        if (jwtUtil.isExpired(token)) {
-            System.out.println("token expired");
-            filterChain.doFilter(request, response);
-
-            // 조건이 해당되면 메서드 종료 (필수)
-            return;
+        for (Cookie cookie : cookies) {
+            if ("Authorization".equals(cookie.getName())) {
+                return cookie.getValue();
+            }
         }
+        return null;
+    }
 
-        // 토큰에서 user 정보 획득
-        String sub = jwtUtil.getSub(token);
-        String email = jwtUtil.getEmail(token);
-        String name = jwtUtil.getName(token);
-        String role = jwtUtil.getRole(token);
-        String picture = jwtUtil.getPicture(token);
+    /**
+     * DB에 저장되어있는 정보로 인증 객체 설정
+     * @param user
+     * @param role
+     */
+    private void setAuthentication(User user, String role) {
+        // DB에서 최신 정보를 가져온다.
+        GoogleUserInfo googleUserInfo = new GoogleUserInfo(
+                user.getSub(),
+                user.getEmail(),
+                user.getName(),
+                role,
+                user.getPicture()
+        );
 
-        // userDto를 생성하여 값 set
-        GoogleUserInfo googleUserInfo = new GoogleUserInfo(sub, email, name, role, picture);
-
-        // UserDetails에 회원 정보 객체 담기
         CustomOAuth2User customOAuth2User = new CustomOAuth2User(googleUserInfo);
 
-        // 스프링 시큐리티 인증 토큰 생성
-        Authentication authToken = new UsernamePasswordAuthenticationToken(customOAuth2User, null, customOAuth2User.getAuthorities());
-        // 세션에 사용자 등록
+        // 인증 토큰 생성 및 SecurityContext에 설정한다.
+        Authentication authToken = new UsernamePasswordAuthenticationToken(
+                customOAuth2User, null, customOAuth2User.getAuthorities()
+        );
         SecurityContextHolder.getContext().setAuthentication(authToken);
+    }
 
-        filterChain.doFilter(request, response);
+    /**
+     * 인증 쿠키 삭제 (토큰 만료시)
+     * @param response
+     */
+    private void clearAuthCookie(HttpServletResponse response) {
+        Cookie cookie = new Cookie("Authorization", null);
+        cookie.setMaxAge(0);
+        cookie.setPath("/");
+        cookie.setHttpOnly(true);
+        response.addCookie(cookie);
     }
 }

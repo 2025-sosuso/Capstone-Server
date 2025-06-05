@@ -29,32 +29,28 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, SerialException, java.io.IOException {
         CustomOAuth2User customUserDetails = (CustomOAuth2User) authentication.getPrincipal();
 
-        String username = customUserDetails.getSub();
-
+        String sub = customUserDetails.getSub();
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
         Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
         GrantedAuthority auth = iterator.next();
         String role = auth.getAuthority();
 
-        String token = jwtUtil.createJwt(username, role, 60*60*60L);
+        // 토큰 생성 (1시간)
+        String token = jwtUtil.createJwt(sub, role, 60*60*1000L);
+
         response.addCookie(createCookie("Authorization", token));
-        System.out.println("token = " + token);
-        String name = customUserDetails.getName();
-        String email = customUserDetails.getEmail();
-        String picture = customUserDetails.getPicture();
-        LoginResponse loginResponse = new LoginResponse(name, email, picture);
 
         response.setContentType("application/json");
         response.setCharacterEncoding("UTF-8");
         response.sendRedirect("http://localhost:3000/login/success");
-        objectMapper.writeValue(response.getWriter(), loginResponse);
     }
 
     private Cookie createCookie(String key, String value) {
         Cookie cookie = new Cookie(key, value);
-        cookie.setMaxAge(60*60*60);
+        cookie.setMaxAge(60*60);
         cookie.setPath("/");
         cookie.setHttpOnly(true);
+        cookie.setSecure(false);
         return cookie;
     }
 }

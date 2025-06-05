@@ -1,5 +1,6 @@
 package com.knu.sosuso.capstone.jwt;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -18,30 +19,13 @@ public class JwtUtil {
         this.secretKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), Jwts.SIG.HS256.key().build().getAlgorithm());
     }
 
-    public String getSub(String token) {
-        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().get("username", String.class);
-    }
-
-    public String getEmail(String token) {
-        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().get("email", String.class);
-    }
-
-    public String getName(String token) {
-        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().get("name", String.class);
-    }
-
-    public String getRole(String token) {
-        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().get("role", String.class);
-    }
-
-    public String getPicture(String token) {
-        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().get("picture", String.class);
-    }
-
-    public Boolean isExpired(String token) {
-        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().getExpiration().before(new Date());
-    }
-
+    /**
+     * 토큰 생성 메서드
+     * @param sub
+     * @param role
+     * @param expireMs
+     * @return
+     */
     public String createJwt(String sub, String role, Long expireMs) {
         return Jwts.builder()
                 .claim("sub", sub)
@@ -50,5 +34,51 @@ public class JwtUtil {
                 .expiration(new Date(System.currentTimeMillis() + expireMs))
                 .signWith(secretKey)
                 .compact();
+    }
+
+    private Claims extractClaims(String token) {
+        try {
+            return Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+        } catch (Exception e) {
+            throw new RuntimeException("유효하지 않은 JWT 토큰입니다: " + e.getMessage());
+        }
+    }
+
+    public String getSub(String token) {
+        return extractClaims(token).get("sub", String.class);
+    }
+
+    public String getRole(String token) {
+        return extractClaims(token).get("role", String.class);
+    }
+
+    /*public Boolean isExpired(String token) {
+        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().getExpiration().before(new Date());
+    }*/
+
+    public Boolean isExpired(String token) {
+        try {
+            return extractClaims(token).getExpiration().before(new Date());
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    /**
+     * 토큰 유효성 검증 메서드
+     * @param token
+     * @return
+     */
+    public boolean isValidToken(String token) {
+        try {
+            extractClaims(token);
+            return !isExpired(token);
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

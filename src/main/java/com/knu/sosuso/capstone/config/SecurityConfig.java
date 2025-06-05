@@ -3,6 +3,7 @@ package com.knu.sosuso.capstone.config;
 import com.knu.sosuso.capstone.jwt.JwtFilter;
 import com.knu.sosuso.capstone.jwt.JwtUtil;
 import com.knu.sosuso.capstone.oauth2.CustomSuccessHandler;
+import com.knu.sosuso.capstone.repository.UserRepository;
 import com.knu.sosuso.capstone.service.CustomOAuth2UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +30,7 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, UserRepository userRepository) throws Exception {
 
         http
                 .cors(corsCustomizer -> corsCustomizer.configurationSource(new CorsConfigurationSource() {
@@ -69,7 +70,7 @@ public class SecurityConfig {
 
         // JwtFilter 추가
         http
-                .addFilterBefore(new JwtFilter(jwtUtil), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtFilter(jwtUtil, userRepository), UsernamePasswordAuthenticationFilter.class);
 
         // oauth2
         http
