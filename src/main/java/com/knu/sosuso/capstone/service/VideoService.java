@@ -2,20 +2,22 @@ package com.knu.sosuso.capstone.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knu.sosuso.capstone.ai.dto.AnalysisResponse;
+import com.knu.sosuso.capstone.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.Video;
+import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -35,11 +37,10 @@ public class VideoService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final VideoRepository videoRepository;
+    private final CommentService commentService;
 
     /**
-     * 비디오 id 추출
-     * @param url
-     * @return
+     * 비디오 ID 추출
      */
     public String extractVideoId(String url) {
         if (url == null || url.trim().isEmpty()) {
@@ -50,6 +51,9 @@ public class VideoService {
         return matcher.find() ? matcher.group(1) : null;
     }
 
+    /**
+     * YouTube API로 비디오 정보 조회
+     */
     public VideoApiResponse getVideoInfo(String videoId, Integer actualCommentCount) {
         if (videoId == null || videoId.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다");
@@ -100,35 +104,72 @@ public class VideoService {
     }
 
     /**
-     * 1. 댓글이 없는 경우 - 기본 저장 (분석 데이터 없음)
+     * 댓글 수 업데이트
      */
-    public VideoApiResponse saveVideoInformation(VideoApiResponse videoApiResponse) {
-        Video video = Video.builder()
-                .apiVideoId(videoApiResponse.apiVideoId())
-                .title(videoApiResponse.title())
-                .description(videoApiResponse.description())
-                .thumbnailUrl(videoApiResponse.thumbnailUrl())
-                .channelId(videoApiResponse.channelId())
-                .channelName(videoApiResponse.channelTitle())
-                .uploadedAt(videoApiResponse.publishedAt())
-                .subscriberCount(videoApiResponse.subscriberCount())
-                .viewCount(videoApiResponse.viewCount())
-                .likeCount(videoApiResponse.likeCount())
-                .commentCount(videoApiResponse.commentCount())
-                .build();
-        videoRepository.save(video);
-        return videoApiResponse;
+    public VideoApiResponse updateCommentCount(VideoApiResponse videoApiResponse, int actualCommentCount) {
+        return new VideoApiResponse(
+                videoApiResponse.apiVideoId(),
+                videoApiResponse.title(),
+                videoApiResponse.description(),
+                videoApiResponse.viewCount(),
+                videoApiResponse.likeCount(),
+                String.valueOf(actualCommentCount),
+                videoApiResponse.thumbnailUrl(),
+                videoApiResponse.channelId(),
+                videoApiResponse.channelTitle(),
+                videoApiResponse.channelThumbnailUrl(),
+                videoApiResponse.subscriberCount(),
+                videoApiResponse.publishedAt()
+        );
     }
 
     /**
-     * 2. AI 분석 실패했지만 댓글은 있는 경우 - 백엔드 분석만 저장
+     * DB에서 비디오 조회
      */
-    public VideoApiResponse saveVideoInformation(
-            VideoApiResponse videoApiResponse,
-            Map<Integer, Integer> hourlyDistribution,
-            Map<String, Integer> mentionedTimestamp) {
+    public Optional<Video> findByApiVideoId(String apiVideoId) {
+        return videoRepository.findByApiVideoId(apiVideoId);
+    }
 
+    /**
+     * DB에서 비디오 조회 (ID로)
+     */
+    public Optional<Video> findById(Long id) {
+        return videoRepository.findById(id);
+    }
+
+    /**
+     * AI 분석 완료 여부 체크
+     */
+    public boolean isAIAnalysisCompleted(Video video) {
+        return video.getSummation() != null &&
+                video.getLanguageDistribution() != null &&
+                video.getSentimentDistribution() != null &&
+                video.getKeywords() != null;
+        // warning은 boolean이라 null 체크 안함
+    }
+
+    /**
+     * 기존 데이터 삭제 (1일 지난 경우)
+     */
+    @Transactional
+    public void deleteExistingData(Long videoId) {
         try {
+            commentService.deleteCommentsByVideoId(videoId);
+            videoRepository.deleteById(videoId);
+            log.info("기존 데이터 삭제 완료: videoId={}", videoId);
+        } catch (Exception e) {
+            log.error("기존 데이터 삭제 실패: videoId={}, error={}", videoId, e.getMessage());
+            throw new RuntimeException("기존 데이터 삭제 중 오류 발생", e);
+        }
+    }
+
+    /**
+     * 비디오와 댓글을 AI 분석 없이 저장
+     */
+    @Transactional
+    public Long saveVideoAndCommentsWithoutAI(VideoApiResponse videoApiResponse, CommentApiResponse commentInfo) {
+        try {
+            // 1. 비디오 저장 (AI 필드들은 null)
             Video video = Video.builder()
                     .apiVideoId(videoApiResponse.apiVideoId())
                     .title(videoApiResponse.title())
@@ -141,54 +182,76 @@ public class VideoService {
                     .viewCount(videoApiResponse.viewCount())
                     .likeCount(videoApiResponse.likeCount())
                     .commentCount(videoApiResponse.commentCount())
-                    .hourlyDistribution(objectMapper.writeValueAsString(hourlyDistribution))
-                    .mentionedTimestamp(objectMapper.writeValueAsString(mentionedTimestamp))
+                    .commentHistogram(objectMapper.writeValueAsString(commentInfo.commentHistogram()))
+                    .popularTimestamps(objectMapper.writeValueAsString(commentInfo.popularTimestamps()))
+                    // AI 필드들은 null로 저장
+                    .summation(null)
+                    .isWarning(false)
+                    .languageDistribution(null)
+                    .sentimentDistribution(null)
+                    .keywords(null)
                     .build();
-            videoRepository.save(video);
-            return videoApiResponse;
+
+            Video savedVideo = videoRepository.save(video);
+
+            // 2. 댓글 저장 (sentiment는 null)
+            commentService.saveCommentsToDb(commentInfo.allComments(), savedVideo);
+
+            log.info("비디오와 댓글 저장 완료 (AI 분석 없이): apiVideoId={}, videoId={}",
+                    videoApiResponse.apiVideoId(), savedVideo.getId());
+
+            return savedVideo.getId();
+
         } catch (Exception e) {
-            log.error("JSON 직렬화 실패: {}", e.getMessage());
+            log.error("비디오 저장 실패: apiVideoId={}, error={}",
+                    videoApiResponse.apiVideoId(), e.getMessage());
             throw new RuntimeException("비디오 저장 중 오류 발생", e);
         }
     }
 
     /**
-     * 3. AI 분석 성공한 경우 - 모든 분석 데이터 저장
+     * AI 분석 결과로 비디오 업데이트 (null이 아닌 필드만)
      */
-    public VideoApiResponse saveVideoInformation(
-            VideoApiResponse videoApiResponse,
-            Map<Integer, Integer> hourlyDistribution,
-            Map<String, Integer> mentionedTimestamp,
-            AnalysisResponse analysisResponse) {
-
+    @Transactional
+    public void updateWithAIResults(Long videoId, AIAnalysisResponse analysisResponse) {
         try {
-            Video video = Video.builder()
-                    .apiVideoId(videoApiResponse.apiVideoId())
-                    .title(videoApiResponse.title())
-                    .description(videoApiResponse.description())
-                    .thumbnailUrl(videoApiResponse.thumbnailUrl())
-                    .channelId(videoApiResponse.channelId())
-                    .channelName(videoApiResponse.channelTitle())
-                    .uploadedAt(videoApiResponse.publishedAt())
-                    .subscriberCount(videoApiResponse.subscriberCount())
-                    .viewCount(videoApiResponse.viewCount())
-                    .likeCount(videoApiResponse.likeCount())
-                    .commentCount(videoApiResponse.commentCount())
-                    .hourlyDistribution(objectMapper.writeValueAsString(hourlyDistribution))
-                    .mentionedTimestamp(objectMapper.writeValueAsString(mentionedTimestamp))
-                    .summation(analysisResponse.summation())
-                    .isWarning(analysisResponse.isWarning())
-                    .build();
+            Video video = videoRepository.findById(videoId)
+                    .orElseThrow(() -> new IllegalArgumentException("비디오를 찾을 수 없습니다: " + videoId));
+
+            // null이 아닌 필드만 업데이트
+            if (analysisResponse.summation() != null) {
+                video.setSummation(analysisResponse.summation());
+            }
+
+            // boolean은 기본값이 false이므로 항상 업데이트
+            video.setWarning(analysisResponse.isWarning());
+
+            if (analysisResponse.languageRatio() != null) {
+                video.setLanguageDistribution(objectMapper.writeValueAsString(analysisResponse.languageRatio()));
+            }
+
+            if (analysisResponse.sentimentRatio() != null) {
+                video.setSentimentDistribution(objectMapper.writeValueAsString(analysisResponse.sentimentRatio()));
+            }
+
+            if (analysisResponse.keywords() != null) {
+                video.setKeywords(objectMapper.writeValueAsString(analysisResponse.keywords()));
+            }
+
             videoRepository.save(video);
-            return videoApiResponse;
+
+            log.info("AI 분석 결과 업데이트 완료: videoId={}", videoId);
+
         } catch (Exception e) {
-            log.error("JSON 직렬화 실패: {}", e.getMessage());
-            throw new RuntimeException("비디오 저장 중 오류 발생", e);
+            log.error("AI 분석 결과 업데이트 실패: videoId={}, error={}", videoId, e.getMessage());
+            throw new RuntimeException("AI 분석 결과 업데이트 중 오류 발생", e);
         }
     }
+
 
     /**
      * 유튜브에 해당 영상 데이터를 요청
+     *
      * @param videoId
      * @return
      */
@@ -206,6 +269,7 @@ public class VideoService {
 
     /**
      * 유튜브로부터 채널 데이터를 받아옴
+     *
      * @param channelId
      * @return
      */
@@ -222,6 +286,7 @@ public class VideoService {
 
     /**
      * 유튜브로부터 영상 데이터를 받아옴
+     *
      * @param videoItem
      * @param channelItem
      * @param actualCommentCount
