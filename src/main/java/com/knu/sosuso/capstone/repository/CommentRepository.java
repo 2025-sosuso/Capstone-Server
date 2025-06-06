@@ -9,8 +9,8 @@ import java.util.List;
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
-    // 특정 비디오의 댓글들 조회 (좋아요 수 내림차순)
-    List<Comment> findByVideoIdOrderByLikeCountDesc(Long videoId);
+    // 특정 비디오의 댓글들 조회
+    List<Comment> findByVideoIdOrderByIdAsc(Long videoId);
 
     // 중복 댓글 체크
     boolean existsByApiCommentId(String apiCommentId);

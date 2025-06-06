@@ -33,7 +33,7 @@ public class CommentService {
     private static final Pattern HOUR_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2}):(\\d{2})\\b");
     private static final Pattern MINUTE_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2})\\b");
     private static final int MAX_RESULTS_PER_REQUEST = 100;
-    private static final int MAX_TOTAL_COMMENTS = 1000;
+    private static final int MAX_TOTAL_COMMENTS = 500;
 
     private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;
@@ -49,31 +49,27 @@ public class CommentService {
             return new CommentApiResponse(new HashMap<>(), new HashMap<>(), new ArrayList<>());
         }
 
-        // 좋아요순 정렬
-        List<CommentData> sortedComments = new ArrayList<>(allComments);
-        sortedComments.sort(Comparator.comparingInt(CommentData::likeCount).reversed());
+        List<CommentData> relevanceOrderedComments = new ArrayList<>(allComments);
 
         // 분석 데이터 생성
-        Map<Integer, Integer> hourlyDistribution = analyzeHourlyDistribution(sortedComments);
-        Map<String, Integer> mentionedTimestamp = analyzeMentionedTimestamp(sortedComments);
+        Map<Integer, Integer> hourlyDistribution = analyzeHourlyDistribution(relevanceOrderedComments);
+        Map<String, Integer> mentionedTimestamp = analyzeMentionedTimestamp(relevanceOrderedComments);
 
-        log.info("클라이언트용 댓글 처리 완료: 댓글 수={}", sortedComments.size());
-        return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, sortedComments);
+        log.info("클라이언트용 댓글 처리 완료: 댓글 수={}", relevanceOrderedComments.size());
+        return new CommentApiResponse(hourlyDistribution, mentionedTimestamp, relevanceOrderedComments);
     }
 
     /**
      * AI 분석용 댓글 추출 (메모리에서 처리, API 호출 X)
      */
-    public Map<String, String> extractCommentsForAI(List<CommentData> allComments, int maxComments) {
+    public Map<String, String> extractCommentsForAI(List<CommentData> allComments) {
         if (allComments == null || allComments.isEmpty()) {
             return new HashMap<>();
         }
 
         Map<String, String> commentsForAI = new HashMap<>();
-        int commentsToAnalyze = Math.min(allComments.size(), maxComments);
 
-        for (int i = 0; i < commentsToAnalyze; i++) {
-            CommentData commentData = allComments.get(i);
+        for (CommentData commentData : allComments) {
             commentsForAI.put(commentData.id(), commentData.commentText());
         }
 
@@ -103,7 +99,7 @@ public class CommentService {
                 List<CommentData> pageComments = parseCommentsFromJson(itemsNode);
                 allComments.addAll(pageComments);
 
-                // 1000개 제한 확인
+                // 최대 댓글 제한 확인
                 if (allComments.size() >= MAX_TOTAL_COMMENTS) {
                     log.info("댓글 수집 제한 도달: apiVideoId={}, 수집된 댓글 수={}", apiVideoId, allComments.size());
                     allComments = allComments.subList(0, Math.min(allComments.size(), MAX_TOTAL_COMMENTS));
@@ -127,6 +123,7 @@ public class CommentService {
 
         } while (isValidPageToken(pageToken));
 
+        log.info("댓글 수집 완료: apiVideoId={}, 총 댓글 수={}", apiVideoId, allComments.size());
         return allComments;
     }
 
@@ -283,7 +280,7 @@ public class CommentService {
      */
     @Transactional(readOnly = true)
     public CommentApiResponse getCommentsFromDb(Long videoId) {
-        List<Comment> dbComments = commentRepository.findByVideoIdOrderByLikeCountDesc(videoId);
+        List<Comment> dbComments = commentRepository.findByVideoIdOrderByIdAsc(videoId);
 
         List<CommentData> commentDataList = dbComments.stream()
                 .map(comment -> new CommentData(

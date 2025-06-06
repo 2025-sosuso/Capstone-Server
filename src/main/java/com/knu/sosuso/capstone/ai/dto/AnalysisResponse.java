@@ -11,7 +11,7 @@ public record AnalysisResponse(
         String summation, // 전체 댓글 요약
         boolean isWarning,
         List<String> keywords, // 댓글 주요 키워드
-        Map<String, SentimentType> sentimentComments, // 댓글별 긍정, 부정, 기타
+        Map<String, SentimentType> sentimentComments, // 댓글별 긍정, 부정, 기타 (Map<apiCommentId, commentContent>)
         Map<String, Double> languageRatio, // 언어 비율
         Map<String, Double> sentimentRatio // 전체 댓글 긍정, 부정, 기타 비율
 ) {

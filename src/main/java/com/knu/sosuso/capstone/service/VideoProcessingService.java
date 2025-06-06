@@ -20,8 +20,6 @@ import java.util.Map;
 @Service
 public class VideoProcessingService {
 
-    private static final int MAX_AI_ANALYSIS_COMMENTS = 500;
-
     private final VideoService videoService;
     private final CommentService commentService;
     private final AnalysisService analysisService;
@@ -63,8 +61,7 @@ public class VideoProcessingService {
             if (enableAIAnalysis) {
                 try {
                     // AI 분석용 댓글 추출
-                    Map<String, String> commentsForAI = commentService.extractCommentsForAI(
-                            allComments, MAX_AI_ANALYSIS_COMMENTS);
+                    Map<String, String> commentsForAI = commentService.extractCommentsForAI(allComments);
 
                     if (!commentsForAI.isEmpty()) {
                         log.info("AI 분석 요청 시작: apiVideoId={}, 분석 댓글 수={}",
