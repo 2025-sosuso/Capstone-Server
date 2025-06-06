@@ -5,7 +5,7 @@ import com.knu.sosuso.capstone.domain.enums.SentimentType;
 import java.util.List;
 import java.util.Map;
 
-public record AnalysisResponse(
+public record AIAnalysisResponse(
         Long videoId, // 영상 videoId
         String apiVideoId, // 영상 apiVideoId
         String summation, // 전체 댓글 요약
