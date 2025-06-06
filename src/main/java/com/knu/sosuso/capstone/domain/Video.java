@@ -6,9 +6,11 @@ import jakarta.persistence.Table;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @NoArgsConstructor
 @Getter
+@Setter
 @Entity
 @Table(name = "video")
 public class Video extends BaseEntity {
@@ -43,11 +45,11 @@ public class Video extends BaseEntity {
     @Column(name = "subscriber_count")
     private String subscriberCount;
 
-    @Column(name = "hourly_distribution", columnDefinition = "JSON")
-    private String hourlyDistribution;
+    @Column(name = "comment_histogram", columnDefinition = "JSON")
+    private String commentHistogram;
 
-    @Column(name = "mentioned_timestamp", columnDefinition = "JSON")
-    private String mentionedTimestamp;
+    @Column(name = "popular_timestamps", columnDefinition = "JSON")
+    private String popularTimestamps;
 
     @Column(name = "summation")
     private String summation;
@@ -55,21 +57,21 @@ public class Video extends BaseEntity {
     @Column(name = "warning")
     private boolean isWarning;
 
-    /*@Column(name = "language")
-    @Convert(converter = JsonConverter.class)
-    private Map<String, Object> language;
+    @Column(name = "language_distribution", columnDefinition = "JSON")
+    private String languageDistribution;
 
-    @Convert(converter = JsonConverter.class)
-    @Column(name = "emotion", columnDefinition = "json")
-    private Json emotion;
-*/
+    @Column(name = "sentiment_distribution", columnDefinition = "json")
+    private String sentimentDistribution;
+
+    @Column(name = "keywords", columnDefinition = "JSON")
+    private String keywords;
+
     @Column(name = "uploaded_at")
     private String uploadedAt;
 
     @Builder
-    public Video(String apiVideoId, String title, String description, String viewCount, String likeCount, String commentCount, String thumbnailUrl, String channelId, String channelName, String subscriberCount, String hourlyDistribution,
-                 String mentionedTimestamp, String summation,
-                 boolean isWarning, String uploadedAt) {
+
+    public Video(String apiVideoId, String title, String description, String viewCount, String likeCount, String commentCount, String thumbnailUrl, String channelId, String channelName, String subscriberCount, String commentHistogram, String popularTimestamps, String summation, boolean isWarning, String languageDistribution, String sentimentDistribution, String keywords, String uploadedAt) {
         this.apiVideoId = apiVideoId;
         this.title = title;
         this.description = description;
@@ -80,10 +82,13 @@ public class Video extends BaseEntity {
         this.channelId = channelId;
         this.channelName = channelName;
         this.subscriberCount = subscriberCount;
-        this.hourlyDistribution = hourlyDistribution;
-        this.mentionedTimestamp = mentionedTimestamp;
+        this.commentHistogram = commentHistogram;
+        this.popularTimestamps = popularTimestamps;
         this.summation = summation;
         this.isWarning = isWarning;
+        this.languageDistribution = languageDistribution;
+        this.sentimentDistribution = sentimentDistribution;
+        this.keywords = keywords;
         this.uploadedAt = uploadedAt;
     }
 }
