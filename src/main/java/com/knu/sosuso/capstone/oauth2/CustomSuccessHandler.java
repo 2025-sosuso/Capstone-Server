@@ -36,7 +36,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         ResponseCookie cookie = ResponseCookie.from("Authorization", token)
                 .httpOnly(true)
-                .secure(false) // Todo 배포 시 true로 변경
+                .secure(true)
                 .sameSite("None")
                 .path("/")
                 .maxAge(60 * 60)
