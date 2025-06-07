@@ -54,4 +54,52 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         }
         response.sendRedirect(frontendUrl + "/login/success");
     }
+
+    public void logout(String token, HttpServletResponse response) throws IOException {
+        clearAuthenticationCookie(response);
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+
+        if (isValidToken(token)) {
+            Long userId = jwtUtil.getUserId(token);
+
+            log.info("OAuth2 로그아웃, 사용자 ID: {}", userId);
+
+            String googleLogoutUrl = buildGoogleLogoutUrl();
+            response.sendRedirect(googleLogoutUrl);
+        }
+    }
+
+    /**
+     * 토큰 유효성 검사
+     * @param token
+     * @return
+     */
+    private boolean isValidToken(String token) {
+        if (token == null || token.trim().isEmpty()) {
+            return false;
+        }
+        return !jwtUtil.isExpired(token);
+    }
+
+    /**
+     * 쿠키 삭제
+     * @param response
+     */
+    private void clearAuthenticationCookie(HttpServletResponse response) {
+        ResponseCookie deleteCookie = ResponseCookie.from("Authorization", "")
+                .httpOnly(true)
+                .secure(true)
+                .sameSite("None")
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        response.setHeader(HttpHeaders.SET_COOKIE, deleteCookie.toString());
+    }
+
+    private String buildGoogleLogoutUrl() {
+        String logoutRedirectUrl = "https://capstone-client-guka.vercel.app";
+        return "https://accounts.google.com/logout?continue=" +
+                URLEncoder.encode(logoutRedirectUrl, StandardCharsets.UTF_8);
+    }
 }

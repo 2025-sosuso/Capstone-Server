@@ -36,11 +36,4 @@ public class AuthService {
                 user.getPicture()
         );
     }
-    
-    public boolean isTokenValid(String token) {
-        if (token == null || token.trim().isEmpty()) {
-            return false;
-        }
-        return jwtUtil.isValidToken(token);
-    }
 }
