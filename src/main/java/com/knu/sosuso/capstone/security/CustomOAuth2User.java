@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.dto.oauth2;
+package com.knu.sosuso.capstone.security;
 
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;

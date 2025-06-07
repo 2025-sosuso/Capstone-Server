@@ -1,10 +1,6 @@
-package com.knu.sosuso.capstone.service;
+package com.knu.sosuso.capstone.security;
 
 import com.knu.sosuso.capstone.domain.User;
-import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
-import com.knu.sosuso.capstone.dto.oauth2.GoogleUserInfo;
-import com.knu.sosuso.capstone.dto.response.GoogleResponse;
-import com.knu.sosuso.capstone.dto.response.OAuth2Response;
 import com.knu.sosuso.capstone.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;

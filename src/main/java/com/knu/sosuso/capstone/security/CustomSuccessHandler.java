@@ -1,8 +1,7 @@
-package com.knu.sosuso.capstone.oauth2;
+package com.knu.sosuso.capstone.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knu.sosuso.capstone.jwt.JwtUtil;
-import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
+import com.knu.sosuso.capstone.security.jwt.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.dto.response;
+package com.knu.sosuso.capstone.security;
 
 import java.util.Map;
 

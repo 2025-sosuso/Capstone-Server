@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.dto.response;
+package com.knu.sosuso.capstone.security;
 
 public interface OAuth2Response {
     // 제공자 (ex. google, naver, kakao, ...)

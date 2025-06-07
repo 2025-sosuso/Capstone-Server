@@ -1,6 +1,6 @@
-package com.knu.sosuso.capstone.jwt;
+package com.knu.sosuso.capstone.security.jwt;
 
-import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
+import com.knu.sosuso.capstone.security.CustomOAuth2User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;

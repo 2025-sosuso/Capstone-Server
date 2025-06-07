@@ -1,10 +1,8 @@
 package com.knu.sosuso.capstone.service;
 
 import com.knu.sosuso.capstone.domain.User;
-import com.knu.sosuso.capstone.dto.oauth2.CustomOAuth2User;
 import com.knu.sosuso.capstone.dto.response.LoginResponse;
-import com.knu.sosuso.capstone.jwt.JwtAuthHelper;
-import com.knu.sosuso.capstone.jwt.JwtUtil;
+import com.knu.sosuso.capstone.security.jwt.JwtUtil;
 import com.knu.sosuso.capstone.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

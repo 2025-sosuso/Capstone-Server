@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.jwt;
+package com.knu.sosuso.capstone.security.jwt;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;

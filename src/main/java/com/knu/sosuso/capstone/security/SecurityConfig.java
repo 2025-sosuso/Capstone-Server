@@ -1,10 +1,8 @@
-package com.knu.sosuso.capstone.config;
+package com.knu.sosuso.capstone.security;
 
-import com.knu.sosuso.capstone.jwt.JwtFilter;
-import com.knu.sosuso.capstone.jwt.JwtUtil;
-import com.knu.sosuso.capstone.oauth2.CustomSuccessHandler;
+import com.knu.sosuso.capstone.security.jwt.JwtFilter;
+import com.knu.sosuso.capstone.security.jwt.JwtUtil;
 import com.knu.sosuso.capstone.repository.UserRepository;
-import com.knu.sosuso.capstone.service.CustomOAuth2UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;

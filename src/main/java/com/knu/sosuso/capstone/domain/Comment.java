@@ -1,6 +1,6 @@
 package com.knu.sosuso.capstone.domain;
 
-import com.knu.sosuso.capstone.domain.enums.SentimentType;
+import com.knu.sosuso.capstone.domain.value.SentimentType;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
