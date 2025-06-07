@@ -13,6 +13,8 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 
 @RequiredArgsConstructor
@@ -44,6 +46,10 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         response.setHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        response.sendRedirect("https://capstone-client-guka.vercel.app/login/success");
+        String frontendUrl = request.getHeader("Origin");
+        if (frontendUrl == null) {
+            frontendUrl = "http://localhost:3000";
+        }
+        response.sendRedirect(frontendUrl + "/login/success");
     }
 }
