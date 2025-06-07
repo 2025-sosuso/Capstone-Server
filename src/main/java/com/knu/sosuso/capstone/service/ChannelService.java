@@ -3,7 +3,7 @@ package com.knu.sosuso.capstone.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.response.SearchChannelResponse;
+import com.knu.sosuso.capstone.dto.response.search.SearchChannelResponse;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +57,7 @@ public class ChannelService {
             String channelsResponse = getChannelsDetails(channelIds);
 
             // 4. 결과 변환 및 정렬
-            List<SearchChannelResponse.ChannelData> results = parseChannelsResponse(channelsResponse);
+            List<SearchChannelResponse.ChannelSearchResult> results = parseChannelsResponse(channelsResponse);
 
             logger.info("채널 검색 완료: query={}, resultCount={}", query, results.size());
             return new SearchChannelResponse(results);
@@ -128,12 +128,12 @@ public class ChannelService {
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
-    private List<SearchChannelResponse.ChannelData> parseChannelsResponse(String channelsResponse) {
+    private List<SearchChannelResponse.ChannelSearchResult> parseChannelsResponse(String channelsResponse) {
         try {
             JsonNode channelsRootNode = objectMapper.readTree(channelsResponse);
             JsonNode channelsItemsNode = channelsRootNode.path("items");
 
-            List<SearchChannelResponse.ChannelData> results = new ArrayList<>();
+            List<SearchChannelResponse.ChannelSearchResult> results = new ArrayList<>();
 
             if (channelsItemsNode.isArray()) {
                 for (JsonNode channel : channelsItemsNode) {
@@ -148,26 +148,18 @@ public class ChannelService {
 
                     // 구독자 수 정보 가져오기
                     JsonNode statisticsNode = channel.path("statistics");
-                    String subscriberCount = statisticsNode.path("subscriberCount").asText();
+                    String subscriberCountStr = statisticsNode.path("subscriberCount").asText();
+                    Long subscriberCount = parseLong(subscriberCountStr);
 
-                    boolean isSubscribed = false; // 추후에 변동 예정
+                    boolean isFavorited = false; // 추후에 변동 예정
 
-                    results.add(new SearchChannelResponse.ChannelData(
-                            channelId, title, handle, description, thumbnailUrl, subscriberCount, isSubscribed));
+                    results.add(new SearchChannelResponse.ChannelSearchResult(
+                            channelId, title, handle, description, thumbnailUrl, subscriberCount, isFavorited));
                 }
             }
 
             // 구독자 수 기준으로 정렬 (내림차순)
-            results.sort((a, b) -> {
-                try {
-                    long aSubscribers = Long.parseLong(a.subscriberCount());
-                    long bSubscribers = Long.parseLong(b.subscriberCount());
-                    return Long.compare(bSubscribers, aSubscribers);
-                } catch (NumberFormatException e) {
-                    logger.warn("구독자 수 파싱 실패: a={}, b={}", a.subscriberCount(), b.subscriberCount());
-                    return 0;
-                }
-            });
+            results.sort((a, b) -> Long.compare(b.subscriberCount(), a.subscriberCount()));
 
             return results;
         } catch (Exception e) {
@@ -192,5 +184,14 @@ public class ChannelService {
         }
 
         return "";
+    }
+
+    private Long parseLong(String value) {
+        try {
+            return value != null && !value.isEmpty() ? Long.parseLong(value) : 0L;
+        } catch (NumberFormatException e) {
+            logger.warn("구독자 수 Long 변환 실패: {}", value);
+            return 0L;
+        }
     }
 }

@@ -1,7 +1,7 @@
 package com.knu.sosuso.capstone.ai.service;
 
-import com.knu.sosuso.capstone.ai.dto.AnalysisRequest;
-import com.knu.sosuso.capstone.ai.dto.AnalysisResponse;
+import com.knu.sosuso.capstone.ai.dto.AIAnalysisRequest;
+import com.knu.sosuso.capstone.ai.dto.AIAnalysisResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -16,25 +16,25 @@ public class AnalysisService {
 
     /**
      * AI에 분석 요청
-     * @param analysisRequest
+     * @param aiAnalysisRequest
      * @return
      */
-    public AnalysisResponse requestAnalysis(AnalysisRequest analysisRequest) {
+    public AIAnalysisResponse requestAnalysis(AIAnalysisRequest aiAnalysisRequest) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        HttpEntity<AnalysisRequest> entity = new HttpEntity<>(analysisRequest, headers);
+        HttpEntity<AIAnalysisRequest> entity = new HttpEntity<>(aiAnalysisRequest, headers);
 
-        ResponseEntity<AnalysisResponse> analysisResponse = restTemplate.postForEntity(
+        ResponseEntity<AIAnalysisResponse> aiAnalysisResponse = restTemplate.postForEntity(
                 FASTAPI_URL,
                 entity,
-                AnalysisResponse.class
+                AIAnalysisResponse.class
         );
 
-        if (analysisResponse.getStatusCode() == HttpStatus.OK && analysisResponse.getBody() != null) {
-            return analysisResponse.getBody();
+        if (aiAnalysisResponse.getStatusCode() == HttpStatus.OK && aiAnalysisResponse.getBody() != null) {
+            return aiAnalysisResponse.getBody();
         } else {
-            throw new RuntimeException("FastAPI request failed: " + analysisResponse.getStatusCode());
+            throw new RuntimeException("FastAPI request failed: " + aiAnalysisResponse.getStatusCode());
         }
     }
 }

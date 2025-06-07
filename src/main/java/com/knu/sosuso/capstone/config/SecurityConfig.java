@@ -17,7 +17,6 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 
-import java.util.Collections;
 import java.util.List;
 
 @Configuration
@@ -32,62 +31,42 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, UserRepository userRepository) throws Exception {
 
-        http
-                .cors(corsCustomizer -> corsCustomizer.configurationSource(new CorsConfigurationSource() {
+        http.cors(corsCustomizer -> corsCustomizer.configurationSource(new CorsConfigurationSource() {
+            @Override
+            public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
+                CorsConfiguration configuration = new CorsConfiguration();
+                configuration.setAllowedOriginPatterns(List.of(
+                        "http://localhost:3000",
+                        "https://capstone-client-guka.vercel.app",
+                        "http://localhost:8080",
+                        "https://knu-sosuso.com:8080"
+                ));
+                configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                configuration.setAllowedHeaders(List.of("*"));
+                configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie"));
+                configuration.setAllowCredentials(true); // 쿠키 포함 허용
+                configuration.setMaxAge(3600L);
+                return configuration;
+            }
+        }));
 
-                    @Override
-                    public CorsConfiguration getCorsConfiguration(HttpServletRequest request) {
+        http.csrf(csrf -> csrf.disable());
+        http.formLogin(form -> form.disable());
+        http.httpBasic(basic -> basic.disable());
 
-                        CorsConfiguration configuration = new CorsConfiguration();
+        http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-                        configuration.setAllowedOrigins(
-                                List.of("http://localhost:3000",
-                                        "https://capstone-client-guka.vercel.app",
-                                        "http://localhost:8080",
-                                        "http://knu-sosuso.com:8080"
-                                )
-                        );
-                        configuration.setAllowedMethods(Collections.singletonList("*"));
-                        configuration.setAllowCredentials(true);
-                        configuration.setAllowedHeaders(Collections.singletonList("*"));
-                        configuration.setMaxAge(3600L);
-                        configuration.setExposedHeaders(List.of("Set-Cookie", "Authorization"));
-                        return configuration;
-                    }
-                }));
+        http.oauth2Login(oauth -> oauth
+                .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
+                .successHandler(customSuccessHandler)
+        );
 
-        // csrf disable
-        http
-                .csrf((auth) -> auth.disable());
+        http.addFilterBefore(new JwtFilter(jwtUtil, userRepository), UsernamePasswordAuthenticationFilter.class);
 
-        // form 로그인 방식 disable
-        http
-                .formLogin((auth) -> auth.disable());
+        http.authorizeHttpRequests(auth -> auth
+                .anyRequest().permitAll()
+        );
 
-        // HTTP Basic 인증 방식 disable
-        http
-                .httpBasic((auth) -> auth.disable());
-
-        // JwtFilter 추가
-        http
-                .addFilterBefore(new JwtFilter(jwtUtil, userRepository), UsernamePasswordAuthenticationFilter.class);
-
-        // oauth2
-        http
-                .oauth2Login((oauth2) -> oauth2
-                        .userInfoEndpoint(userInfoEndpointConfig -> userInfoEndpointConfig
-                                .userService(customOAuth2UserService))
-                        .successHandler(customSuccessHandler));
-
-        // 경로별 인가 작업
-        http
-                .authorizeHttpRequests((auth) -> auth
-                        .anyRequest().permitAll());
-
-        // 세션 설정: STATELESS
-        http
-                .sessionManagement((session) -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS));
         return http.build();
     }
 }

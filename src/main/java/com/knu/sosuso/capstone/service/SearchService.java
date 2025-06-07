@@ -1,15 +1,15 @@
 package com.knu.sosuso.capstone.service;
 
-import com.knu.sosuso.capstone.ai.dto.AnalysisRequest;
-import com.knu.sosuso.capstone.ai.dto.AnalysisResponse;
-import com.knu.sosuso.capstone.ai.service.AnalysisService;
-import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
-import com.knu.sosuso.capstone.dto.response.SearchResponse;
-import com.knu.sosuso.capstone.dto.response.SearchUrlResponse;
-import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
+import com.knu.sosuso.capstone.dto.response.search.ChannelResponse;
+import com.knu.sosuso.capstone.dto.response.search.SearchApiResponse;
+import com.knu.sosuso.capstone.dto.response.search.SearchChannelResponse;
+import com.knu.sosuso.capstone.dto.response.search.SearchResultResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -21,7 +21,7 @@ public class SearchService {
     private final VideoProcessingService videoProcessingService;
 
     // 1. 검색어 입력
-    public SearchResponse search(String query) {
+    public SearchApiResponse search(String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new IllegalArgumentException("검색어는 필수입니다");
         }
@@ -33,11 +33,11 @@ public class SearchService {
         // -> URL이면 영상 정보 추출 메서드 호출
         try {
             if (isVideoUrl(trimmedQuery)) {
-                SearchUrlResponse videoResult = searchVideo(trimmedQuery);
-                return new SearchResponse("URL", videoResult);
+                SearchResultResponse videoResult = searchVideo(trimmedQuery);
+                return new SearchApiResponse("URL", List.of(videoResult));
             } else {
-                var channelResult = searchChannels(trimmedQuery);
-                return new SearchResponse("CHANNEL", channelResult);
+                List<SearchResultResponse> channelResults = searchChannels(trimmedQuery);
+                return new SearchApiResponse("CHANNEL", channelResults);
             }
         } catch (Exception e) {
             log.error("검색 실패: query={}, error={}", trimmedQuery, e.getMessage(), e);
@@ -46,7 +46,7 @@ public class SearchService {
     }
 
     // 3. 영상 정보 가져옴
-    private SearchUrlResponse searchVideo(String videoUrl) {
+    private SearchResultResponse searchVideo(String videoUrl) {
         String apiVideoId = videoService.extractVideoId(videoUrl);
 
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
@@ -55,21 +55,42 @@ public class SearchService {
 
         log.info("비디오 검색 시작: apiVideoId={}", apiVideoId);
 
-        return videoProcessingService.processVideo(apiVideoId, true);
+        return videoProcessingService.processVideoToSearchResult(apiVideoId, true);
     }
 
     private boolean isVideoUrl(String url) {
         return url.contains("youtube.com/watch?v=") || url.contains("youtu.be/");
     }
 
-    private Object searchChannels(String query) {
+    private List<SearchResultResponse> searchChannels(String query) {
         log.info("채널 검색 시작: query={}", query);
 
         try {
-            return channelService.searchChannels(query);
+            SearchChannelResponse channelSearchResult = channelService.searchChannels(query);
+
+            // SearchChannelResponse를 SearchResultResponse 리스트로 변환
+            // 채널 검색의 경우 video, analysis, comments는 없으므로 null 처리
+            return channelSearchResult.results().stream()
+                    .map(channel -> new SearchResultResponse(
+                            null, // video 정보 없음
+                            mapChannelToChannelResponse(channel), // 채널 정보
+                            null, // analysis 정보 없음
+                            List.of() // comments 없음
+                    ))
+                    .collect(Collectors.toList());
         } catch (Exception e) {
             log.error("채널 검색 실패: query={}, error={}", query, e.getMessage());
             throw e;
         }
+    }
+
+    private ChannelResponse mapChannelToChannelResponse(SearchChannelResponse.ChannelSearchResult channel) {
+        return new ChannelResponse(
+                channel.id(),
+                channel.title(),
+                channel.thumbnailUrl(),
+                channel.subscriberCount(),
+                channel.isFavorited()
+        );
     }
 }
