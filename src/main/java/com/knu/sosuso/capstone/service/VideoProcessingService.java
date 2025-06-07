@@ -7,9 +7,9 @@ import com.knu.sosuso.capstone.domain.Comment;
 import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
-import com.knu.sosuso.capstone.dto.response.search.ChannelResponse;
-import com.knu.sosuso.capstone.dto.response.search.SearchResultResponse;
-import com.knu.sosuso.capstone.dto.response.search.VideoResponse;
+import com.knu.sosuso.capstone.dto.response.search.UrlChannelDto;
+import com.knu.sosuso.capstone.dto.response.search.UrlSearchResponse;
+import com.knu.sosuso.capstone.dto.response.search.UrlVideoDto;
 import com.knu.sosuso.capstone.repository.CommentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +37,7 @@ public class VideoProcessingService {
      * @param enableAIAnalysis AI 분석 수행 여부
      * @return 처리된 비디오 + 댓글 정보
      */
-    public SearchResultResponse processVideoToSearchResult(String apiVideoId, boolean enableAIAnalysis) {
+    public UrlSearchResponse processVideoToSearchResult(String apiVideoId, boolean enableAIAnalysis) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다.");
         }
@@ -65,7 +65,7 @@ public class VideoProcessingService {
     /**
      * 기존 DB 데이터가 있는 경우 처리
      */
-    private SearchResultResponse handleExistingVideo(
+    private UrlSearchResponse handleExistingVideo(
             Video existingVideo,
             String apiVideoId,
             boolean enableAIAnalysis) {
@@ -101,7 +101,7 @@ public class VideoProcessingService {
     /**
      * 새로운 비디오 처리
      */
-    private SearchResultResponse handleNewVideo(String apiVideoId, boolean enableAIAnalysis) {
+    private UrlSearchResponse handleNewVideo(String apiVideoId, boolean enableAIAnalysis) {
 
         log.info("YouTube API에서 비디오 정보 수집 시작: apiVideoId={}", apiVideoId);
 
@@ -158,17 +158,17 @@ public class VideoProcessingService {
     /**
      * 댓글이 없는 경우 - 영상 정보만 응답
      */
-    private SearchResultResponse createVideoOnlyResponse(VideoApiResponse videoInfo) {
-        VideoResponse video = responseMappingService.mapToVideoResponse(videoInfo);
-        ChannelResponse channel = responseMappingService.mapToChannelResponse(videoInfo);
+    private UrlSearchResponse createVideoOnlyResponse(VideoApiResponse videoInfo) {
+        UrlVideoDto video = responseMappingService.mapToVideoResponse(videoInfo);
+        UrlChannelDto channel = responseMappingService.mapToChannelResponse(videoInfo);
 
-        return new SearchResultResponse(video, channel, null, List.of());
+        return new UrlSearchResponse(video, channel, null, List.of());
     }
 
     /**
      * AI 분석만 재시도 (기존 DB 데이터 있는 경우)
      */
-    private SearchResultResponse retryAIAnalysisOnly(Video existingVideo, String apiVideoId) {
+    private UrlSearchResponse retryAIAnalysisOnly(Video existingVideo, String apiVideoId) {
         // 1. 먼저 DB에 댓글이 있는지 확인
         List<Comment> existingComments = commentRepository.findAllByVideoId(existingVideo.getId());
 

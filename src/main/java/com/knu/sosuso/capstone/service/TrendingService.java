@@ -3,7 +3,7 @@ package com.knu.sosuso.capstone.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.response.search.SearchResultResponse;
+import com.knu.sosuso.capstone.dto.response.search.UrlSearchResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,7 +24,7 @@ public class TrendingService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    public List<SearchResultResponse> getTrendingVideoWithComments(String categoryType, String regionCode, int maxResults) {
+    public List<UrlSearchResponse> getTrendingVideoWithComments(String categoryType, String regionCode, int maxResults) {
         log.info("인기급상승 영상 조회 시작: categoryType={}, regionCode={}, maxResults={}", categoryType, regionCode, maxResults);
 
         try {
@@ -36,13 +36,13 @@ public class TrendingService {
                 return new ArrayList<>();
             }
 
-            List<SearchResultResponse> results = new ArrayList<>();
+            List<UrlSearchResponse> results = new ArrayList<>();
 
             for (String videoId : videoIds) {
                 try {
                     log.debug("비디오 정보 조회 중: apiVideoId={}", videoId);
 
-                    SearchResultResponse result = videoProcessingService.processVideoToSearchResult(videoId, true);
+                    UrlSearchResponse result = videoProcessingService.processVideoToSearchResult(videoId, true);
 
                     // null 체크 - 댓글이 없는 경우 빈 응답이 올 수 있음
                     if (result != null) {

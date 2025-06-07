@@ -2,10 +2,10 @@ package com.knu.sosuso.capstone.dto.response.search;
 
 import java.util.List;
 
-public record SearchChannelResponse(
-        List<ChannelSearchResult> results
+public record ChannelSearchResponse(
+        List<ChannelDto> results
 ) {
-    public record ChannelSearchResult(
+    public record ChannelDto(
             String id,
             String title,
             String handle,

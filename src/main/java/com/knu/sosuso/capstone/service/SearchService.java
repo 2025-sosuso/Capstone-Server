@@ -1,8 +1,8 @@
 package com.knu.sosuso.capstone.service;
 
-import com.knu.sosuso.capstone.dto.response.search.ChannelResponse;
+import com.knu.sosuso.capstone.dto.response.search.UrlChannelDto;
 import com.knu.sosuso.capstone.dto.response.search.SearchApiResponse;
-import com.knu.sosuso.capstone.dto.response.search.SearchChannelResponse;
+import com.knu.sosuso.capstone.dto.response.search.ChannelSearchResponse;
 import com.knu.sosuso.capstone.dto.response.search.SearchResultResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,7 +35,7 @@ public class SearchService {
                 SearchResultResponse videoResult = searchVideo(trimmedQuery);
                 return new SearchApiResponse<>("URL", List.of(videoResult));
             } else {
-                SearchChannelResponse channelSearchResult = channelService.searchChannels(query);
+                ChannelSearchResponse channelSearchResult = channelService.searchChannels(query);
                 return new SearchApiResponse<>("CHANNEL", channelSearchResult.results());
             }
         } catch (Exception e) {
@@ -61,8 +61,8 @@ public class SearchService {
         return url.contains("youtube.com/watch?v=") || url.contains("youtu.be/");
     }
 
-    private ChannelResponse mapChannelToChannelResponse(SearchChannelResponse.ChannelSearchResult channel) {
-        return new ChannelResponse(
+    private UrlChannelDto mapChannelToChannelResponse(ChannelSearchResponse.ChannelDto channel) {
+        return new UrlChannelDto(
                 channel.id(),
                 channel.title(),
                 channel.thumbnailUrl(),
