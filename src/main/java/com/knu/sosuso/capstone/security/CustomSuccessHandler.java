@@ -5,6 +5,7 @@ import com.knu.sosuso.capstone.security.jwt.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
@@ -17,6 +18,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 
+@Slf4j
 @RequiredArgsConstructor
 @Component
 public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
@@ -48,7 +50,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         String frontendUrl = request.getHeader("Origin");
         if (frontendUrl == null) {
-            frontendUrl = "http://localhost:3000";
+            frontendUrl = "https://capstone-client-guka.vercel.app";
         }
         response.sendRedirect(frontendUrl + "/login/success");
     }
