@@ -43,12 +43,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         User existUser = userRepository.findBySub(sub);
         if (existUser == null) {
             User signUpUser = User.signUp(googleUserInfo);
-            userRepository.save(signUpUser);
-            return new CustomOAuth2User(googleUserInfo);
+            User savedUser = userRepository.save(signUpUser);
+            Long userId = savedUser.getId();
+            return new CustomOAuth2User(googleUserInfo, userId);
         } else {
             existUser.signIn(googleUserInfo);
-            userRepository.save(existUser);
-            return new CustomOAuth2User(googleUserInfo);
+            User savedUser = userRepository.save(existUser);
+            Long userId = savedUser.getId();
+            return new CustomOAuth2User(googleUserInfo, userId);
         }
     }
 }

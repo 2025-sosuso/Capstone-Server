@@ -58,13 +58,26 @@ public class JwtAuthHelper {
     }
 
     /**
-     * 현재 사용자의 sub(ID) 반환
+     * 현재 사용자의 sub 반환
      * @return
      */
-    public String getCurrentUserId() {
+    public String getCurrentUserSub() {
         CustomOAuth2User user = getCurrentUser();
         if (user != null) {
             return user.getSub();
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * 현재 사용자의 userId 반환
+     * @return
+     */
+    public Long getCurrentUserId() {
+        CustomOAuth2User user = getCurrentUser();
+        if (user != null) {
+            return user.getUserId();
         } else {
             return null;
         }

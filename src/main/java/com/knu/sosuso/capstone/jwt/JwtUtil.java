@@ -26,10 +26,11 @@ public class JwtUtil {
      * @param expireMs
      * @return
      */
-    public String createJwt(String sub, String role, Long expireMs) {
+    public String createJwt(String sub, String role, Long userId, Long expireMs) {
         return Jwts.builder()
                 .claim("sub", sub)
                 .claim("role", role)
+                .claim("userId", userId)
                 .issuedAt(new Date(System.currentTimeMillis()))
                 .expiration(new Date(System.currentTimeMillis() + expireMs))
                 .signWith(secretKey)
@@ -54,6 +55,10 @@ public class JwtUtil {
 
     public String getRole(String token) {
         return extractClaims(token).get("role", String.class);
+    }
+
+    public Long getUserId(String token) {
+        return extractClaims(token).get("userId", Long.class);
     }
 
     /*public Boolean isExpired(String token) {

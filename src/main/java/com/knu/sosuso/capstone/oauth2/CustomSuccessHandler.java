@@ -30,13 +30,14 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         CustomOAuth2User customUserDetails = (CustomOAuth2User) authentication.getPrincipal();
 
         String sub = customUserDetails.getSub();
+        Long userId = customUserDetails.getUserId();
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
         Iterator<? extends GrantedAuthority> iterator = authorities.iterator();
         GrantedAuthority auth = iterator.next();
         String role = auth.getAuthority();
 
         // 토큰 생성 (1시간)
-        String token = jwtUtil.createJwt(sub, role, 60*60*1000L);
+        String token = jwtUtil.createJwt(sub, role, userId,60*60*1000L);
 
         response.addCookie(createCookie("Authorization", token));
 
