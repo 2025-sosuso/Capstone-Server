@@ -133,7 +133,7 @@ public class ResponseMappingService {
             return new AnalysisResponse(
                     null,  // summary = null
                     false, // isWarning = false
-                    List.of(), // topComments = 빈 리스트
+                    mapToTopCommentsFromCommentData(commentInfo.allComments(), null), // 좋아요 TOP5 백엔드 처리 데이터
                     List.of(), // languageDistribution = 빈 리스트
                     new AnalysisResponse.SentimentDistribution(0.0, 0.0, 0.0), // sentimentDistribution = 빈 값
                     mapToPopularTimestamps(commentInfo.popularTimestamps()), // 백엔드 처리 데이터
@@ -155,17 +155,10 @@ public class ResponseMappingService {
                         analysisResponse.sentimentRatio().getOrDefault("other", 0.0)
                 );
 
-        // 상위 댓글 (좋아요 순으로 상위 5개)
-        List<CommentResponse> topComments = commentInfo.allComments().stream()
-                .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
-                .limit(5)
-                .map(commentData -> mapToCommentResponseWithAI(commentData, analysisResponse))
-                .collect(Collectors.toList());
-
         return new AnalysisResponse(
                 analysisResponse.summation(),
                 analysisResponse.isWarning(),
-                topComments,
+                mapToTopCommentsFromCommentData(commentInfo.allComments(), analysisResponse),
                 languageDistribution,
                 sentimentDistribution,
                 mapToPopularTimestamps(commentInfo.popularTimestamps()),
@@ -195,7 +188,7 @@ public class ResponseMappingService {
             if (!hasAIAnalysis) {
                 // AI 분석 미완료
                 return new AnalysisResponse(
-                        null, false, List.of(), List.of(),
+                        null, false, mapToTopCommentsFromDb(video.getId()), List.of(),
                         new AnalysisResponse.SentimentDistribution(0.0, 0.0, 0.0),
                         popularTimestamps, commentHistogram, List.of()
                 );
@@ -219,16 +212,10 @@ public class ResponseMappingService {
                             sentimentRatio.getOrDefault("other", 0.0)
                     );
 
-            // DB에서 상위 댓글 조회 (좋아요순 상위 5개)
-            List<CommentResponse> topComments = mapDbCommentsToCommentResponses(video.getId()).stream()
-                    .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
-                    .limit(5)
-                    .collect(Collectors.toList());
-
             return new AnalysisResponse(
                     video.getSummation(),
                     video.isWarning(),
-                    topComments,
+                    mapToTopCommentsFromDb(video.getId()),
                     languageDistribution,
                     sentimentDistribution,
                     popularTimestamps,
@@ -316,6 +303,36 @@ public class ResponseMappingService {
                 null,
                 commentData.publishedAt()
         );
+    }
+
+    /**
+     * CommentData에서 좋아요 TOP 5 댓글 추출
+     */
+    private List<CommentResponse> mapToTopCommentsFromCommentData(
+            List<CommentApiResponse.CommentData> commentDataList,
+            AIAnalysisResponse analysisResponse) {
+
+        return commentDataList.stream()
+                .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
+                .limit(5)
+                .map(commentData -> {
+                    if (analysisResponse != null) {
+                        return mapToCommentResponseWithAI(commentData, analysisResponse);
+                    } else {
+                        return mapToCommentResponseWithoutAI(commentData);
+                    }
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * DB에서 좋아요 TOP 5 댓글 추출
+     */
+    private List<CommentResponse> mapToTopCommentsFromDb(Long videoId) {
+        return mapDbCommentsToCommentResponses(videoId).stream()
+                .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
+                .limit(5)
+                .collect(Collectors.toList());
     }
 
     private List<AnalysisResponse.PopularTimestamp> mapToPopularTimestamps(Map<String, Integer> popularTimestampsData) {
