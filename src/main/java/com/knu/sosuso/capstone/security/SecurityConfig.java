@@ -37,7 +37,7 @@ public class SecurityConfig {
                         "http://localhost:3000",
                         "https://capstone-client-guka.vercel.app",
                         "http://localhost:8080",
-                        "https://knu-sosuso.com:8080"
+                        "https://knu-sosuso.com"
                 ));
                 configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                 configuration.setAllowedHeaders(List.of("*"));
