@@ -248,6 +248,31 @@ public class VideoService {
         }
     }
 
+    /**
+     * 기존 비디오에 댓글 분석 결과 업데이트 (백엔드 분석)
+     */
+    @Transactional
+    public void updateVideoWithCommentAnalysis(Long videoId, CommentApiResponse commentInfo) {
+        try {
+            Video video = videoRepository.findById(videoId)
+                    .orElseThrow(() -> new IllegalArgumentException("비디오를 찾을 수 없습니다: " + videoId));
+
+            // 댓글 개수 업데이트
+            video.setCommentCount(String.valueOf(commentInfo.allComments().size()));
+
+            // 백엔드 분석 결과 업데이트
+            video.setCommentHistogram(objectMapper.writeValueAsString(commentInfo.commentHistogram()));
+            video.setPopularTimestamps(objectMapper.writeValueAsString(commentInfo.popularTimestamps()));
+
+            videoRepository.save(video);
+            log.info("기존 비디오 댓글 분석 결과 업데이트 완료: videoId={}", videoId);
+
+        } catch (Exception e) {
+            log.error("기존 비디오 댓글 분석 결과 업데이트 실패: videoId={}, error={}", videoId, e.getMessage());
+            throw new RuntimeException("비디오 댓글 분석 업데이트 중 오류 발생", e);
+        }
+    }
+
 
     /**
      * 유튜브에 해당 영상 데이터를 요청

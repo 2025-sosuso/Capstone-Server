@@ -22,9 +22,14 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     List<Comment> findAllByVideoId(Long videoId);
 
-    /**
-     * 특정 비디오의 댓글에서 키워드 검색 (관련도순 - 기존 순서 유지)
-     */
+    // 특정 비디오에 댓글이 있는지 확인
+    boolean existsByVideoId(Long videoId);
+
+    // 특정 비디오의 댓글 개수 조회
+    @Query("SELECT COUNT(c) FROM Comment c WHERE c.video.id = :videoId")
+    Long countByVideoId(@Param("videoId") Long videoId);
+
+    // 특정 비디오의 댓글에서 키워드 검색 (관련도순 - 기존 순서 유지)
     @Query("SELECT c FROM Comment c WHERE c.video.id = :videoId AND c.commentContent LIKE %:keyword% ORDER BY c.id ASC")
     List<Comment> findByVideoIdAndCommentContentContaining(
             @Param("videoId") Long videoId,
