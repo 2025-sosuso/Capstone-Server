@@ -15,7 +15,7 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @ApiResponse(
         responseCode = "400",
-        description = "클라이언트 입력 오류",
+        description = "클라이언트 요청 오류",
         content = @Content(schema = @Schema(implementation = ProblemDetail.class))
 )
 public @interface ErrorCode400 {
