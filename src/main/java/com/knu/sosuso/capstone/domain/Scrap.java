@@ -5,7 +5,9 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import lombok.Builder;
+import lombok.Getter;
 
+@Getter
 @Entity
 public class Scrap extends BaseEntity {
 
