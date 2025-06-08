@@ -49,6 +49,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         response.setHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
         String frontendUrl = request.getHeader("Origin");
+        log.info("Origin 헤더: {}", frontendUrl);
         if (frontendUrl == null) {
             frontendUrl = "https://capstone-client-guka.vercel.app";
         }
