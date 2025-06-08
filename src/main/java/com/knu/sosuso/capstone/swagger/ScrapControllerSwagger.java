@@ -31,7 +31,7 @@ public interface ScrapControllerSwagger {
     )
     @ErrorCode400
     @ErrorCode500
-    ResponseDto<LoginResponse> createScrap(
+    ResponseDto<CreateScrapResponse> createScrap(
             @CookieValue("Authorization") String token,
             @RequestBody @Valid CreateScrapRequest createScrapRequest
     );
@@ -47,7 +47,7 @@ public interface ScrapControllerSwagger {
     )
     @ErrorCode400
     @ErrorCode500
-    ResponseDto<LoginResponse> cancelScrap(
+    ResponseDto<?> cancelScrap(
             @CookieValue("Authorization") String token,
             @PathVariable("id") Long scrapId
     );
