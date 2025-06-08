@@ -45,7 +45,7 @@ public interface FavoriteChannelControllerSwagger {
                     )
             }
     )
-    @Parameter(name = "id", description = "channelId", required = true)
+    @Parameter(name = "id", description = "favoriteChannelId", required = true)
     @ErrorCode400
     @ErrorCode500
     ResponseDto<CancelFavoriteChannelResponse> cancelFavoriteChannel(
