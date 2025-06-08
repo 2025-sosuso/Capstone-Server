@@ -61,13 +61,4 @@ public class SearchService {
         return url.contains("youtube.com/watch?v=") || url.contains("youtu.be/");
     }
 
-    private UrlChannelDto mapChannelToChannelResponse(ChannelSearchResponse.ChannelDto channel) {
-        return new UrlChannelDto(
-                channel.id(),
-                channel.title(),
-                channel.thumbnailUrl(),
-                channel.subscriberCount(),
-                channel.isFavorited()
-        );
-    }
 }

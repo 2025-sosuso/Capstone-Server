@@ -20,16 +20,16 @@ public class SearchController {
     }
 
     @GetMapping
-    public ResponseEntity<ResponseDto<SearchApiResponse>> search(@RequestParam String query) {
+    public ResponseEntity<ResponseDto<SearchApiResponse<?>>> search(@RequestParam String query) {
         try {
-            SearchApiResponse searchResult = searchService.search(query);
-            ResponseDto<SearchApiResponse> response = ResponseDto.of(searchResult, "검색이 완료되었습니다.");
+            SearchApiResponse<?> searchResult = searchService.search(query);
+            ResponseDto<SearchApiResponse<?>> response = ResponseDto.of(searchResult, "검색이 완료되었습니다.");
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
-            ResponseDto<SearchApiResponse> errorResponse = ResponseDto.of("잘못된 요청: " + e.getMessage());
+            ResponseDto<SearchApiResponse<?>> errorResponse = ResponseDto.of("잘못된 요청: " + e.getMessage());
             return ResponseEntity.badRequest().body(errorResponse);
         } catch (Exception e) {
-            ResponseDto<SearchApiResponse> errorResponse = ResponseDto.of("검색 중 오류 발생: " + e.getMessage());
+            ResponseDto<SearchApiResponse<?>> errorResponse = ResponseDto.of("검색 중 오류 발생: " + e.getMessage());
             return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
