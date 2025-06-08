@@ -5,6 +5,9 @@ import com.knu.sosuso.capstone.domain.User;
 import com.knu.sosuso.capstone.dto.request.RegisterFavoriteChannelRequest;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.CancelFavoriteChannelResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.RegisterFavoriteChannelResponse;
+import com.knu.sosuso.capstone.exception.BusinessException;
+import com.knu.sosuso.capstone.exception.error.AuthenticationError;
+import com.knu.sosuso.capstone.exception.error.FavoriteChannelError;
 import com.knu.sosuso.capstone.repository.FavoriteChannelRepository;
 import com.knu.sosuso.capstone.repository.UserRepository;
 import com.knu.sosuso.capstone.security.jwt.JwtUtil;
@@ -24,16 +27,16 @@ public class FavoriteChannelService {
     @Transactional
     public RegisterFavoriteChannelResponse registerFavoriteChannel(String token, RegisterFavoriteChannelRequest registerFavoriteChannelRequest) {
         if (!jwtUtil.isValidToken(token)) {
-            throw new RuntimeException("유효하지 않은 토큰입니다.");
+            throw new BusinessException(AuthenticationError.INVALID_TOKEN);
         }
 
         Long userId = jwtUtil.getUserId(token);
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("존재하지 않는 사용자입니다."));
+                .orElseThrow(() -> new BusinessException(AuthenticationError.USER_NOT_FOUND));
 
         boolean existsFavoriteChannel = favoriteChannelRepository.existsByUserIdAndApiChannelId(userId, registerFavoriteChannelRequest.apiChannelId());
         if (existsFavoriteChannel) {
-            throw new RuntimeException("이미 관심 채널로 등록되었습니다.");
+            throw new BusinessException(FavoriteChannelError.FAVORITE_CHANNEL_ALREADY_EXISTS);
         }
 
         String apiChannelId = registerFavoriteChannelRequest.apiChannelId();
@@ -53,16 +56,16 @@ public class FavoriteChannelService {
     @Transactional
     public CancelFavoriteChannelResponse cancelFavoriteChannel(String token, Long favoriteChannelId) {
         if (!jwtUtil.isValidToken(token)) {
-            throw new RuntimeException("유효하지 않은 토큰입니다.");
+            throw new BusinessException(AuthenticationError.INVALID_TOKEN);
         }
 
         Long userId = jwtUtil.getUserId(token);
 
         FavoriteChannel favoriteChannel = favoriteChannelRepository.findById(favoriteChannelId)
-                .orElseThrow(() -> new RuntimeException("관심 채널로 등록되어 있지 않은 채널입니다."));
+                .orElseThrow(() -> new BusinessException(FavoriteChannelError.FAVORITE_CHANNEL_NOT_FOUND));
 
         if (!favoriteChannel.getUser().getId().equals(userId)) {
-            throw new RuntimeException("본인의 관심 채널만 취소할 수 있습니다.");
+            throw new BusinessException(FavoriteChannelError.FORBIDDEN_FAVORITE_CHANNEL_DELETE);
         }
 
         favoriteChannelRepository.deleteById(favoriteChannelId);

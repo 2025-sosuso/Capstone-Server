@@ -5,10 +5,15 @@ import com.knu.sosuso.capstone.domain.User;
 import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.dto.request.CreateScrapRequest;
 import com.knu.sosuso.capstone.dto.response.CreateScrapResponse;
+import com.knu.sosuso.capstone.exception.BusinessException;
+import com.knu.sosuso.capstone.exception.error.AuthenticationError;
+import com.knu.sosuso.capstone.exception.error.ScrapError;
+import com.knu.sosuso.capstone.exception.error.VideoError;
 import com.knu.sosuso.capstone.repository.ScrapRepository;
 import com.knu.sosuso.capstone.repository.UserRepository;
 import com.knu.sosuso.capstone.repository.VideoRepository;
 import com.knu.sosuso.capstone.security.jwt.JwtUtil;
+import jakarta.persistence.Entity;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,17 +30,20 @@ public class ScrapService {
     @Transactional
     public CreateScrapResponse createScrap(String token, CreateScrapRequest createScrapRequest) {
         if (!jwtUtil.isValidToken(token)) {
-            throw new RuntimeException("유효하지 않은 토큰입니다."); // Todo custom exception으로 바꾸기
+            throw new BusinessException(AuthenticationError.INVALID_TOKEN);
         }
 
         Long userId = jwtUtil.getUserId(token);
-        User user = userRepository.findById(userId).orElseThrow(); // Todo custom exception으로 바꾸기
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BusinessException(AuthenticationError.USER_NOT_FOUND));
+
         String apiVideoId = createScrapRequest.apiVideoId();
-        Video video = videoRepository.findByApiVideoId(apiVideoId).orElseThrow();
+        Video video = videoRepository.findByApiVideoId(apiVideoId)
+                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
         boolean existsScrap = scrapRepository.existsByUserIdAndApiVideoId(userId, apiVideoId);
         if (existsScrap) {
-            throw new RuntimeException("이미 스크랩된 영상입니다."); // Todo custom exception으로 바꾸기
+            throw new BusinessException(ScrapError.SCRAP_ALREADY_EXISTS);
         }
 
         Scrap scrap = Scrap.builder()
@@ -55,15 +63,15 @@ public class ScrapService {
     @Transactional
     public void cancelScrap(String token, Long scrapId) {
         if (!jwtUtil.isValidToken(token)) {
-            throw new RuntimeException("유효하지 않은 토큰입니다.");
+            throw new BusinessException(AuthenticationError.INVALID_TOKEN);
         }
 
         Scrap scrap = scrapRepository.findById(scrapId)
-                .orElseThrow(() -> new RuntimeException("존재하지 않는 스크랩입니다."));
+                .orElseThrow(() -> new BusinessException(ScrapError.SCRAP_NOT_FOUNT));
 
         Long userId = jwtUtil.getUserId(token);
         if (!scrap.getUser().getId().equals(userId)) {
-            throw new RuntimeException("본인의 스크랩만 취소할 수 있습니다.");
+            throw new BusinessException(ScrapError.FORBIDDEN_SCRAP_DELETE);
         }
 
         scrapRepository.deleteById(scrapId);
