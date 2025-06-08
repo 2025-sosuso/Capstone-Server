@@ -67,6 +67,9 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
             frontendUrl = "https://capstone-client-guka.vercel.app";
         }
 
+        log.info("Referer 헤더: {}", referer);
+        log.info("Frontend URL: {}", frontendUrl);
+
         response.sendRedirect(frontendUrl + "/login/success");
     }
 
