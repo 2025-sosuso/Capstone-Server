@@ -7,6 +7,7 @@ import com.knu.sosuso.capstone.dto.response.LoginResponse;
 import com.knu.sosuso.capstone.swagger.annotation.ErrorCode400;
 import com.knu.sosuso.capstone.swagger.annotation.ErrorCode500;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -45,6 +46,7 @@ public interface ScrapControllerSwagger {
                     )
             }
     )
+    @Parameter(name = "id", description = "scrapId", required = true)
     @ErrorCode400
     @ErrorCode500
     ResponseDto<?> cancelScrap(
