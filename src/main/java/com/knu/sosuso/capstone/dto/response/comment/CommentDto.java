@@ -1,6 +1,6 @@
 package com.knu.sosuso.capstone.dto.response.comment;
 
-public record CommentSearchDto(
+public record CommentDto(
         String id,
         String author,
         String text,
