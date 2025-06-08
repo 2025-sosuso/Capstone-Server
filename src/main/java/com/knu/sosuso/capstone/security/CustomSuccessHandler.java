@@ -14,6 +14,8 @@ import org.springframework.security.web.authentication.SimpleUrlAuthenticationSu
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
@@ -48,11 +50,23 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         response.setHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        String frontendUrl = request.getHeader("Origin");
-        log.info("Origin 헤더: {}", frontendUrl);
-        if (frontendUrl == null) {
+        String referer = request.getHeader("Referer");
+        String frontendUrl;
+
+        if (referer != null) {
+            if (referer.contains("localhost")) {
+                frontendUrl = "http://localhost:3000";
+            } else if (referer.contains("vercel.app")) {
+                frontendUrl = "https://capstone-client-guka.vercel.app";
+            } else {
+                // 다른 도메인이면 기본값
+                frontendUrl = "https://capstone-client-guka.vercel.app";
+            }
+        } else {
+            // Referer도 없으면 기본값
             frontendUrl = "https://capstone-client-guka.vercel.app";
         }
+
         response.sendRedirect(frontendUrl + "/login/success");
     }
 
