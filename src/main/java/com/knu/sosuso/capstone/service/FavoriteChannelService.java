@@ -3,6 +3,7 @@ package com.knu.sosuso.capstone.service;
 import com.knu.sosuso.capstone.domain.FavoriteChannel;
 import com.knu.sosuso.capstone.domain.User;
 import com.knu.sosuso.capstone.dto.request.RegisterFavoriteChannelRequest;
+import com.knu.sosuso.capstone.dto.response.favorite_channel.CancelFavoriteChannelResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.RegisterFavoriteChannelResponse;
 import com.knu.sosuso.capstone.repository.FavoriteChannelRepository;
 import com.knu.sosuso.capstone.repository.UserRepository;
@@ -45,5 +46,26 @@ public class FavoriteChannelService {
 
         favoriteChannelRepository.save(favoriteChannel);
         return new RegisterFavoriteChannelResponse(apiChannelId);
+    }
+
+    // Todo custom exception으로 바꾸기
+    @Transactional
+    public CancelFavoriteChannelResponse cancelFavoriteChannel(String token, Long favoriteChannelId) {
+        if (!jwtUtil.isValidToken(token)) {
+            throw new RuntimeException("유효하지 않은 토큰입니다.");
+        }
+
+        Long userId = jwtUtil.getUserId(token);
+
+        FavoriteChannel favoriteChannel = favoriteChannelRepository.findById(favoriteChannelId)
+                .orElseThrow(() -> new RuntimeException("관심 채널로 등록되어 있지 않은 채널입니다."));
+
+        if (!favoriteChannel.getUser().getId().equals(userId)) {
+            throw new RuntimeException("본인의 관심 채널만 취소할 수 있습니다.");
+        }
+
+        favoriteChannelRepository.deleteById(favoriteChannelId);
+
+        return new CancelFavoriteChannelResponse(favoriteChannelId);
     }
 }
