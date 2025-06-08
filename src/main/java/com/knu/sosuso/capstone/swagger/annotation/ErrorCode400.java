@@ -21,5 +21,5 @@ import java.lang.annotation.Target;
 public @interface ErrorCode400 {
 
     @AliasFor(annotation = ApiResponse.class, attribute = "description")
-    String description() default "클라이언트 입력 오류";
+    String description() default "클라이언트 요청 오류";
 }
