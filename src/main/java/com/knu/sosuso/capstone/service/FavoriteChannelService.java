@@ -43,7 +43,8 @@ public class FavoriteChannelService {
                 .apiChannelName(apiChannelName)
                 .build();
 
-        favoriteChannelRepository.save(favoriteChannel);
-        return new RegisterFavoriteChannelResponse(apiChannelId);
+        FavoriteChannel savedFavoriteChannel = favoriteChannelRepository.save(favoriteChannel);
+        Long favoriteChannelId = savedFavoriteChannel.getId();
+        return new RegisterFavoriteChannelResponse(favoriteChannelId, apiChannelId);
     }
 }
