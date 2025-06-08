@@ -50,27 +50,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         response.setHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        String referer = request.getHeader("Referer");
-        String frontendUrl;
-
-        if (referer != null) {
-            if (referer.contains("localhost")) {
-                frontendUrl = "http://localhost:3000";
-            } else if (referer.contains("vercel.app")) {
-                frontendUrl = "https://capstone-client-guka.vercel.app";
-            } else {
-                // 다른 도메인이면 기본값
-                frontendUrl = "https://capstone-client-guka.vercel.app";
-            }
-        } else {
-            // Referer도 없으면 기본값
-            frontendUrl = "https://capstone-client-guka.vercel.app";
-        }
-
-        log.info("Referer 헤더: {}", referer);
-        log.info("Frontend URL: {}", frontendUrl);
-
-        response.sendRedirect(frontendUrl + "/login/success");
+        response.sendRedirect("http://localhost:3000/login/success");
     }
 
     public void logout(String token, HttpServletResponse response) throws IOException {
