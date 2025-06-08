@@ -1,6 +1,7 @@
 package com.knu.sosuso.capstone.service;
 
 import com.knu.sosuso.capstone.domain.Comment;
+import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.domain.value.SentimentType;
 import com.knu.sosuso.capstone.dto.response.comment.CommentDto;
 import com.knu.sosuso.capstone.dto.response.comment.CommentResponse;
@@ -11,7 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -22,118 +22,54 @@ public class CommentQueryService {
     private final VideoRepository videoRepository;
 
     /**
-     * 댓글 조회 (감정 필터링, 키워드 검색, 복합 조건)
+     * 단일 조건 댓글 검색
      */
-    public CommentResponse getComments(String apiVideoId, String sentiment, String q) {
-        // 입력값 검증
-        validateApiVideoId(apiVideoId);
-        validateVideoExists(apiVideoId);
-
-        log.info("댓글 조회 시작: apiVideoId={}, sentiment={}, q={}", apiVideoId, sentiment, q);
+    public CommentResponse searchComments(String apiVideoId, String q, String keyword, String sentiment) {
+        // 비디오 존재 확인
+        Video video = videoRepository.findByApiVideoId(apiVideoId)
+                .orElseThrow(() -> new IllegalArgumentException("비디오를 찾을 수 없습니다: " + apiVideoId));
 
         List<Comment> comments;
 
-        if (sentiment != null && q != null) {
-            // 복합 조건: 감정 + 키워드
-            comments = getCommentsBySentimentAndKeyword(apiVideoId, sentiment, q);
+        // 단일 조건에 따라 검색
+        if (q != null) {
+            // 일반 텍스트 검색
+            comments = commentRepository.findByVideoIdAndTextContaining(video.getId(), q.trim());
+
+        } else if (keyword != null) {
+            // AI 키워드 검색
+            comments = commentRepository.findByVideoIdAndTextContaining(video.getId(), keyword.trim());
+
         } else if (sentiment != null) {
-            // 감정 필터링만
-            comments = getCommentsBySentimentOnly(apiVideoId, sentiment);
+            // 감정별 검색
+            SentimentType sentimentType = parseSentimentType(sentiment);
+            comments = commentRepository.findByVideoIdAndSentimentTypeOrderById(video.getId(), sentimentType);
+
         } else {
-            // 키워드 검색만
-            comments = getCommentsByKeywordOnly(apiVideoId, q);
+            throw new IllegalArgumentException("검색 조건이 필요합니다.");
         }
 
-        // 응답 변환
-        List<CommentDto> results = comments.stream()
-                .map(this::mapToCommentDto)
-                .collect(Collectors.toList());
+        // DTO 변환
+        List<CommentDto> commentDtos = comments.stream()
+                .map(comment -> new CommentDto(
+                        comment.getApiCommentId(),
+                        comment.getWriter(),
+                        comment.getCommentContent(),
+                        comment.getLikeCount(),
+                        comment.getSentimentType() != null ?
+                                comment.getSentimentType().name().toLowerCase() : null,
+                        comment.getWrittenAt()
+                ))
+                .toList();
 
-        log.info("댓글 조회 완료: 반환된 댓글 수={}", results.size());
-
-        return new CommentResponse(apiVideoId, results);
+        return new CommentResponse(apiVideoId, commentDtos);
     }
 
-    /**
-     * 감정 + 키워드 복합 조건 검색
-     */
-    private List<Comment> getCommentsBySentimentAndKeyword(String apiVideoId, String sentiment, String keyword) {
-        SentimentType sentimentType = parseSentimentType(sentiment);
-        String trimmedKeyword = keyword.trim();
-
-        log.info("복합 조건 검색: sentiment={}, keyword={}", sentimentType.name(), trimmedKeyword);
-
-        return commentRepository.findByApiVideoIdAndSentimentTypeAndCommentContentContaining(
-                apiVideoId, sentimentType, trimmedKeyword);
-    }
-
-    /**
-     * 감정 필터링만
-     */
-    private List<Comment> getCommentsBySentimentOnly(String apiVideoId, String sentiment) {
-        SentimentType sentimentType = parseSentimentType(sentiment);
-
-        log.info("감정 필터링: sentiment={}", sentimentType.name());
-
-        return commentRepository.findByApiVideoIdAndSentimentTypeOrderByIdAsc(apiVideoId, sentimentType);
-    }
-
-    /**
-     * 키워드 검색만
-     */
-    private List<Comment> getCommentsByKeywordOnly(String apiVideoId, String keyword) {
-        String trimmedKeyword = keyword.trim();
-
-        if (trimmedKeyword.isEmpty()) {
-            throw new IllegalArgumentException("검색어는 필수입니다");
-        }
-
-        log.info("키워드 검색: keyword={}", trimmedKeyword);
-
-        return commentRepository.findByApiVideoIdAndCommentContentContaining(apiVideoId, trimmedKeyword);
-    }
-
-    /**
-     * 비디오 존재 여부 확인
-     */
-    private void validateVideoExists(String apiVideoId) {
-        if (!videoRepository.findByApiVideoId(apiVideoId).isPresent()) {
-            throw new IllegalArgumentException("존재하지 않는 비디오입니다: " + apiVideoId);
-        }
-    }
-
-    /**
-     * 감정 문자열을 SentimentType으로 변환
-     */
     private SentimentType parseSentimentType(String sentiment) {
         try {
             return SentimentType.valueOf(sentiment.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("지원하지 않는 감정 타입입니다: " + sentiment +
-                    ". 지원 타입: POSITIVE, NEGATIVE, OTHER");
-        }
-    }
-
-    /**
-     * Comment를 CommentDto로 변환
-     */
-    private CommentDto mapToCommentDto(Comment comment) {
-        return new CommentDto(
-                comment.getApiCommentId(),
-                comment.getWriter(),
-                comment.getCommentContent(),
-                comment.getLikeCount(),
-                comment.getSentimentType() != null ? comment.getSentimentType().name() : null,
-                comment.getWrittenAt()
-        );
-    }
-
-    /**
-     * API 비디오 ID 검증
-     */
-    private void validateApiVideoId(String apiVideoId) {
-        if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
-            throw new IllegalArgumentException("유효하지 않은 비디오 ID입니다");
+            throw new IllegalArgumentException("유효하지 않은 감정 타입입니다: " + sentiment);
         }
     }
 }
