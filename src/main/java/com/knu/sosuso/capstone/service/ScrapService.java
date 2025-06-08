@@ -50,4 +50,22 @@ public class ScrapService {
                 scrap.getId()
         );
     }
+
+    // Todo custom exception으로 바꾸기
+    @Transactional
+    public void cancelScrap(String token, Long scrapId) {
+        if (!jwtUtil.isValidToken(token)) {
+            throw new RuntimeException("유효하지 않은 토큰입니다.");
+        }
+
+        Scrap scrap = scrapRepository.findById(scrapId)
+                .orElseThrow(() -> new RuntimeException("존재하지 않는 스크랩입니다."));
+
+        Long userId = jwtUtil.getUserId(token);
+        if (!scrap.getUser().getId().equals(userId)) {
+            throw new RuntimeException("본인의 스크랩만 취소할 수 있습니다.");
+        }
+
+        scrapRepository.deleteById(scrapId);
+    }
 }

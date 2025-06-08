@@ -23,4 +23,13 @@ public class ScrapController {
         CreateScrapResponse createScrapResponse = scrapService.createScrap(token, createScrapRequest);
         return ResponseDto.of(createScrapResponse, "Successfully created Scrap");
     }
+
+    @DeleteMapping("{id}")
+    public ResponseDto<?> cancelScrap(
+            @CookieValue("Authorization") String token,
+            @PathVariable("id") Long scrapId
+    ) {
+        scrapService.cancelScrap(token, scrapId);
+        return ResponseDto.of("Successfully canceled the scrap.");
+    }
 }
