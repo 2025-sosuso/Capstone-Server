@@ -9,7 +9,6 @@ public record UrlVideoDto(
         Long viewCount,
         Long likeCount,
         Integer commentCount,
-        Boolean isScrapped,
         Long scrapId
 ) {
 }
