@@ -1,6 +1,5 @@
 package com.knu.sosuso.capstone.service;
 
-import com.knu.sosuso.capstone.dto.response.search.UrlChannelDto;
 import com.knu.sosuso.capstone.dto.response.search.SearchApiResponse;
 import com.knu.sosuso.capstone.dto.response.search.ChannelSearchResponse;
 import com.knu.sosuso.capstone.dto.response.search.UrlSearchResponse;
@@ -20,7 +19,7 @@ public class SearchService {
     private final VideoProcessingService videoProcessingService;
 
     // 1. 검색어 입력
-    public SearchApiResponse<?> search(String query) {
+    public SearchApiResponse<?> search(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new IllegalArgumentException("검색어는 필수입니다");
         }
@@ -32,10 +31,10 @@ public class SearchService {
         // -> URL이면 영상 정보 추출 메서드 호출
         try {
             if (isVideoUrl(trimmedQuery)) {
-                UrlSearchResponse videoResult = searchVideo(trimmedQuery);
+                UrlSearchResponse videoResult = searchVideo(token, trimmedQuery);
                 return new SearchApiResponse<>("URL", List.of(videoResult));
             } else {
-                ChannelSearchResponse channelSearchResult = channelService.searchChannels(query);
+                ChannelSearchResponse channelSearchResult = channelService.searchChannels(token, query);
                 return new SearchApiResponse<>("CHANNEL", channelSearchResult.results());
             }
         } catch (Exception e) {
@@ -45,7 +44,7 @@ public class SearchService {
     }
 
     // 3. 영상 정보 가져옴
-    private UrlSearchResponse searchVideo(String videoUrl) {
+    private UrlSearchResponse searchVideo(String token, String videoUrl) {
         String apiVideoId = videoService.extractVideoId(videoUrl);
 
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
@@ -54,7 +53,7 @@ public class SearchService {
 
         log.info("비디오 검색 시작: apiVideoId={}", apiVideoId);
 
-        return videoProcessingService.processVideoToSearchResult(apiVideoId, true);
+        return videoProcessingService.processVideoToSearchResult(token, apiVideoId, true);
     }
 
     private boolean isVideoUrl(String url) {

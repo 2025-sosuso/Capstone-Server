@@ -5,6 +5,6 @@ public record UrlChannelDto(
         String title,
         String thumbnailUrl,
         Long subscriberCount,
-        Boolean isFavorited
+        Long favoriteChannelId
 ) {
 }

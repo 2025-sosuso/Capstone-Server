@@ -4,6 +4,7 @@ import com.knu.sosuso.capstone.domain.FavoriteChannel;
 import com.knu.sosuso.capstone.domain.User;
 import com.knu.sosuso.capstone.dto.request.RegisterFavoriteChannelRequest;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.CancelFavoriteChannelResponse;
+import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.RegisterFavoriteChannelResponse;
 import com.knu.sosuso.capstone.exception.BusinessException;
 import com.knu.sosuso.capstone.exception.error.AuthenticationError;
@@ -15,6 +16,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @RequiredArgsConstructor
 @Service
 public class FavoriteChannelService {
@@ -23,7 +27,6 @@ public class FavoriteChannelService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
 
-    // Todo custom exception으로 바꾸기
     @Transactional
     public RegisterFavoriteChannelResponse registerFavoriteChannel(String token, RegisterFavoriteChannelRequest registerFavoriteChannelRequest) {
         if (!jwtUtil.isValidToken(token)) {
@@ -41,10 +44,12 @@ public class FavoriteChannelService {
 
         String apiChannelId = registerFavoriteChannelRequest.apiChannelId();
         String apiChannelName = registerFavoriteChannelRequest.apiChannelName();
+        String apiChannelThumbnail = registerFavoriteChannelRequest.apiChannelThumbnail();
         FavoriteChannel favoriteChannel = FavoriteChannel.builder()
                 .user(user)
                 .apiChannelId(apiChannelId)
                 .apiChannelName(apiChannelName)
+                .apiChannelThumbnail(apiChannelThumbnail)
                 .build();
 
         FavoriteChannel savedFavoriteChannel = favoriteChannelRepository.save(favoriteChannel);
@@ -52,7 +57,28 @@ public class FavoriteChannelService {
         return new RegisterFavoriteChannelResponse(favoriteChannelId, apiChannelId);
     }
 
-    // Todo custom exception으로 바꾸기
+
+    public List<FavoriteChannelListResponse> getFavoriteChannelList(String token) {
+        if (!jwtUtil.isValidToken(token)) {
+            throw new BusinessException(AuthenticationError.INVALID_TOKEN);
+        }
+
+        Long userId = jwtUtil.getUserId(token);
+        List<FavoriteChannel> favoriteChannelList = favoriteChannelRepository.findByUserId(userId);
+
+        List<FavoriteChannelListResponse> favoriteChannelListResponses = new ArrayList<>();
+        for (FavoriteChannel favoriteChannel : favoriteChannelList) {
+            Long favoriteChannelId = favoriteChannel.getId();
+            String apiChannelName = favoriteChannel.getApiChannelName();
+            String apiChannelThumbnail = favoriteChannel.getApiChannelThumbnail();
+            FavoriteChannelListResponse favoriteChannelListResponse
+                    = new FavoriteChannelListResponse(favoriteChannelId, apiChannelName, apiChannelThumbnail);
+            favoriteChannelListResponses.add(favoriteChannelListResponse);
+        }
+
+        return favoriteChannelListResponses;
+    }
+
     @Transactional
     public CancelFavoriteChannelResponse cancelFavoriteChannel(String token, Long favoriteChannelId) {
         if (!jwtUtil.isValidToken(token)) {

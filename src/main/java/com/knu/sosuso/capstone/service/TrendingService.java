@@ -24,15 +24,15 @@ public class TrendingService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    public List<UrlSearchResponse> getTrendingVideoWithComments(String categoryType, String regionCode, int maxResults) {
-        log.info("인기급상승 영상 조회 시작: categoryType={}, regionCode={}, maxResults={}", categoryType, regionCode, maxResults);
+    public List<UrlSearchResponse> getTrendingVideoWithComments(String token, String categoryType, int maxResults) {
+        log.info("인기급상승 영상 조회 시작: categoryType={}, maxResults={}", categoryType, maxResults);
 
         try {
             String categoryId = getCategoryId(categoryType);
-            List<String> videoIds = fetchTrendingVideoIds(categoryId, regionCode, maxResults);
+            List<String> videoIds = fetchTrendingVideoIds(categoryId, maxResults);
 
             if (videoIds.isEmpty()) {
-                log.warn("인기급상승 영상이 없습니다: categoryType={}, regionCode={}", categoryType, regionCode);
+                log.warn("인기급상승 영상이 없습니다: categoryType={}", categoryType);
                 return new ArrayList<>();
             }
 
@@ -42,7 +42,7 @@ public class TrendingService {
                 try {
                     log.debug("비디오 정보 조회 중: apiVideoId={}", videoId);
 
-                    UrlSearchResponse result = videoProcessingService.processVideoToSearchResult(videoId, true);
+                    UrlSearchResponse result = videoProcessingService.processVideoToSearchResult(token, videoId, true);
 
                     // null 체크 - 댓글이 없는 경우 빈 응답이 올 수 있음
                     if (result != null) {
@@ -75,9 +75,9 @@ public class TrendingService {
         };
     }
 
-    private List<String> fetchTrendingVideoIds(String categoryId, String regionCode, int maxResults) {
+    private List<String> fetchTrendingVideoIds(String categoryId, int maxResults) {
         try {
-            String apiUrl = buildTrendingApiUrl(categoryId, regionCode, maxResults);
+            String apiUrl = buildTrendingApiUrl(categoryId, maxResults);
             log.debug("인기급상승 API 호출: {}", apiUrl);
 
             String jsonResponse = restTemplate.getForObject(apiUrl, String.class);
@@ -103,11 +103,11 @@ public class TrendingService {
         }
     }
 
-    private String buildTrendingApiUrl(String categoryId, String regionCode, int maxResults) {
+    private String buildTrendingApiUrl(String categoryId, int maxResults) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(YOUTUBE_VIDEOS_API_URL)
                 .queryParam("part", "id")
                 .queryParam("chart", "mostPopular")
-                .queryParam("regionCode", regionCode)
+                .queryParam("regionCode", "KR")
                 .queryParam("maxResults", Math.min(maxResults, 30))  // YouTube API 제한
                 .queryParam("key", config.getKey());
 

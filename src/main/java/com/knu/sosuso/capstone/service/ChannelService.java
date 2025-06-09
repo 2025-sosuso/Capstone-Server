@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
 import com.knu.sosuso.capstone.dto.response.search.ChannelSearchResponse;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
@@ -18,29 +18,25 @@ import java.util.List;
 
 
 @Service
+@Slf4j
+@RequiredArgsConstructor
 public class ChannelService {
-
-    private static final Logger logger = LoggerFactory.getLogger(ChannelService.class);
     private static final String YOUTUBE_SEARCH_API_URL = "https://www.googleapis.com/youtube/v3/search";
     private static final String YOUTUBE_CHANNELS_API_URL = "https://www.googleapis.com/youtube/v3/channels";
 
+    private final ApiConfig config;
     private final RestTemplate restTemplate;
-    private final String apiKey;
     private final ObjectMapper objectMapper;
+    private final UserDataService userDataService;
 
-    public ChannelService(ApiConfig config, RestTemplate restTemplate) {
-        this.apiKey = config.getKey();
-        this.restTemplate = restTemplate;
-        this.objectMapper = new ObjectMapper();
-    }
 
-    public ChannelSearchResponse searchChannels(String query) {
+    public ChannelSearchResponse searchChannels(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new IllegalArgumentException("검색어는 필수입니다");
         }
 
         try {
-            logger.info("채널 검색 시작: query={}", query);
+            log.info("채널 검색 시작: query={}", query);
 
             // 1. 채널 검색
             String searchResponse = searchChannelsByQuery(query.trim());
@@ -49,7 +45,7 @@ public class ChannelService {
             List<String> channelIds = extractChannelIds(searchResponse);
 
             if (channelIds.isEmpty()) {
-                logger.info("검색된 채널이 없음: query={}", query);
+                log.info("검색된 채널이 없음: query={}", query);
                 return new ChannelSearchResponse(List.of());
             }
 
@@ -57,21 +53,21 @@ public class ChannelService {
             String channelsResponse = getChannelsDetails(channelIds);
 
             // 4. 결과 변환 및 정렬
-            List<ChannelSearchResponse.ChannelDto> results = parseChannelsResponse(channelsResponse);
+            List<ChannelSearchResponse.ChannelDto> results = parseChannelsResponse(token, channelsResponse);
 
-            logger.info("채널 검색 완료: query={}, resultCount={}", query, results.size());
+            log.info("채널 검색 완료: query={}, resultCount={}", query, results.size());
             return new ChannelSearchResponse(results);
 
         } catch (HttpClientErrorException.Forbidden e) {
-            logger.warn("YouTube API 접근 금지: query={}", query);
+            log.warn("YouTube API 접근 금지: query={}", query);
             throw new IllegalStateException("YouTube API에 접근할 수 없습니다", e);
 
         } catch (RestClientException e) {
-            logger.error("YouTube API 호출 실패: query={}, error={}", query, e.getMessage(), e);
+            log.error("YouTube API 호출 실패: query={}, error={}", query, e.getMessage(), e);
             throw new RuntimeException("채널 검색을 수행할 수 없습니다", e);
 
         } catch (Exception e) {
-            logger.error("채널 검색 실패: query={}, error={}", query, e.getMessage(), e);
+            log.error("채널 검색 실패: query={}, error={}", query, e.getMessage(), e);
             throw new RuntimeException("채널 검색 중 오류 발생", e);
         }
     }
@@ -83,7 +79,7 @@ public class ChannelService {
                 .queryParam("q", query)
                 .queryParam("maxResults", 25)
                 .queryParam("relevanceLanguage", "ko")
-                .queryParam("key", apiKey)
+                .queryParam("key", config.getKey())
                 .build(false)
                 .toUriString();
 
@@ -109,7 +105,7 @@ public class ChannelService {
 
             return channelIds;
         } catch (Exception e) {
-            logger.error("채널 ID 추출 실패: {}", e.getMessage(), e);
+            log.error("채널 ID 추출 실패: {}", e.getMessage(), e);
             return List.of();
         }
     }
@@ -121,14 +117,14 @@ public class ChannelService {
         String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_CHANNELS_API_URL)
                 .queryParam("part", "snippet,statistics")
                 .queryParam("id", channelIdsStr)
-                .queryParam("key", apiKey)
+                .queryParam("key", config.getKey())
                 .build(false)
                 .toUriString();
 
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
-    private List<ChannelSearchResponse.ChannelDto> parseChannelsResponse(String channelsResponse) {
+    private List<ChannelSearchResponse.ChannelDto> parseChannelsResponse(String token, String channelsResponse) {
         try {
             JsonNode channelsRootNode = objectMapper.readTree(channelsResponse);
             JsonNode channelsItemsNode = channelsRootNode.path("items");
@@ -151,10 +147,10 @@ public class ChannelService {
                     String subscriberCountStr = statisticsNode.path("subscriberCount").asText();
                     Long subscriberCount = parseLong(subscriberCountStr);
 
-                    boolean isFavorited = false; // 추후에 변동 예정
+                    Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, channelId);
 
                     results.add(new ChannelSearchResponse.ChannelDto(
-                            channelId, title, handle, description, thumbnailUrl, subscriberCount, isFavorited));
+                            channelId, title, handle, description, thumbnailUrl, subscriberCount, favoriteChannelId));
                 }
             }
 
@@ -163,7 +159,7 @@ public class ChannelService {
 
             return results;
         } catch (Exception e) {
-            logger.error("채널 응답 파싱 실패: {}", e.getMessage(), e);
+            log.error("채널 응답 파싱 실패: {}", e.getMessage(), e);
             return List.of();
         }
     }
@@ -190,7 +186,7 @@ public class ChannelService {
         try {
             return value != null && !value.isEmpty() ? Long.parseLong(value) : 0L;
         } catch (NumberFormatException e) {
-            logger.warn("구독자 수 Long 변환 실패: {}", value);
+            log.warn("구독자 수 Long 변환 실패: {}", value);
             return 0L;
         }
     }

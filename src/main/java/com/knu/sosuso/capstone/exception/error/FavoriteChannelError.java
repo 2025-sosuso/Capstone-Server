@@ -8,6 +8,7 @@ public enum FavoriteChannelError implements BaseError {
 
     FAVORITE_CHANNEL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 등록된 관심 채널입니다."),
     FAVORITE_CHANNEL_NOT_FOUND(HttpStatus.NOT_FOUND, "등록되어있지 않은 관심 채널입니다."),
+    FORBIDDEN_FAVORITE_CHANNEL_ACCESS(HttpStatus.FORBIDDEN, "본인의 관심 채널만 조회할 수 있습니다."),
     FORBIDDEN_FAVORITE_CHANNEL_DELETE(HttpStatus.FORBIDDEN, "본인의 관심 채널만 취소할 수 있습니다.");
 
     private final HttpStatus httpStatus;
