@@ -7,9 +7,9 @@ import com.knu.sosuso.capstone.domain.Comment;
 import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
-import com.knu.sosuso.capstone.dto.response.search.UrlChannelDto;
-import com.knu.sosuso.capstone.dto.response.search.UrlSearchResponse;
-import com.knu.sosuso.capstone.dto.response.search.UrlVideoDto;
+import com.knu.sosuso.capstone.dto.response.detail.DetailChannelDto;
+import com.knu.sosuso.capstone.dto.response.detail.DetailPageResponse;
+import com.knu.sosuso.capstone.dto.response.detail.DetailVideoDto;
 import com.knu.sosuso.capstone.repository.CommentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +37,7 @@ public class VideoProcessingService {
      * @param enableAIAnalysis AI 분석 수행 여부
      * @return 처리된 비디오 + 댓글 정보
      */
-    public UrlSearchResponse processVideoToSearchResult(String token, String apiVideoId, boolean enableAIAnalysis) {
+    public DetailPageResponse processVideoToSearchResult(String token, String apiVideoId, boolean enableAIAnalysis) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다.");
         }
@@ -64,7 +64,7 @@ public class VideoProcessingService {
     /**
      * 기존 DB 데이터가 있는 경우 처리
      */
-    private UrlSearchResponse handleExistingVideo(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
+    private DetailPageResponse handleExistingVideo(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
 
         LocalDateTime oneDayAgo = LocalDateTime.now().minusDays(1);  // 기준점 1일로 설정
         boolean isWithinOneDay = existingVideo.getCreatedAt().isAfter(oneDayAgo);
@@ -92,7 +92,7 @@ public class VideoProcessingService {
     /**
      * 기존 비디오에 댓글이 없는 경우 처리
      */
-    private UrlSearchResponse handleExistingVideoWithoutComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
+    private DetailPageResponse handleExistingVideoWithoutComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
         log.info("기존 데이터에 댓글 없음, 댓글 수집 시도: apiVideoId={}", apiVideoId);
         List<CommentApiResponse.CommentData> allComments = commentService.fetchAllComments(apiVideoId);
 
@@ -108,7 +108,7 @@ public class VideoProcessingService {
     /**
      * 기존 비디오에 댓글이 있는 경우 처리
      */
-    private UrlSearchResponse handleExistingVideoWithComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
+    private DetailPageResponse handleExistingVideoWithComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
         boolean isAICompleted = videoService.isAIAnalysisCompleted(existingVideo);
 
         if (isAICompleted) {
@@ -126,7 +126,7 @@ public class VideoProcessingService {
     /**
      * 새로운 비디오 처리
      */
-    private UrlSearchResponse handleNewVideo(String token, String apiVideoId, boolean enableAIAnalysis) {
+    private DetailPageResponse handleNewVideo(String token, String apiVideoId, boolean enableAIAnalysis) {
 
         log.info("YouTube API에서 비디오 정보 수집 시작: apiVideoId={}", apiVideoId);
 
@@ -159,7 +159,7 @@ public class VideoProcessingService {
     /**
      * 기존 비디오에 새 댓글 처리
      */
-    private UrlSearchResponse processCommentsForExistingVideo(String token, Video existingVideo, List<CommentApiResponse.CommentData> allComments, boolean enableAIAnalysis) {
+    private DetailPageResponse processCommentsForExistingVideo(String token, Video existingVideo, List<CommentApiResponse.CommentData> allComments, boolean enableAIAnalysis) {
         try {
             processAndSaveCommentsForExistingVideo(existingVideo, allComments);
             AIAnalysisResponse aiAnalysisResponse = tryAIAnalysisAndUpdate(existingVideo.getApiVideoId(), allComments, existingVideo.getId(), enableAIAnalysis);
@@ -181,7 +181,7 @@ public class VideoProcessingService {
     /**
      * AI 분석만 재시도 (기존 DB 데이터 있는 경우)
      */
-    private UrlSearchResponse retryAIAnalysisOnly(String token, Video existingVideo, String apiVideoId) {
+    private DetailPageResponse retryAIAnalysisOnly(String token, Video existingVideo, String apiVideoId) {
         List<Comment> existingComments = commentRepository.findAllByVideoId(existingVideo.getId());
 
         List<CommentApiResponse.CommentData> allComments;
@@ -260,16 +260,16 @@ public class VideoProcessingService {
     /**
      * 댓글이 없는 경우 - 영상 정보만 응답 (YouTube API 데이터)
      */
-    private UrlSearchResponse createVideoOnlyResponse(String token, VideoApiResponse videoInfo) {
-        UrlVideoDto video = responseMappingService.mapToVideoResponse(token, videoInfo);
-        UrlChannelDto channel = responseMappingService.mapToChannelResponse(token, videoInfo);
-        return new UrlSearchResponse(video, channel, null, List.of());
+    private DetailPageResponse createVideoOnlyResponse(String token, VideoApiResponse videoInfo) {
+        DetailVideoDto video = responseMappingService.mapToVideoResponse(token, videoInfo);
+        DetailChannelDto channel = responseMappingService.mapToChannelResponse(token, videoInfo);
+        return new DetailPageResponse(video, channel, null, List.of());
     }
 
     /**
      * 댓글이 없는 경우 - 영상 정보만 응답 (DB 데이터)
      */
-    private UrlSearchResponse createVideoOnlyResponseFromDb(String token, Video video) {
+    private DetailPageResponse createVideoOnlyResponseFromDb(String token, Video video) {
         VideoApiResponse videoInfo = new VideoApiResponse(
                 video.getApiVideoId(), video.getTitle(), video.getDescription(),
                 video.getViewCount(), video.getLikeCount(), video.getCommentCount(),
@@ -277,9 +277,9 @@ public class VideoProcessingService {
                 null, video.getSubscriberCount(), video.getUploadedAt()
         );
 
-        UrlVideoDto videoDto = responseMappingService.mapToVideoResponse(token, videoInfo);
-        UrlChannelDto channelDto = responseMappingService.mapToChannelResponse(token, videoInfo);
-        return new UrlSearchResponse(videoDto, channelDto, null, List.of());
+        DetailVideoDto videoDto = responseMappingService.mapToVideoResponse(token, videoInfo);
+        DetailChannelDto channelDto = responseMappingService.mapToChannelResponse(token, videoInfo);
+        return new DetailPageResponse(videoDto, channelDto, null, List.of());
     }
 
     /**

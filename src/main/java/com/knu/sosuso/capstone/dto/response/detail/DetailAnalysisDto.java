@@ -1,15 +1,15 @@
-package com.knu.sosuso.capstone.dto.response.search;
+package com.knu.sosuso.capstone.dto.response.detail;
 
 import java.util.List;
 
-public record UrlAnalysisDto(
+public record DetailAnalysisDto(
         String summary,
         Boolean isWarning,
-        List<UrlCommentDto> topComments,
-        List<LanguageDistribution> languageDistribution,
-        SentimentDistribution sentimentDistribution,
-        List<PopularTimestamp> popularTimestamps,
-        List<CommentHistogram> commentHistogram,
+        List<DetailCommentDto> topComments,
+        List<DetailAnalysisDto.LanguageDistribution> languageDistribution,
+        DetailAnalysisDto.SentimentDistribution sentimentDistribution,
+        List<DetailAnalysisDto.PopularTimestamp> popularTimestamps,
+        List<DetailAnalysisDto.CommentHistogram> commentHistogram,
         List<String> keywords
 ) {
     public record LanguageDistribution(

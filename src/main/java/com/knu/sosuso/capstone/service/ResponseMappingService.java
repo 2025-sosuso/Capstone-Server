@@ -6,7 +6,7 @@ import com.knu.sosuso.capstone.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
-import com.knu.sosuso.capstone.dto.response.search.*;
+import com.knu.sosuso.capstone.dto.response.detail.*;
 import com.knu.sosuso.capstone.repository.CommentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,31 +29,31 @@ public class ResponseMappingService {
     /**
      * YouTube API 데이터를 SearchResultResponse로 변환 (새로운 데이터)
      */
-    public UrlSearchResponse mapToSearchResult(
+    public DetailPageResponse mapToSearchResult(
             String token,
             VideoApiResponse videoInfo,
             CommentApiResponse commentInfo,
             AIAnalysisResponse analysisResponse) {
 
-        UrlVideoDto video = mapToVideoResponse(token,videoInfo);
-        UrlChannelDto channel = mapToChannelResponse(token,videoInfo);
-        UrlAnalysisDto analysis = mapToAnalysisResponse(commentInfo, analysisResponse);
-        List<UrlCommentDto> comments = mapToCommentResponses(commentInfo.allComments(), analysisResponse);
+        DetailVideoDto video = mapToVideoResponse(token, videoInfo);
+        DetailChannelDto channel = mapToChannelResponse(token, videoInfo);
+        DetailAnalysisDto analysis = mapToAnalysisResponse(commentInfo, analysisResponse);
+        List<DetailCommentDto> comments = mapToCommentResponses(commentInfo.allComments(), analysisResponse);
 
-        return new UrlSearchResponse(video, channel, analysis, comments);
+        return new DetailPageResponse(video, channel, analysis, comments);
     }
 
     /**
      * DB 데이터를 SearchResultResponse로 변환 (기존 데이터)
      */
-    public UrlSearchResponse mapFromDbToSearchResult(String token, Video video) {
+    public DetailPageResponse mapFromDbToSearchResult(String token, Video video) {
         try {
-            UrlVideoDto urlVideoDto = mapDbVideoToVideoResponse(token,video);
-            UrlChannelDto urlChannelDto = mapDbVideoToChannelResponse(token,video);
-            UrlAnalysisDto urlAnalysisDto = mapDbVideoToAnalysisResponse(video);
-            List<UrlCommentDto> urlCommentRespons = mapDbCommentsToCommentResponses(video.getId());
+            DetailVideoDto detailVideoDto = mapDbVideoToVideoResponse(token, video);
+            DetailChannelDto detailChannelDto = mapDbVideoToChannelResponse(token, video);
+            DetailAnalysisDto detailAnalysisDto = mapDbVideoToAnalysisResponse(video);
+            List<DetailCommentDto> detailCommentDtos = mapDbCommentsToCommentResponses(video.getId());
 
-            return new UrlSearchResponse(urlVideoDto, urlChannelDto, urlAnalysisDto, urlCommentRespons);
+            return new DetailPageResponse(detailVideoDto, detailChannelDto, detailAnalysisDto, detailCommentDtos);
 
         } catch (Exception e) {
             log.error("DB 데이터 매핑 실패: videoId={}, error={}", video.getId(), e.getMessage());
@@ -64,10 +64,10 @@ public class ResponseMappingService {
     /**
      * VideoApiResponse -> VideoResponse 변환
      */
-    public UrlVideoDto mapToVideoResponse(String token,VideoApiResponse videoInfo) {
+    public DetailVideoDto mapToVideoResponse(String token, VideoApiResponse videoInfo) {
         Long scrapId = userDataService.getUserScrapId(token, videoInfo.apiVideoId());
 
-        return new UrlVideoDto(
+        return new DetailVideoDto(
                 videoInfo.apiVideoId(),
                 videoInfo.title(),
                 videoInfo.description(),
@@ -83,10 +83,10 @@ public class ResponseMappingService {
     /**
      * VideoApiResponse -> ChannelResponse 변환
      */
-    public UrlChannelDto mapToChannelResponse(String token, VideoApiResponse videoInfo) {
+    public DetailChannelDto mapToChannelResponse(String token, VideoApiResponse videoInfo) {
         Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, videoInfo.channelId());
 
-        return new UrlChannelDto(
+        return new DetailChannelDto(
                 videoInfo.channelId(),
                 videoInfo.channelTitle(),
                 videoInfo.channelThumbnailUrl(),
@@ -98,10 +98,10 @@ public class ResponseMappingService {
     /**
      * DB Video -> VideoResponse 변환
      */
-    private UrlVideoDto mapDbVideoToVideoResponse(String token, Video video) {
+    private DetailVideoDto mapDbVideoToVideoResponse(String token, Video video) {
         Long scrapId = userDataService.getUserScrapId(token, video.getApiVideoId());
 
-        return new UrlVideoDto(
+        return new DetailVideoDto(
                 video.getApiVideoId(),
                 video.getTitle(),
                 video.getDescription(),
@@ -117,10 +117,10 @@ public class ResponseMappingService {
     /**
      * DB Video -> ChannelResponse 변환
      */
-    private UrlChannelDto mapDbVideoToChannelResponse(String token, Video video) {
+    private DetailChannelDto mapDbVideoToChannelResponse(String token, Video video) {
         Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
 
-        return new UrlChannelDto(
+        return new DetailChannelDto(
                 video.getChannelId(),
                 video.getChannelName(),
                 null, // DB에는 채널 썸네일이 저장 안됨
@@ -132,18 +132,18 @@ public class ResponseMappingService {
     /**
      * CommentApiResponse + AIAnalysisResponse -> AnalysisResponse 변환
      */
-    private UrlAnalysisDto mapToAnalysisResponse(
+    private DetailAnalysisDto mapToAnalysisResponse(
             CommentApiResponse commentInfo,
             AIAnalysisResponse analysisResponse) {
 
         if (analysisResponse == null) {
             // AI 분석이 없는 경우 - 백엔드 처리 데이터는 채우고, AI 데이터는 빈 값
-            return new UrlAnalysisDto(
+            return new DetailAnalysisDto(
                     null,  // summary = null
                     false, // isWarning = false
                     mapToTopCommentsFromCommentData(commentInfo.allComments(), null), // 좋아요 TOP5 백엔드 처리 데이터
                     List.of(), // languageDistribution = 빈 리스트
-                    new UrlAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0), // sentimentDistribution = 빈 값
+                    new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0), // sentimentDistribution = 빈 값
                     mapToPopularTimestamps(commentInfo.popularTimestamps()), // 백엔드 처리 데이터
                     mapToCommentHistogram(commentInfo.commentHistogram()),   // 백엔드 처리 데이터
                     List.of() // keywords = 빈 리스트
@@ -151,19 +151,19 @@ public class ResponseMappingService {
         }
 
         // AI 분석 성공한 경우
-        List<UrlAnalysisDto.LanguageDistribution> languageDistribution =
+        List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
                 analysisResponse.languageRatio().entrySet().stream()
-                        .map(entry -> new UrlAnalysisDto.LanguageDistribution(entry.getKey(), entry.getValue()))
+                        .map(entry -> new DetailAnalysisDto.LanguageDistribution(entry.getKey(), entry.getValue()))
                         .collect(Collectors.toList());
 
-        UrlAnalysisDto.SentimentDistribution sentimentDistribution =
-                new UrlAnalysisDto.SentimentDistribution(
+        DetailAnalysisDto.SentimentDistribution sentimentDistribution =
+                new DetailAnalysisDto.SentimentDistribution(
                         analysisResponse.sentimentRatio().getOrDefault("positive", 0.0),
                         analysisResponse.sentimentRatio().getOrDefault("negative", 0.0),
                         analysisResponse.sentimentRatio().getOrDefault("other", 0.0)
                 );
 
-        return new UrlAnalysisDto(
+        return new DetailAnalysisDto(
                 analysisResponse.summation(),
                 analysisResponse.isWarning(),
                 mapToTopCommentsFromCommentData(commentInfo.allComments(), analysisResponse),
@@ -178,14 +178,14 @@ public class ResponseMappingService {
     /**
      * DB Video -> AnalysisResponse 변환
      */
-    private UrlAnalysisDto mapDbVideoToAnalysisResponse(Video video) {
+    private DetailAnalysisDto mapDbVideoToAnalysisResponse(Video video) {
         try {
             // 백엔드 분석 데이터 (항상 있음)
             Map<Integer, Integer> commentHistogramData = parseJsonToMap(video.getCommentHistogram(), Integer.class, Integer.class);
             Map<String, Integer> popularTimestampsData = parseJsonToMap(video.getPopularTimestamps(), String.class, Integer.class);
 
-            List<UrlAnalysisDto.PopularTimestamp> popularTimestamps = mapToPopularTimestamps(popularTimestampsData);
-            List<UrlAnalysisDto.CommentHistogram> commentHistogram = mapToCommentHistogram(commentHistogramData);
+            List<DetailAnalysisDto.PopularTimestamp> popularTimestamps = mapToPopularTimestamps(popularTimestampsData);
+            List<DetailAnalysisDto.CommentHistogram> commentHistogram = mapToCommentHistogram(commentHistogramData);
 
             // AI 분석 완료 여부 체크
             boolean hasAIAnalysis = video.getSummation() != null &&
@@ -195,9 +195,9 @@ public class ResponseMappingService {
 
             if (!hasAIAnalysis) {
                 // AI 분석 미완료
-                return new UrlAnalysisDto(
+                return new DetailAnalysisDto(
                         null, false, mapToTopCommentsFromDb(video.getId()), List.of(),
-                        new UrlAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0),
+                        new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0),
                         popularTimestamps, commentHistogram, List.of()
                 );
             }
@@ -208,19 +208,19 @@ public class ResponseMappingService {
             List<String> keywords = objectMapper.readValue(video.getKeywords(), new TypeReference<List<String>>() {
             });
 
-            List<UrlAnalysisDto.LanguageDistribution> languageDistribution =
+            List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
                     languageRatio.entrySet().stream()
-                            .map(entry -> new UrlAnalysisDto.LanguageDistribution(entry.getKey(), entry.getValue()))
+                            .map(entry -> new DetailAnalysisDto.LanguageDistribution(entry.getKey(), entry.getValue()))
                             .collect(Collectors.toList());
 
-            UrlAnalysisDto.SentimentDistribution sentimentDistribution =
-                    new UrlAnalysisDto.SentimentDistribution(
+            DetailAnalysisDto.SentimentDistribution sentimentDistribution =
+                    new DetailAnalysisDto.SentimentDistribution(
                             sentimentRatio.getOrDefault("positive", 0.0),
                             sentimentRatio.getOrDefault("negative", 0.0),
                             sentimentRatio.getOrDefault("other", 0.0)
                     );
 
-            return new UrlAnalysisDto(
+            return new DetailAnalysisDto(
                     video.getSummation(),
                     video.isWarning(),
                     mapToTopCommentsFromDb(video.getId()),
@@ -240,7 +240,7 @@ public class ResponseMappingService {
     /**
      * 댓글 리스트 변환 (관련도 순서 유지)
      */
-    private List<UrlCommentDto> mapToCommentResponses(
+    private List<DetailCommentDto> mapToCommentResponses(
             List<CommentApiResponse.CommentData> commentDataList,
             AIAnalysisResponse analysisResponse) {
 
@@ -248,7 +248,7 @@ public class ResponseMappingService {
                 commentDataList != null ? commentDataList.size() : 0,
                 analysisResponse != null ? "있음" : "없음");
 
-        List<UrlCommentDto> result = commentDataList.stream()
+        List<DetailCommentDto> result = commentDataList.stream()
                 .map(commentData -> {
                     if (analysisResponse != null) {
                         return mapToCommentResponseWithAI(commentData, analysisResponse);
@@ -265,9 +265,9 @@ public class ResponseMappingService {
     /**
      * DB 댓글을 CommentResponse로 변환
      */
-    private List<UrlCommentDto> mapDbCommentsToCommentResponses(Long videoId) {
+    private List<DetailCommentDto> mapDbCommentsToCommentResponses(Long videoId) {
         return commentRepository.findByVideoIdOrderByIdAsc(videoId).stream()
-                .map(comment -> new UrlCommentDto(
+                .map(comment -> new DetailCommentDto(
                         comment.getApiCommentId(),
                         comment.getWriter(),
                         comment.getCommentContent(),
@@ -281,7 +281,7 @@ public class ResponseMappingService {
     /**
      * AI 분석 결과가 있는 경우 댓글 변환
      */
-    private UrlCommentDto mapToCommentResponseWithAI(
+    private DetailCommentDto mapToCommentResponseWithAI(
             CommentApiResponse.CommentData commentData,
             AIAnalysisResponse analysisResponse) {
         String sentiment = null;
@@ -289,7 +289,7 @@ public class ResponseMappingService {
             sentiment = analysisResponse.sentimentComments().get(commentData.id()).name().toUpperCase();
         }
 
-        return new UrlCommentDto(
+        return new DetailCommentDto(
                 commentData.id(),
                 commentData.authorName(),
                 commentData.commentText(),
@@ -302,8 +302,8 @@ public class ResponseMappingService {
     /**
      * AI 분석 결과가 없는 경우 댓글 변환
      */
-    private UrlCommentDto mapToCommentResponseWithoutAI(CommentApiResponse.CommentData commentData) {
-        return new UrlCommentDto(
+    private DetailCommentDto mapToCommentResponseWithoutAI(CommentApiResponse.CommentData commentData) {
+        return new DetailCommentDto(
                 commentData.id(),
                 commentData.authorName(),
                 commentData.commentText(),
@@ -316,7 +316,7 @@ public class ResponseMappingService {
     /**
      * CommentData에서 좋아요 TOP 5 댓글 추출
      */
-    private List<UrlCommentDto> mapToTopCommentsFromCommentData(
+    private List<DetailCommentDto> mapToTopCommentsFromCommentData(
             List<CommentApiResponse.CommentData> commentDataList,
             AIAnalysisResponse analysisResponse) {
 
@@ -336,22 +336,22 @@ public class ResponseMappingService {
     /**
      * DB에서 좋아요 TOP 5 댓글 추출
      */
-    private List<UrlCommentDto> mapToTopCommentsFromDb(Long videoId) {
+    private List<DetailCommentDto> mapToTopCommentsFromDb(Long videoId) {
         return mapDbCommentsToCommentResponses(videoId).stream()
                 .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
                 .limit(5)
                 .collect(Collectors.toList());
     }
 
-    private List<UrlAnalysisDto.PopularTimestamp> mapToPopularTimestamps(Map<String, Integer> popularTimestampsData) {
+    private List<DetailAnalysisDto.PopularTimestamp> mapToPopularTimestamps(Map<String, Integer> popularTimestampsData) {
         return popularTimestampsData.entrySet().stream()
-                .map(entry -> new UrlAnalysisDto.PopularTimestamp(entry.getKey(), entry.getValue()))
+                .map(entry -> new DetailAnalysisDto.PopularTimestamp(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
     }
 
-    private List<UrlAnalysisDto.CommentHistogram> mapToCommentHistogram(Map<Integer, Integer> commentHistogramData) {
+    private List<DetailAnalysisDto.CommentHistogram> mapToCommentHistogram(Map<Integer, Integer> commentHistogramData) {
         return commentHistogramData.entrySet().stream()
-                .map(entry -> new UrlAnalysisDto.CommentHistogram(String.valueOf(entry.getKey()), entry.getValue()))
+                .map(entry -> new DetailAnalysisDto.CommentHistogram(String.valueOf(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
     }
 
