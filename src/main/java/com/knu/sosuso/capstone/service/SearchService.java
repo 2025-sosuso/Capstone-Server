@@ -1,8 +1,8 @@
 package com.knu.sosuso.capstone.service;
 
+import com.knu.sosuso.capstone.dto.response.detail.DetailPageResponse;
 import com.knu.sosuso.capstone.dto.response.search.SearchApiResponse;
 import com.knu.sosuso.capstone.dto.response.search.ChannelSearchResponse;
-import com.knu.sosuso.capstone.dto.response.search.UrlSearchResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,7 +31,7 @@ public class SearchService {
         // -> URL이면 영상 정보 추출 메서드 호출
         try {
             if (isVideoUrl(trimmedQuery)) {
-                UrlSearchResponse videoResult = searchVideo(token, trimmedQuery);
+                DetailPageResponse videoResult = searchVideo(token, trimmedQuery);
                 return new SearchApiResponse<>("URL", List.of(videoResult));
             } else {
                 ChannelSearchResponse channelSearchResult = channelService.searchChannels(token, query);
@@ -44,7 +44,7 @@ public class SearchService {
     }
 
     // 3. 영상 정보 가져옴
-    private UrlSearchResponse searchVideo(String token, String videoUrl) {
+    private DetailPageResponse searchVideo(String token, String videoUrl) {
         String apiVideoId = videoService.extractVideoId(videoUrl);
 
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {

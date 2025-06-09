@@ -3,7 +3,8 @@ package com.knu.sosuso.capstone.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.config.ApiConfig;
-import com.knu.sosuso.capstone.dto.response.search.UrlSearchResponse;
+import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
+import com.knu.sosuso.capstone.dto.response.detail.DetailPageResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,7 +25,7 @@ public class TrendingService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
 
-    public List<UrlSearchResponse> getTrendingVideoWithComments(String token, String categoryType, int maxResults) {
+    public List<VideoSummaryResponse> getTrendingVideoWithComments(String token, String categoryType, int maxResults) {
         log.info("인기급상승 영상 조회 시작: categoryType={}, maxResults={}", categoryType, maxResults);
 
         try {
@@ -36,17 +37,20 @@ public class TrendingService {
                 return new ArrayList<>();
             }
 
-            List<UrlSearchResponse> results = new ArrayList<>();
+            List<VideoSummaryResponse> results = new ArrayList<>();
 
             for (String videoId : videoIds) {
                 try {
-                    log.debug("비디오 정보 조회 중: apiVideoId={}", videoId);
+                    log.debug("비디오 전체 처리 시작: apiVideoId={}", videoId);
 
-                    UrlSearchResponse result = videoProcessingService.processVideoToSearchResult(token, videoId, true);
+                    // 전체 처리 과정: 영상정보 + 댓글수집 + AI분석 + DB저장
+                    DetailPageResponse detailResponse = videoProcessingService.processVideoToSearchResult(token, videoId, true);
 
-                    // null 체크 - 댓글이 없는 경우 빈 응답이 올 수 있음
-                    if (result != null) {
-                        results.add(result);
+                    if (detailResponse != null) {
+                        // 처리된 결과에서 VideoSummaryResponse로 변환
+                        VideoSummaryResponse summaryResponse = convertToVideoSummaryResponse(detailResponse);
+                        results.add(summaryResponse);
+                        log.debug("비디오 처리 완료: apiVideoId={}", videoId);
                     } else {
                         log.warn("비디오 처리 결과가 null: apiVideoId={}", videoId);
                     }
@@ -63,6 +67,59 @@ public class TrendingService {
         } catch (Exception e) {
             log.error("인기급상승 영상 조회 실패: categoryType={}, error={}", categoryType, e.getMessage(), e);
             throw new RuntimeException("인기급상승 영상 조회 중 오류 발생", e);
+        }
+    }
+
+    /**
+     * DetailPageResponse를 VideoSummaryResponse로 변환 (전체 처리 완료 후)
+     */
+    private VideoSummaryResponse convertToVideoSummaryResponse(DetailPageResponse detailResponse) {
+        try {
+            var video = detailResponse.video();
+            var channel = detailResponse.channel();
+            var analysis = detailResponse.analysis();
+
+            // AI 분석 결과에서 SentimentDistribution 추출
+            VideoSummaryResponse.SentimentDistribution sentimentDistribution = null;
+            if (analysis != null && analysis.sentimentDistribution() != null) {
+                var sentiment = analysis.sentimentDistribution();
+                sentimentDistribution = new VideoSummaryResponse.SentimentDistribution(
+                        sentiment.positive(),
+                        sentiment.negative(),
+                        sentiment.other()
+                );
+            }
+
+            // AI 분석 결과에서 Keywords 추출
+            List<String> keywords = new ArrayList<>();
+            if (analysis != null && analysis.keywords() != null) {
+                keywords = analysis.keywords();
+            }
+
+            // AI 분석 결과에서 Summary 추출
+            String summary = null;
+            if (analysis != null && analysis.summary() != null) {
+                summary = analysis.summary();
+            }
+
+            return new VideoSummaryResponse(
+                    video.id(),
+                    video.title(),
+                    video.thumbnailUrl(),
+                    channel.title(),
+                    channel.subscriberCount(),
+                    video.viewCount(),
+                    video.likeCount(),
+                    video.commentCount(),
+                    video.publishedAt(),
+                    summary,  // AI 분석 완료된 요약
+                    sentimentDistribution,  // AI 분석 완료된 감정 분포
+                    keywords  // AI 분석 완료된 키워드
+            );
+
+        } catch (Exception e) {
+            log.error("VideoSummaryResponse 변환 실패: error={}", e.getMessage(), e);
+            throw new RuntimeException("응답 변환 중 오류 발생", e);
         }
     }
 

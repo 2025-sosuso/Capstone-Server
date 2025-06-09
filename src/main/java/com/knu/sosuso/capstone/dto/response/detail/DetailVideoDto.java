@@ -1,6 +1,6 @@
-package com.knu.sosuso.capstone.dto.response.search;
+package com.knu.sosuso.capstone.dto.response.detail;
 
-public record UrlVideoDto(
+public record DetailVideoDto(
         String id,
         String title,
         String description,

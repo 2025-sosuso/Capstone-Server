@@ -1,12 +1,15 @@
 package com.knu.sosuso.capstone.controller;
 
 import com.knu.sosuso.capstone.dto.ResponseDto;
+import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.service.TrendingService;
 import com.knu.sosuso.capstone.swagger.TrendingControllerSwagger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @Slf4j
@@ -17,7 +20,7 @@ public class TrendingController implements TrendingControllerSwagger {
     private final TrendingService trendingService;
 
     @GetMapping("/category")
-    public ResponseEntity<?> getByCategory(
+    public ResponseEntity<ResponseDto<List<VideoSummaryResponse>>> getByCategory(
             @CookieValue(value = "Authorization", required = false) String token,
             @RequestParam(defaultValue = "latest") String categoryType,
             @RequestParam(defaultValue = "5") int maxResults) {
