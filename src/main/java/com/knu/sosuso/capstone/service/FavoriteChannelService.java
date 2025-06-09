@@ -23,7 +23,6 @@ public class FavoriteChannelService {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
 
-    // Todo custom exception으로 바꾸기
     @Transactional
     public RegisterFavoriteChannelResponse registerFavoriteChannel(String token, RegisterFavoriteChannelRequest registerFavoriteChannelRequest) {
         if (!jwtUtil.isValidToken(token)) {
@@ -41,10 +40,12 @@ public class FavoriteChannelService {
 
         String apiChannelId = registerFavoriteChannelRequest.apiChannelId();
         String apiChannelName = registerFavoriteChannelRequest.apiChannelName();
+        String apiChannelThumbnail = registerFavoriteChannelRequest.apiChannelThumbnail();
         FavoriteChannel favoriteChannel = FavoriteChannel.builder()
                 .user(user)
                 .apiChannelId(apiChannelId)
                 .apiChannelName(apiChannelName)
+                .apiChannelThumbnail(apiChannelThumbnail)
                 .build();
 
         FavoriteChannel savedFavoriteChannel = favoriteChannelRepository.save(favoriteChannel);
@@ -52,7 +53,6 @@ public class FavoriteChannelService {
         return new RegisterFavoriteChannelResponse(favoriteChannelId, apiChannelId);
     }
 
-    // Todo custom exception으로 바꾸기
     @Transactional
     public CancelFavoriteChannelResponse cancelFavoriteChannel(String token, Long favoriteChannelId) {
         if (!jwtUtil.isValidToken(token)) {
