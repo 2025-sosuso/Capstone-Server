@@ -50,42 +50,85 @@ public interface SearchControllerSwagger {
                                                     summary = "로그인한 사용자의 YouTube 영상 분석 결과",
                                                     value = """
                                                             {
-                                                                "timeStamp": "2025-06-09T15:30:00",
-                                                                "message": "검색이 완료되었습니다.",
-                                                                "data": {
-                                                                    "searchType": "URL",
-                                                                    "results": [{
-                                                                        "video": {
-                                                                            "id": "dQw4w9WgXcQ",
-                                                                            "title": "Rick Astley - Never Gonna Give You Up",
-                                                                            "description": "Official music video...",
-                                                                            "publishedAt": "2009-10-25T06:57:33Z",
-                                                                            "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
-                                                                            "viewCount": 1500000000,
-                                                                            "likeCount": 15000000,
-                                                                            "commentCount": 2000000,
-                                                                            "scrapId": 123
+                                                              "timeStamp": "2025-06-09T15:30:00",
+                                                              "message": "검색이 완료되었습니다.",
+                                                              "data": {
+                                                                "searchType": "URL",
+                                                                "results": [
+                                                                  {
+                                                                    "video": {
+                                                                      "id": "dQw4w9WgXcQ",
+                                                                      "title": "Rick Astley - Never Gonna Give You Up",
+                                                                      "description": "Official music video...",
+                                                                      "publishedAt": "2009-10-25T06:57:33Z",
+                                                                      "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+                                                                      "viewCount": 1500000000,
+                                                                      "likeCount": 15000000,
+                                                                      "commentCount": 2000000,
+                                                                      "scrapId": 123
+                                                                    },
+                                                                    "channel": {
+                                                                      "id": "UCuAXFkgsw1L7xaCfnd5JJOw",
+                                                                      "title": "Rick Astley",
+                                                                      "thumbnailUrl": "https://yt3.ggpht.com/...",
+                                                                      "subscriberCount": 3500000,
+                                                                      "favoriteChannelId": 456
+                                                                    },
+                                                                    "analysis": {
+                                                                      "summary": "이 영상은 Rick Astley의 대표곡으로...",
+                                                                      "isWarning": false,
+                                                                      "topComments": [
+                                                                        {
+                                                                          "id": "comment1",
+                                                                          "author": "User1",
+                                                                          "text": "Great song!",
+                                                                          "likeCount": 100,
+                                                                          "sentiment": "POSITIVE",
+                                                                          "publishedAt": "2025-06-08T10:00:00Z"
+                                                                        }
+                                                                      ],
+                                                                      "languageDistribution": [
+                                                                        {
+                                                                          "language": "en",
+                                                                          "ratio": 0.8
                                                                         },
-                                                                        "channel": {
-                                                                            "id": "UCuAXFkgsw1L7xaCfnd5JJOw",
-                                                                            "title": "Rick Astley",
-                                                                            "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                                            "subscriberCount": 3500000,
-                                                                            "favoriteChannelId": 456
-                                                                        },
-                                                                        "analysis": {
-                                                                            "summary": "이 영상은 Rick Astley의 대표곡으로...",
-                                                                            "isWarning": false,
-                                                                            "topComments": [...],
-                                                                            "languageDistribution": [...],
-                                                                            "sentimentDistribution": {...},
-                                                                            "popularTimestamps": [...],
-                                                                            "commentHistogram": [...],
-                                                                            "keywords": [...]
-                                                                        },
-                                                                        "comments": [...]
-                                                                    }]
-                                                                }
+                                                                        {
+                                                                          "language": "ko",
+                                                                          "ratio": 0.2
+                                                                        }
+                                                                      ],
+                                                                      "sentimentDistribution": {
+                                                                        "positive": 0.75,
+                                                                        "negative": 0.15,
+                                                                        "other": 0.10
+                                                                      },
+                                                                      "popularTimestamps": [
+                                                                        {
+                                                                          "time": "1:30",
+                                                                          "mentionCount": 50
+                                                                        }
+                                                                      ],
+                                                                      "commentHistogram": [
+                                                                        {
+                                                                          "hour": "14",
+                                                                          "count": 150
+                                                                        }
+                                                                      ],
+                                                                      "keywords": ["rickroll", "music", "classic"]
+                                                                    },
+                                                                    "comments": [
+                                                                      {
+                                                                        "id": "comment1",
+                                                                        "author": "User1",
+                                                                        "text": "Never gonna give you up!",
+                                                                        "likeCount": 100,
+                                                                        "sentiment": "POSITIVE",
+                                                                        "publishedAt": "2025-06-08T10:00:00Z"
+                                                                      }
+                                                                    ]
+                                                                  }
+                                                                ]
+                                                              }
                                                             }
                                                             """
                                             ),

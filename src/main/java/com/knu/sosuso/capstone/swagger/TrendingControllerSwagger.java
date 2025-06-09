@@ -53,45 +53,82 @@ public interface TrendingControllerSwagger {
                                                     summary = "로그인한 사용자의 인기급상승 영상 조회 결과",
                                                     value = """
                                                             {
-                                                                "timeStamp": "2025-06-09T15:30:00",
-                                                                "message": "인기급상승 영상 조회 성공",
-                                                                "data": [
+                                                              "timeStamp": "2025-06-09T15:30:00",
+                                                              "message": "인기급상승 영상 조회 성공",
+                                                              "data": [
+                                                                {
+                                                                  "video": {
+                                                                    "id": "abc123xyz",
+                                                                    "title": "최신 인기 영상 제목",
+                                                                    "description": "영상 설명...",
+                                                                    "publishedAt": "2025-06-08T12:00:00Z",
+                                                                    "thumbnailUrl": "https://i.ytimg.com/vi/abc123xyz/maxresdefault.jpg",
+                                                                    "viewCount": 1500000,
+                                                                    "likeCount": 85000,
+                                                                    "commentCount": 12500,
+                                                                    "scrapId": 789
+                                                                  },
+                                                                  "channel": {
+                                                                    "id": "UC_channel_id",
+                                                                    "title": "인기 채널",
+                                                                    "thumbnailUrl": "https://yt3.ggpht.com/...",
+                                                                    "subscriberCount": 2500000,
+                                                                    "favoriteChannelId": 101
+                                                                  },
+                                                                  "analysis": {
+                                                                    "summary": "이 영상은 최근 화제가 된...",
+                                                                    "isWarning": false,
+                                                                    "topComments": [
+                                                                      {
+                                                                        "id": "trending_comment1",
+                                                                        "author": "TrendUser",
+                                                                        "text": "최고의 영상!",
+                                                                        "likeCount": 200,
+                                                                        "sentiment": "POSITIVE",
+                                                                        "publishedAt": "2025-06-08T15:00:00Z"
+                                                                      }
+                                                                    ],
+                                                                    "languageDistribution": [
+                                                                      {
+                                                                        "language": "ko",
+                                                                        "ratio": 0.9
+                                                                      },
+                                                                      {
+                                                                        "language": "en",
+                                                                        "ratio": 0.1
+                                                                      }
+                                                                    ],
+                                                                    "sentimentDistribution": {
+                                                                      "positive": 0.75,
+                                                                      "negative": 0.15,
+                                                                      "other": 0.10
+                                                                    },
+                                                                    "popularTimestamps": [
+                                                                      {
+                                                                        "time": "2:15",
+                                                                        "mentionCount": 80
+                                                                      }
+                                                                    ],
+                                                                    "commentHistogram": [
+                                                                      {
+                                                                        "hour": "15",
+                                                                        "count": 300
+                                                                      }
+                                                                    ],
+                                                                    "keywords": ["키워드1", "키워드2", "키워드3"]
+                                                                  },
+                                                                  "comments": [
                                                                     {
-                                                                        "video": {
-                                                                            "id": "abc123xyz",
-                                                                            "title": "최신 인기 영상 제목",
-                                                                            "description": "영상 설명...",
-                                                                            "publishedAt": "2025-06-08T12:00:00Z",
-                                                                            "thumbnailUrl": "https://i.ytimg.com/vi/abc123xyz/maxresdefault.jpg",
-                                                                            "viewCount": 1500000,
-                                                                            "likeCount": 85000,
-                                                                            "commentCount": 12500,
-                                                                            "scrapId": 789
-                                                                        },
-                                                                        "channel": {
-                                                                            "id": "UC_channel_id",
-                                                                            "title": "인기 채널",
-                                                                            "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                                            "subscriberCount": 2500000,
-                                                                            "favoriteChannelId": 101
-                                                                        },
-                                                                        "analysis": {
-                                                                            "summary": "이 영상은 최근 화제가 된...",
-                                                                            "isWarning": false,
-                                                                            "topComments": [...],
-                                                                            "languageDistribution": [...],
-                                                                            "sentimentDistribution": {
-                                                                                "positive": 0.75,
-                                                                                "negative": 0.15,
-                                                                                "other": 0.10
-                                                                            },
-                                                                            "popularTimestamps": [...],
-                                                                            "commentHistogram": [...],
-                                                                            "keywords": ["키워드1", "키워드2", "키워드3"]
-                                                                        },
-                                                                        "comments": [...]
+                                                                      "id": "trending_comment1",
+                                                                      "author": "TrendUser",
+                                                                      "text": "정말 재미있는 영상이네요!",
+                                                                      "likeCount": 200,
+                                                                      "sentiment": "POSITIVE",
+                                                                      "publishedAt": "2025-06-08T15:00:00Z"
                                                                     }
-                                                                ]
+                                                                  ]
+                                                                }
+                                                              ]
                                                             }
                                                             """
                                             ),
