@@ -19,13 +19,17 @@ public class FavoriteChannel extends BaseEntity {
     @Column(name = "api_channel_name")
     private String apiChannelName;
 
+    @Column(name = "api_channel_thumbnail")
+    private String apiChannelThumbnail;
+
     protected FavoriteChannel() {
     }
 
     @Builder
-    public FavoriteChannel(User user, String apiChannelId, String apiChannelName) {
+    public FavoriteChannel(User user, String apiChannelId, String apiChannelName, String apiChannelThumbnail) {
         this.user = user;
         this.apiChannelId = apiChannelId;
         this.apiChannelName = apiChannelName;
+        this.apiChannelThumbnail = apiChannelThumbnail;
     }
 }

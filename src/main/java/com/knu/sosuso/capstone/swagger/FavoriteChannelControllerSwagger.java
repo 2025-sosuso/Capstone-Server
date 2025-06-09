@@ -3,6 +3,7 @@ package com.knu.sosuso.capstone.swagger;
 import com.knu.sosuso.capstone.dto.ResponseDto;
 import com.knu.sosuso.capstone.dto.request.RegisterFavoriteChannelRequest;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.CancelFavoriteChannelResponse;
+import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.RegisterFavoriteChannelResponse;
 import com.knu.sosuso.capstone.exception.ErrorResponse;
 import com.knu.sosuso.capstone.swagger.annotation.ErrorCode400;
@@ -21,6 +22,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PathVariable;
+
+import java.util.List;
 
 @Tag(
         name = "관심 채널 API",
@@ -118,7 +121,8 @@ public interface FavoriteChannelControllerSwagger {
                                     value = """
                                     {
                                         "apiChannelId": "UCmGSJVG3mCRXVOP4yZrU1Dw",
-                                        "apiChannelName": "Troye Sivan"
+                                        "apiChannelName": "Troye Sivan",
+                                        "apiChannelThumbnail": "https://i.ytimg.com/vi/iPgt1tDN_So/sddefault.jpg"
                                     }
                                     """,
                                     description = "apiChannelId는 YouTube API Channel ID이고, apiChannelName은 채널의 표시명입니다"
@@ -130,8 +134,79 @@ public interface FavoriteChannelControllerSwagger {
     @ErrorCode500
     ResponseDto<RegisterFavoriteChannelResponse> registerFavoriteChannel(
             @CookieValue("Authorization") String token,
-            @org.springframework.web.bind.annotation.RequestBody @Valid RegisterFavoriteChannelRequest registerFavoriteChannelRequest
+            @RequestBody @Valid RegisterFavoriteChannelRequest registerFavoriteChannelRequest
     );
+
+    @Operation(
+            summary = "관심 채널 리스트 조회",
+            description = "사용자의 관심 채널 목록을 조회합니다. " +
+                    "토큰을 통해 사용자를 식별하며, 등록된 관심 채널 목록을 리스트로 반환합니다.",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "관심 채널 조회 성공",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ResponseDto.class),
+                                    examples = @ExampleObject(
+                                            name = "관심 채널 리스트 조회 성공 응답",
+                                            summary = "정상적으로 관심 채널 리스트를 조회한 경우",
+                                            value = """
+                                                {
+                                                    "timeStamp": "2025-06-09T12:00:00",
+                                                    "message": "successfully retrieved your list of favorite channels.",
+                                                    "data": [
+                                                        {
+                                                            "favoriteChannelId": 1,
+                                                            "apiChannelName": "Troye Sivan",
+                                                            "apiChannelThumbnail": "https://i.ytimg.com/vi/iPgt1tDN_So/sddefault.jpg"
+                                                        },
+                                                        {
+                                                            "favoriteChannelId": 2,
+                                                            "apiChannelName": "BLACKPINK",
+                                                            "apiChannelThumbnail": "https://i.ytimg.com/vi/abcd1234/sddefault.jpg"
+                                                        }
+                                                    ]
+                                                }
+                                                """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "401",
+                            description = "인증 실패 - 유효하지 않은 토큰",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(
+                                            name = "인증 실패 에러",
+                                            value = """
+                                                {
+                                                    "httpStatus": "UNAUTHORIZED",
+                                                    "message": "유효하지 않은 토큰입니다.",
+                                                    "timeStamp": "2025-06-09T10:30:00"
+                                                }
+                                                """
+                                    )
+                            )
+                    )
+            },
+            security = @SecurityRequirement(name = "cookieAuth")
+    )
+    @Parameter(
+            name = "Authorization",
+            description = "JWT 토큰 (Cookie)",
+            required = true,
+            in = ParameterIn.COOKIE,
+            schema = @Schema(type = "string", format = "jwt"),
+            example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    )
+    @ErrorCode400
+    @ErrorCode500
+    ResponseDto<List<FavoriteChannelListResponse>> favoriteChannelList(
+            @CookieValue("Authorization") String token
+    );
+
 
     @Operation(
             summary = "관심 채널 등록 취소",
