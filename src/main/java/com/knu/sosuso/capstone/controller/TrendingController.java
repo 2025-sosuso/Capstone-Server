@@ -2,20 +2,19 @@ package com.knu.sosuso.capstone.controller;
 
 import com.knu.sosuso.capstone.dto.ResponseDto;
 import com.knu.sosuso.capstone.service.TrendingService;
+import com.knu.sosuso.capstone.swagger.TrendingControllerSwagger;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Slf4j
+@RequiredArgsConstructor
 @RequestMapping("/api/trending")
-public class TrendingController {
+public class TrendingController implements TrendingControllerSwagger {
 
     private final TrendingService trendingService;
-
-    public TrendingController(TrendingService trendingService) {
-        this.trendingService = trendingService;
-    }
 
     @GetMapping("/category")
     public ResponseEntity<?> getByCategory(

@@ -3,18 +3,18 @@ package com.knu.sosuso.capstone.controller;
 import com.knu.sosuso.capstone.dto.ResponseDto;
 import com.knu.sosuso.capstone.dto.response.search.SearchApiResponse;
 import com.knu.sosuso.capstone.service.SearchService;
+import com.knu.sosuso.capstone.swagger.SearchControllerSwagger;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/search")
-public class SearchController {
+public class SearchController implements SearchControllerSwagger {
 
     private final SearchService searchService;
 
-    public SearchController(SearchService searchService) {
-        this.searchService = searchService;
-    }
 
     @GetMapping
     public ResponseEntity<ResponseDto<SearchApiResponse<?>>> search(@CookieValue(value = "Authorization", required = false) String token,
