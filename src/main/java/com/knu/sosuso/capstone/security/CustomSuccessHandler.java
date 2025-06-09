@@ -48,7 +48,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         response.setHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        response.sendRedirect("http://localhost:3000/login/success");
+        response.sendRedirect("https://capstone-client-guka.vercel.app/login/success");
     }
 
     public void logout(String token, HttpServletResponse response) throws IOException {
