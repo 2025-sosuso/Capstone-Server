@@ -12,7 +12,7 @@ public record ChannelSearchResponse(
             String description,
             String thumbnailUrl,
             Long subscriberCount,
-            Boolean isFavorited
+            Long favoriteChannelId
     ) {
     }
 }

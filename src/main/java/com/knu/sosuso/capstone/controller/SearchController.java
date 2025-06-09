@@ -4,10 +4,7 @@ import com.knu.sosuso.capstone.dto.ResponseDto;
 import com.knu.sosuso.capstone.dto.response.search.SearchApiResponse;
 import com.knu.sosuso.capstone.service.SearchService;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/search")
@@ -20,9 +17,10 @@ public class SearchController {
     }
 
     @GetMapping
-    public ResponseEntity<ResponseDto<SearchApiResponse<?>>> search(@RequestParam String query) {
+    public ResponseEntity<ResponseDto<SearchApiResponse<?>>> search(@CookieValue(value = "Authorization", required = false) String token,
+                                                                    @RequestParam String query) {
         try {
-            SearchApiResponse<?> searchResult = searchService.search(query);
+            SearchApiResponse<?> searchResult = searchService.search(token, query);
             ResponseDto<SearchApiResponse<?>> response = ResponseDto.of(searchResult, "검색이 완료되었습니다.");
             return ResponseEntity.ok(response);
         } catch (IllegalArgumentException e) {
