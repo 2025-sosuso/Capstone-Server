@@ -3,6 +3,7 @@ package com.knu.sosuso.capstone.controller;
 import com.knu.sosuso.capstone.dto.ResponseDto;
 import com.knu.sosuso.capstone.dto.response.comment.CommentResponse;
 import com.knu.sosuso.capstone.service.CommentQueryService;
+import com.knu.sosuso.capstone.swagger.CommentControllerSwagger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/videos")
 @RequiredArgsConstructor
 @Slf4j
-public class CommentController {
+public class CommentController implements CommentControllerSwagger {
 
     private final CommentQueryService commentQueryService;
 
@@ -26,9 +27,10 @@ public class CommentController {
     @GetMapping("/{apiVideoId}/comments")
     public ResponseEntity<ResponseDto<CommentResponse>> searchComments(
             @PathVariable String apiVideoId,
-            @RequestParam(required = false) String q,           // 일반 텍스트 검색
-            @RequestParam(required = false) String keyword,     // AI 키워드 검색
-            @RequestParam(required = false) String sentiment) { // 감정 필터링
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String sentiment,// 일반 텍스트 검색
+            @RequestParam(required = false) String keyword     // AI 키워드 검색
+    ) {
 
         try {
             // 정확히 하나의 파라미터만 허용
