@@ -2,33 +2,29 @@ package com.knu.sosuso.capstone.controller;
 
 import com.knu.sosuso.capstone.dto.ResponseDto;
 import com.knu.sosuso.capstone.service.TrendingService;
+import com.knu.sosuso.capstone.swagger.TrendingControllerSwagger;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @Slf4j
+@RequiredArgsConstructor
 @RequestMapping("/api/trending")
-public class TrendingController {
+public class TrendingController implements TrendingControllerSwagger {
 
     private final TrendingService trendingService;
 
-    public TrendingController(TrendingService trendingService) {
-        this.trendingService = trendingService;
-    }
-
     @GetMapping("/category")
     public ResponseEntity<?> getByCategory(
+            @CookieValue(value = "Authorization", required = false) String token,
             @RequestParam(defaultValue = "latest") String categoryType,
-            @RequestParam(defaultValue = "KR") String regionCode,
             @RequestParam(defaultValue = "5") int maxResults) {
         try {
-            log.info("인기급상승 영상 조회 요청: categoryType={}, regionCode={}, maxResults={}", categoryType, regionCode, maxResults);
+            log.info("인기급상승 영상 조회 요청: categoryType={}, maxResults={}", categoryType, maxResults);
 
-            var result = trendingService.getTrendingVideoWithComments(categoryType, regionCode, maxResults);
+            var result = trendingService.getTrendingVideoWithComments(token, categoryType, maxResults);
 
             log.info("인기급상승 영상 조회 완료: 영상 수={}", result.size());
             return ResponseEntity.ok(ResponseDto.of(result, "인기급상승 영상 조회 성공"));

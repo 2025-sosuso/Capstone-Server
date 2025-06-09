@@ -24,17 +24,19 @@ public class ResponseMappingService {
 
     private final ObjectMapper objectMapper;
     private final CommentRepository commentRepository;
+    private final UserDataService userDataService;
 
     /**
      * YouTube API 데이터를 SearchResultResponse로 변환 (새로운 데이터)
      */
     public UrlSearchResponse mapToSearchResult(
+            String token,
             VideoApiResponse videoInfo,
             CommentApiResponse commentInfo,
             AIAnalysisResponse analysisResponse) {
 
-        UrlVideoDto video = mapToVideoResponse(videoInfo);
-        UrlChannelDto channel = mapToChannelResponse(videoInfo);
+        UrlVideoDto video = mapToVideoResponse(token,videoInfo);
+        UrlChannelDto channel = mapToChannelResponse(token,videoInfo);
         UrlAnalysisDto analysis = mapToAnalysisResponse(commentInfo, analysisResponse);
         List<UrlCommentDto> comments = mapToCommentResponses(commentInfo.allComments(), analysisResponse);
 
@@ -44,10 +46,10 @@ public class ResponseMappingService {
     /**
      * DB 데이터를 SearchResultResponse로 변환 (기존 데이터)
      */
-    public UrlSearchResponse mapFromDbToSearchResult(Video video) {
+    public UrlSearchResponse mapFromDbToSearchResult(String token, Video video) {
         try {
-            UrlVideoDto urlVideoDto = mapDbVideoToVideoResponse(video);
-            UrlChannelDto urlChannelDto = mapDbVideoToChannelResponse(video);
+            UrlVideoDto urlVideoDto = mapDbVideoToVideoResponse(token,video);
+            UrlChannelDto urlChannelDto = mapDbVideoToChannelResponse(token,video);
             UrlAnalysisDto urlAnalysisDto = mapDbVideoToAnalysisResponse(video);
             List<UrlCommentDto> urlCommentRespons = mapDbCommentsToCommentResponses(video.getId());
 
@@ -62,7 +64,9 @@ public class ResponseMappingService {
     /**
      * VideoApiResponse -> VideoResponse 변환
      */
-    public UrlVideoDto mapToVideoResponse(VideoApiResponse videoInfo) {
+    public UrlVideoDto mapToVideoResponse(String token,VideoApiResponse videoInfo) {
+        Long scrapId = userDataService.getUserScrapId(token, videoInfo.apiVideoId());
+
         return new UrlVideoDto(
                 videoInfo.apiVideoId(),
                 videoInfo.title(),
@@ -72,28 +76,31 @@ public class ResponseMappingService {
                 parseLong(videoInfo.viewCount()),
                 parseLong(videoInfo.likeCount()),
                 parseInt(videoInfo.commentCount()),
-                false, // TODO: 스크랩 기능 구현 시 수정
-                null   // TODO: 스크랩 기능 구현 시 수정
+                scrapId
         );
     }
 
     /**
      * VideoApiResponse -> ChannelResponse 변환
      */
-    public UrlChannelDto mapToChannelResponse(VideoApiResponse videoInfo) {
+    public UrlChannelDto mapToChannelResponse(String token, VideoApiResponse videoInfo) {
+        Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, videoInfo.channelId());
+
         return new UrlChannelDto(
                 videoInfo.channelId(),
                 videoInfo.channelTitle(),
                 videoInfo.channelThumbnailUrl(),
                 parseLong(videoInfo.subscriberCount()),
-                false // TODO: 즐겨찾기 기능 구현 시 수정
+                favoriteChannelId
         );
     }
 
     /**
      * DB Video -> VideoResponse 변환
      */
-    private UrlVideoDto mapDbVideoToVideoResponse(Video video) {
+    private UrlVideoDto mapDbVideoToVideoResponse(String token, Video video) {
+        Long scrapId = userDataService.getUserScrapId(token, video.getApiVideoId());
+
         return new UrlVideoDto(
                 video.getApiVideoId(),
                 video.getTitle(),
@@ -103,21 +110,22 @@ public class ResponseMappingService {
                 parseLong(video.getViewCount()),
                 parseLong(video.getLikeCount()),
                 parseInt(video.getCommentCount()),
-                false, // TODO: 스크랩 기능
-                null   // TODO: 스크랩 기능
+                scrapId
         );
     }
 
     /**
      * DB Video -> ChannelResponse 변환
      */
-    private UrlChannelDto mapDbVideoToChannelResponse(Video video) {
+    private UrlChannelDto mapDbVideoToChannelResponse(String token, Video video) {
+        Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
+
         return new UrlChannelDto(
                 video.getChannelId(),
                 video.getChannelName(),
                 null, // DB에는 채널 썸네일이 저장 안됨
                 parseLong(video.getSubscriberCount()),
-                false // TODO: 즐겨찾기 기능
+                favoriteChannelId
         );
     }
 
