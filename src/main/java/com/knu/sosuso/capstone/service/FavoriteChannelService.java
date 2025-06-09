@@ -4,6 +4,7 @@ import com.knu.sosuso.capstone.domain.FavoriteChannel;
 import com.knu.sosuso.capstone.domain.User;
 import com.knu.sosuso.capstone.dto.request.RegisterFavoriteChannelRequest;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.CancelFavoriteChannelResponse;
+import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.RegisterFavoriteChannelResponse;
 import com.knu.sosuso.capstone.exception.BusinessException;
 import com.knu.sosuso.capstone.exception.error.AuthenticationError;
@@ -14,6 +15,9 @@ import com.knu.sosuso.capstone.security.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @RequiredArgsConstructor
 @Service
@@ -51,6 +55,28 @@ public class FavoriteChannelService {
         FavoriteChannel savedFavoriteChannel = favoriteChannelRepository.save(favoriteChannel);
         Long favoriteChannelId = savedFavoriteChannel.getId();
         return new RegisterFavoriteChannelResponse(favoriteChannelId, apiChannelId);
+    }
+
+
+    public List<FavoriteChannelListResponse> getFavoriteChannelList(String token) {
+        if (!jwtUtil.isValidToken(token)) {
+            throw new BusinessException(AuthenticationError.INVALID_TOKEN);
+        }
+
+        Long userId = jwtUtil.getUserId(token);
+        List<FavoriteChannel> favoriteChannelList = favoriteChannelRepository.findByUserId(userId);
+
+        List<FavoriteChannelListResponse> favoriteChannelListResponses = new ArrayList<>();
+        for (FavoriteChannel favoriteChannel : favoriteChannelList) {
+            Long favoriteChannelId = favoriteChannel.getId();
+            String apiChannelName = favoriteChannel.getApiChannelName();
+            String apiChannelThumbnail = favoriteChannel.getApiChannelThumbnail();
+            FavoriteChannelListResponse favoriteChannelListResponse
+                    = new FavoriteChannelListResponse(favoriteChannelId, apiChannelName, apiChannelThumbnail);
+            favoriteChannelListResponses.add(favoriteChannelListResponse);
+        }
+
+        return favoriteChannelListResponses;
     }
 
     @Transactional
