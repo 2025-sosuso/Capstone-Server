@@ -123,7 +123,7 @@ public class ResponseMappingService {
         return new DetailChannelDto(
                 video.getChannelId(),
                 video.getChannelName(),
-                null, // DB에는 채널 썸네일이 저장 안됨
+                video.getChannelThumbnailUrl(),
                 parseLong(video.getSubscriberCount()),
                 favoriteChannelId
         );
