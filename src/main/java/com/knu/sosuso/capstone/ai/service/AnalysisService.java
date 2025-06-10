@@ -2,6 +2,7 @@ package com.knu.sosuso.capstone.ai.service;
 
 import com.knu.sosuso.capstone.ai.dto.AIAnalysisRequest;
 import com.knu.sosuso.capstone.ai.dto.AIAnalysisResponse;
+import com.knu.sosuso.capstone.service.CommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
