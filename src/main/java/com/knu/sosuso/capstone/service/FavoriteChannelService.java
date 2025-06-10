@@ -3,6 +3,8 @@ package com.knu.sosuso.capstone.service;
 import com.knu.sosuso.capstone.domain.FavoriteChannel;
 import com.knu.sosuso.capstone.domain.User;
 import com.knu.sosuso.capstone.dto.request.RegisterFavoriteChannelRequest;
+import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
+import com.knu.sosuso.capstone.dto.response.detail.DetailPageResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.CancelFavoriteChannelResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.RegisterFavoriteChannelResponse;
@@ -13,6 +15,7 @@ import com.knu.sosuso.capstone.repository.FavoriteChannelRepository;
 import com.knu.sosuso.capstone.repository.UserRepository;
 import com.knu.sosuso.capstone.security.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,12 +23,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 @RequiredArgsConstructor
+@Slf4j
 @Service
 public class FavoriteChannelService {
 
     private final FavoriteChannelRepository favoriteChannelRepository;
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
+    private final ChannelService channelService;
+    private final VideoProcessingService videoProcessingService;
+    private final TrendingService trendingService;
 
     @Transactional
     public RegisterFavoriteChannelResponse registerFavoriteChannel(String token, RegisterFavoriteChannelRequest registerFavoriteChannelRequest) {
@@ -57,7 +64,7 @@ public class FavoriteChannelService {
         return new RegisterFavoriteChannelResponse(favoriteChannelId, apiChannelId);
     }
 
-
+    @Transactional
     public List<FavoriteChannelListResponse> getFavoriteChannelList(String token) {
         if (!jwtUtil.isValidToken(token)) {
             throw new BusinessException(AuthenticationError.INVALID_TOKEN);
@@ -98,4 +105,15 @@ public class FavoriteChannelService {
 
         return new CancelFavoriteChannelResponse(favoriteChannelId);
     }
+
+    @Transactional
+    public VideoSummaryResponse processLatestVideoFromFavoriteChannel(String token, String apiChannelId){
+
+        String latestApiVideoId = channelService.getlatestApiVideoId(apiChannelId);
+
+        DetailPageResponse response = videoProcessingService.processVideoToSearchResult(token, latestApiVideoId, true);
+
+        return trendingService.convertToVideoSummaryResponse(response);
+    }
+
 }

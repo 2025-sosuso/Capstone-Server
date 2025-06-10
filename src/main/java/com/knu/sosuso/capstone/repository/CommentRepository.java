@@ -36,5 +36,8 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     // 감정별 조회
     List<Comment> findByVideoIdAndSentimentTypeOrderById(Long videoId, SentimentType sentimentType);
+
+    List<Comment> findByVideoIdOrderByLikeCountDesc(Long video_id);
+
 }
 
