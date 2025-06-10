@@ -28,7 +28,7 @@ public class Comment extends BaseEntity{
     private Integer likeCount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "sentiment_type")
+    @Column(name = "sentiment_type", length = 255)
     private SentimentType sentimentType;
 
     @Column(name = "writer")

@@ -124,6 +124,40 @@ public class ChannelService {
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
+
+    // 채널 api id로 해당 채널의 최근 영상 apiVideoId 조회
+    public String getlatestApiVideoId(String apiChannelId){
+        String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_SEARCH_API_URL)
+                .queryParam("part", "snippet")
+                .queryParam("channelId", apiChannelId)
+                .queryParam("order", "date")
+                .queryParam("maxResults", 1)
+                .queryParam("type","video")
+                .queryParam("key", config.getKey())
+                .toUriString();
+
+        String response = restTemplate.getForObject(apiUrl, String.class);
+
+
+        return extractVideoIdFromSearchResponse(response);
+    }
+
+    private String extractVideoIdFromSearchResponse(String json){
+        try{
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode items = root.path("items");
+
+            if(items.isArray() && !items.isEmpty()){
+                JsonNode videoIdNode = items.get(0).path("id").path("videoId");
+                return videoIdNode.asText();
+            }
+        }catch (Exception e){
+            log.error("관심 채널 최근 영상 응답 파싱 실패: {}", e.getMessage(), e);
+            return null;
+        }
+        return null;
+    }
+
     private List<ChannelSearchResponse.ChannelDto> parseChannelsResponse(String token, String channelsResponse) {
         try {
             JsonNode channelsRootNode = objectMapper.readTree(channelsResponse);

@@ -73,7 +73,7 @@ public class TrendingService {
     /**
      * DetailPageResponse를 VideoSummaryResponse로 변환 (전체 처리 완료 후)
      */
-    private VideoSummaryResponse convertToVideoSummaryResponse(DetailPageResponse detailResponse) {
+    public VideoSummaryResponse convertToVideoSummaryResponse(DetailPageResponse detailResponse) {
         try {
             var video = detailResponse.video();
             var channel = detailResponse.channel();

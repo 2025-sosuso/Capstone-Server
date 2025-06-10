@@ -3,11 +3,13 @@ package com.knu.sosuso.capstone.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.ai.dto.AIAnalysisResponse;
+import com.knu.sosuso.capstone.domain.Comment;
 import com.knu.sosuso.capstone.domain.Video;
 import com.knu.sosuso.capstone.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.dto.response.detail.*;
 import com.knu.sosuso.capstone.repository.CommentRepository;
+import com.knu.sosuso.capstone.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -24,6 +27,7 @@ public class ResponseMappingService {
 
     private final ObjectMapper objectMapper;
     private final CommentRepository commentRepository;
+    private final VideoRepository videoRepository;
     private final UserDataService userDataService;
 
     /**
@@ -331,6 +335,25 @@ public class ResponseMappingService {
                     }
                 })
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * DB에서 좋아요 TOP 5 댓글 추출 (public 메서드로 추가)
+     */
+    public List<Comment> mapToTopCommentsFromDb(String apiVideoId) {
+
+        Optional<Video> videoOpt  = videoRepository.findByApiVideoId(apiVideoId);
+
+        if (videoOpt.isPresent()) {
+            Long videoId = videoOpt.get().getId();
+
+            return commentRepository
+                    .findByVideoIdOrderByLikeCountDesc(videoId)
+                    .stream()
+                    .limit(5)
+                    .collect(Collectors.toList());
+        }
+        return null;
     }
 
     /**
