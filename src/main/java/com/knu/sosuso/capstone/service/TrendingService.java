@@ -79,43 +79,41 @@ public class TrendingService {
             var channel = detailResponse.channel();
             var analysis = detailResponse.analysis();
 
-            // AI 분석 결과에서 SentimentDistribution 추출
-            VideoSummaryResponse.SentimentDistribution sentimentDistribution = null;
-            if (analysis != null && analysis.sentimentDistribution() != null) {
-                var sentiment = analysis.sentimentDistribution();
-                sentimentDistribution = new VideoSummaryResponse.SentimentDistribution(
-                        sentiment.positive(),
-                        sentiment.negative(),
-                        sentiment.other()
-                );
-            }
-
-            // AI 분석 결과에서 Keywords 추출
-            List<String> keywords = new ArrayList<>();
-            if (analysis != null && analysis.keywords() != null) {
-                keywords = analysis.keywords();
-            }
-
-            // AI 분석 결과에서 Summary 추출
-            String summary = null;
-            if (analysis != null && analysis.summary() != null) {
-                summary = analysis.summary();
-            }
-
-            return new VideoSummaryResponse(
+            // 하위 객체 생성
+            VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
                     video.id(),
                     video.title(),
+                    video.description(),
+                    video.publishedAt(),
                     video.thumbnailUrl(),
-                    channel.title(),
-                    channel.subscriberCount(),
                     video.viewCount(),
                     video.likeCount(),
-                    video.commentCount(),
-                    video.publishedAt(),
-                    summary,  // AI 분석 완료된 요약
-                    sentimentDistribution,  // AI 분석 완료된 감정 분포
-                    keywords  // AI 분석 완료된 키워드
+                    video.commentCount()
             );
+
+            VideoSummaryResponse.Channel channelDto = new VideoSummaryResponse.Channel(
+                    channel.id(),
+                    channel.title(),
+                    channel.thumbnailUrl(),
+                    channel.subscriberCount()
+            );
+
+            VideoSummaryResponse.SentimentDistribution sentimentDto = null;
+            if (analysis != null && analysis.sentimentDistribution() != null) {
+                var s = analysis.sentimentDistribution();
+                sentimentDto = new VideoSummaryResponse.SentimentDistribution(s.positive(), s.negative(), s.other());
+            }
+
+            List<String> keywords = (analysis != null && analysis.keywords() != null) ? analysis.keywords() : List.of();
+            String summary = (analysis != null) ? analysis.summary() : null;
+
+            VideoSummaryResponse.Analysis analysisDto = new VideoSummaryResponse.Analysis(
+                    summary,
+                    sentimentDto,
+                    keywords
+            );
+
+            return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
 
         } catch (Exception e) {
             log.error("VideoSummaryResponse 변환 실패: error={}", e.getMessage(), e);
