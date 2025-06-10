@@ -181,25 +181,35 @@ public class ScrapService {
                             }
                     );
                 } catch (Exception e) {
-                    log.warn("Keywords 파싱 실패: videoId={}, error={}",
-                            video.getId(), e.getMessage());
+                    log.warn("Keywords 파싱 실패: videoId={}, error={}", video.getId(), e.getMessage());
                 }
             }
 
-            return new VideoSummaryResponse(
+            var videoDto = new VideoSummaryResponse.Video(
                     video.getApiVideoId(),
                     video.getTitle(),
+                    video.getDescription(),
+                    video.getUploadedAt(),
                     video.getThumbnailUrl(),
-                    video.getChannelName(),
-                    parseLong(video.getSubscriberCount()),
                     parseLong(video.getViewCount()),
                     parseLong(video.getLikeCount()),
-                    parseInt(video.getCommentCount()),
-                    video.getUploadedAt(),
-                    video.getSummation(),  // AI 분석 완료된 요약 (없으면 null)
-                    sentimentDistribution,  // AI 분석 완료된 감정 분포 (없으면 null)
-                    keywords  // AI 분석 완료된 키워드 (없으면 빈 리스트)
+                    parseInt(video.getCommentCount())
             );
+
+            var channelDto = new VideoSummaryResponse.Channel(
+                    video.getChannelId(),
+                    video.getChannelName(),
+                    video.getChannelThumbnailUrl(),
+                    parseLong(video.getSubscriberCount())
+            );
+
+            var analysisDto = new VideoSummaryResponse.Analysis(
+                    video.getSummation(),
+                    sentimentDistribution,
+                    keywords
+            );
+
+            return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
 
         } catch (Exception e) {
             log.error("VideoSummaryResponse 변환 실패: videoId={}, error={}",

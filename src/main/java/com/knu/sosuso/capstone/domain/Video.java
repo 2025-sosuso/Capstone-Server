@@ -42,6 +42,9 @@ public class Video extends BaseEntity {
     @Column(name = "channel_name")
     private String channelName;
 
+    @Column(name = "channel_thumbnail_url")
+    private String channelThumbnailUrl;
+
     @Column(name = "subscriber_count")
     private String subscriberCount;
 
@@ -71,7 +74,7 @@ public class Video extends BaseEntity {
 
     @Builder
 
-    public Video(String apiVideoId, String title, String description, String viewCount, String likeCount, String commentCount, String thumbnailUrl, String channelId, String channelName, String subscriberCount, String commentHistogram, String popularTimestamps, String summation, boolean isWarning, String languageDistribution, String sentimentDistribution, String keywords, String uploadedAt) {
+    public Video(String apiVideoId, String title, String description, String viewCount, String likeCount, String commentCount, String thumbnailUrl, String channelId, String channelName, String channelThumbnailUrl, String subscriberCount, String commentHistogram, String popularTimestamps, String summation, boolean isWarning, String languageDistribution, String sentimentDistribution, String keywords, String uploadedAt) {
         this.apiVideoId = apiVideoId;
         this.title = title;
         this.description = description;
@@ -81,6 +84,7 @@ public class Video extends BaseEntity {
         this.thumbnailUrl = thumbnailUrl;
         this.channelId = channelId;
         this.channelName = channelName;
+        this.channelThumbnailUrl = channelThumbnailUrl;
         this.subscriberCount = subscriberCount;
         this.commentHistogram = commentHistogram;
         this.popularTimestamps = popularTimestamps;

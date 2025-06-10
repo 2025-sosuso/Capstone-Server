@@ -203,6 +203,7 @@ public class VideoService {
                     .thumbnailUrl(videoApiResponse.thumbnailUrl())
                     .channelId(videoApiResponse.channelId())
                     .channelName(videoApiResponse.channelTitle())
+                    .channelThumbnailUrl(videoApiResponse.channelThumbnailUrl())
                     .uploadedAt(videoApiResponse.publishedAt())
                     .subscriberCount(videoApiResponse.subscriberCount())
                     .viewCount(videoApiResponse.viewCount())

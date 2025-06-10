@@ -274,7 +274,8 @@ public class VideoProcessingService {
                 video.getApiVideoId(), video.getTitle(), video.getDescription(),
                 video.getViewCount(), video.getLikeCount(), video.getCommentCount(),
                 video.getThumbnailUrl(), video.getChannelId(), video.getChannelName(),
-                null, video.getSubscriberCount(), video.getUploadedAt()
+                video.getChannelThumbnailUrl(),
+                video.getSubscriberCount(), video.getUploadedAt()
         );
 
         DetailVideoDto videoDto = responseMappingService.mapToVideoResponse(token, videoInfo);
