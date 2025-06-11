@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -47,17 +48,17 @@ public class CommentService {
         String pageToken = null;
         int pageCount = 0;
 
-        do {
-            String apiUrl = buildApiUrl(apiVideoId, pageToken);
-            String jsonResponse = callYouTubeApi(apiUrl);
-
-            try {
+        try {
+            do {
+                String apiUrl = buildApiUrl(apiVideoId, pageToken);
+                String jsonResponse = callYouTubeApi(apiUrl);
                 JsonNode rootNode = objectMapper.readTree(jsonResponse);
                 JsonNode itemsNode = rootNode.path("items");
 
                 if (!itemsNode.isArray() || itemsNode.isEmpty()) {
                     break;
                 }
+
                 List<CommentData> pageComments = parseCommentsFromJson(itemsNode);
                 allComments.addAll(pageComments);
 
@@ -73,16 +74,23 @@ public class CommentService {
                 }
 
                 pageCount++;
-
                 if (pageCount % 10 == 0) {
                     log.info("댓글 수집 진행: apiVideoId={}, 페이지={}, 누적={}", apiVideoId, pageCount, allComments.size());
                 }
-            } catch (Exception e) {
-                log.error("JSON 파싱 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-                break;
-            }
 
-        } while (isValidPageToken(pageToken));
+            } while (isValidPageToken(pageToken));
+
+        } catch (HttpClientErrorException.Forbidden e) {
+            // 댓글이 비활성화된 경우
+            if (e.getResponseBodyAsString().contains("commentsDisabled")) {
+                log.info("댓글이 비활성화된 영상: apiVideoId={}", apiVideoId);
+                return new ArrayList<>(); // 빈 리스트 반환
+            }
+            throw e; // 다른 403 에러는 재던지기
+        } catch (Exception e) {
+            log.error("댓글 수집 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
+            throw new RuntimeException("댓글 수집 중 오류 발생", e);
+        }
 
         log.info("댓글 수집 완료: apiVideoId={}, 총 댓글 수={}", apiVideoId, allComments.size());
         return allComments;
@@ -141,7 +149,7 @@ public class CommentService {
                     .map(commentData -> Comment.builder()
                             .video(video)
                             .apiCommentId(commentData.id())
-                            .commentContent(video.getCommentCount())
+                            .commentContent(commentData.commentText())
                             .likeCount(commentData.likeCount())
                             .sentimentType(null) // AI 분석 전이므로 null
                             .writer(commentData.authorName())
