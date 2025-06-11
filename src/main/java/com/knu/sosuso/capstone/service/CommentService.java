@@ -141,7 +141,7 @@ public class CommentService {
                     .map(commentData -> Comment.builder()
                             .video(video)
                             .apiCommentId(commentData.id())
-                            .commentContent(video.getCommentCount())
+                            .commentContent(commentData.commentText())
                             .likeCount(commentData.likeCount())
                             .sentimentType(null) // AI 분석 전이므로 null
                             .writer(commentData.authorName())
