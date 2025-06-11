@@ -134,7 +134,7 @@ public class CommentService {
             log.info("저장할 댓글이 없습니다: apiVideoId={}", video.getApiVideoId());
         }
 
-        log.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", video.getApiVideoId(), comments.size());
+        log.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", video.getApiVideoId(), Objects.requireNonNull(comments).size());
 
         try {
             List<Comment> commentsToSave = comments.stream()

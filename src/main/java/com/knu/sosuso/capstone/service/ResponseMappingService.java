@@ -212,7 +212,7 @@ public class ResponseMappingService {
             // AI 분석 완료
             Map<String, Double> languageRatio = parseJsonToMap(video.getLanguageDistribution(), String.class, Double.class);
             Map<String, Double> sentimentRatio = parseJsonToMap(video.getSentimentDistribution(), String.class, Double.class);
-            List<String> keywords = objectMapper.readValue(video.getKeywords(), new TypeReference<List<String>>() {
+            List<String> keywords = objectMapper.readValue(video.getKeywords(), new TypeReference<>() {
             });
 
             List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
