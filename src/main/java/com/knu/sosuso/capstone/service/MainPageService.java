@@ -14,8 +14,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -37,38 +39,78 @@ public class MainPageService {
         log.info("메인 페이지 데이터 조회 시작");
 
         try {
-            // 1. 토큰 검증
-            if (token == null || !jwtUtil.isValidToken(token)) {
-                throw new BusinessException(AuthenticationError.INVALID_TOKEN);
+            if (StringUtils.hasText(token) && jwtUtil.isValidToken(token)) {
+                // 인증된 사용자용 메인 페이지
+                return getAuthenticatedMainPageData(token);
+            } else {
+                // 비인증 사용자용 메인 페이지
+                return getGuestMainPageData();
             }
 
-            // 2. 각 섹션 데이터 조회 (병렬로 처리 가능하지만 순차적으로 처리)
-            List<VideoSummaryResponse> scrapVideos = getScrapVideos(token);
-            List<VideoSummaryResponse> trendingVideos = getTrendingVideos(token);
-            MainPageResponse.FavoriteChannelResponse favoriteChannelResponse = getFavoriteChannelResponse(token);
-
-            MainPageResponse response = new MainPageResponse(
-                    favoriteChannelResponse,
-                    trendingVideos,
-                    scrapVideos
-            );
-
-            log.info("메인 페이지 데이터 조회 완료: 스크랩={}, 트렌딩={}, 즐겨찾기 채널 수={}",
-                    scrapVideos.size(),
-                    trendingVideos.size(),
-                    favoriteChannelResponse.favoriteChannelList() != null
-                            ? favoriteChannelResponse.favoriteChannelList().size() : 0);
-
-            return response;
-
-        } catch (BusinessException e) {
-            log.error("메인 페이지 데이터 조회 비즈니스 오류: {}", e.getMessage());
-            throw e;
         } catch (Exception e) {
             log.error("메인 페이지 데이터 조회 실패: {}", e.getMessage(), e);
             throw new RuntimeException("메인 페이지 데이터 조회 중 오류 발생", e);
         }
     }
+
+    // 인증된 사용자용 메인 페이지 데이터
+    @Transactional
+    public MainPageResponse getAuthenticatedMainPageData(String token) {
+        log.info("인증된 사용자 메인 페이지 데이터 조회");
+
+        List<VideoSummaryResponse> scrapVideos = getScrapVideos(token);
+        List<VideoSummaryResponse> trendingVideos = getTrendingVideos();
+        MainPageResponse.FavoriteChannelResponse favoriteChannelResponse = getFavoriteChannelResponse(token);
+
+        MainPageResponse response = new MainPageResponse(
+                favoriteChannelResponse,
+                trendingVideos,
+                scrapVideos
+        );
+
+        log.info("인증된 사용자 메인 페이지 데이터 조회 완료: 스크랩={}, 트렌딩={}, 즐겨찾기 채널={}",
+                scrapVideos.size(),
+                trendingVideos.size(),
+                favoriteChannelResponse.favoriteChannelList() != null
+                        ? favoriteChannelResponse.favoriteChannelList().size() : 0);
+
+        return response;
+    }
+
+    // 비인증 사용자용 메인 페이지 데이터
+    @Transactional
+    public MainPageResponse getGuestMainPageData() {
+        log.info("비인증 사용자 메인 페이지 데이터 조회");
+
+        List<VideoSummaryResponse> trendingVideos = getTrendingVideos();
+        MainPageResponse.FavoriteChannelResponse emptyFavoriteChannelResponse = createEmptyFavoriteChannelResponse();
+
+        MainPageResponse response = new MainPageResponse(
+                emptyFavoriteChannelResponse,
+                trendingVideos,
+                Collections.emptyList() // 스크랩 비디오 없음
+        );
+
+        log.info("비인증 사용자 메인 페이지 데이터 조회 완료: 트렌딩={}", trendingVideos.size());
+
+        return response;
+    }
+
+    // 트렌딩 비디오는 토큰 없이도 조회 가능하도록 오버로드
+    @Transactional
+    public List<VideoSummaryResponse> getTrendingVideos() {
+        return getTrendingVideos(null);
+    }
+
+    // 빈 즐겨찾기 채널 응답 생성
+    private MainPageResponse.FavoriteChannelResponse createEmptyFavoriteChannelResponse() {
+        return new MainPageResponse.FavoriteChannelResponse(
+                Collections.emptyList(),
+                null,
+                null
+        );
+    }
+
 
     /**
      * 스크랩된 비디오 목록 조회 (최대 3개)
