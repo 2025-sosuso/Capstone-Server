@@ -2,7 +2,6 @@ package com.knu.sosuso.capstone.ai.service;
 
 import com.knu.sosuso.capstone.ai.dto.AIAnalysisRequest;
 import com.knu.sosuso.capstone.ai.dto.AIAnalysisResponse;
-import com.knu.sosuso.capstone.service.CommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
@@ -17,8 +16,8 @@ public class AnalysisService {
 
     /**
      * AI에 분석 요청
-     * @param aiAnalysisRequest
-     * @return
+     * @param aiAnalysisRequest ai 분석 요청
+     * @return 반환
      */
     public AIAnalysisResponse requestAnalysis(AIAnalysisRequest aiAnalysisRequest) {
         HttpHeaders headers = new HttpHeaders();

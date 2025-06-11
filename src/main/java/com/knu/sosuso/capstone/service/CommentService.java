@@ -129,20 +129,19 @@ public class CommentService {
      * 댓글을 DB에 저장 (sentiment는 null)
      */
     @Transactional
-    public int saveCommentsToDb(List<CommentData> comments, Video video) {
+    public void saveCommentsToDb(List<CommentData> comments, Video video) {
         if (comments == null || comments.isEmpty()) {
             log.info("저장할 댓글이 없습니다: apiVideoId={}", video.getApiVideoId());
-            return 0;
         }
 
-        log.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", video.getApiVideoId(), comments.size());
+        log.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", video.getApiVideoId(), Objects.requireNonNull(comments).size());
 
         try {
             List<Comment> commentsToSave = comments.stream()
                     .map(commentData -> Comment.builder()
                             .video(video)
                             .apiCommentId(commentData.id())
-                            .commentContent(commentData.commentText())
+                            .commentContent(video.getCommentCount())
                             .likeCount(commentData.likeCount())
                             .sentimentType(null) // AI 분석 전이므로 null
                             .writer(commentData.authorName())
@@ -155,8 +154,6 @@ public class CommentService {
 
             log.info("댓글 DB 저장 완료: apiVideoId={}, 저장={}, 중복 제외={}",
                     video.getApiVideoId(), savedComments.size(), comments.size() - savedComments.size());
-
-            return savedComments.size();
 
         } catch (Exception e) {
             log.error("댓글 DB 저장 실패: apiVideoId={}, error={}", video.getApiVideoId(), e.getMessage(), e);
@@ -269,7 +266,7 @@ public class CommentService {
         }
 
         for (CommentData comment : comments) {
-            Set<String> uniqueTimestamps = extractAllTimestamps(comment.commentText(), HOUR_PATTERN, MINUTE_PATTERN);
+            Set<String> uniqueTimestamps = extractAllTimestamps(comment.commentText());
 
             if (uniqueTimestamps.isEmpty()) {
                 continue;
@@ -359,7 +356,7 @@ public class CommentService {
         }
     }
 
-    private Set<String> extractAllTimestamps(String commentText, Pattern hourPattern, Pattern minutePattern) {
+    private Set<String> extractAllTimestamps(String commentText) {
         Set<String> allTimestamps = new HashSet<>();
 
         if (commentText == null || commentText.trim().isEmpty()) {
@@ -368,7 +365,7 @@ public class CommentService {
 
         // 시:분:초 패턴 처리
         List<int[]> hourRanges = new ArrayList<>();
-        Matcher hourMatcher = hourPattern.matcher(commentText);
+        Matcher hourMatcher = CommentService.HOUR_PATTERN.matcher(commentText);
 
         while (hourMatcher.find()) {
             try {
@@ -387,7 +384,7 @@ public class CommentService {
         }
 
         // 분:초 패턴 처리
-        Matcher minuteMatcher = minutePattern.matcher(commentText);
+        Matcher minuteMatcher = CommentService.MINUTE_PATTERN.matcher(commentText);
 
         while (minuteMatcher.find()) {
             try {

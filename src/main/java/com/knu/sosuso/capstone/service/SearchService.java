@@ -6,6 +6,7 @@ import com.knu.sosuso.capstone.dto.response.search.ChannelSearchResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -19,6 +20,7 @@ public class SearchService {
     private final VideoProcessingService videoProcessingService;
 
     // 1. 검색어 입력
+    @Transactional
     public SearchApiResponse<?> search(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new IllegalArgumentException("검색어는 필수입니다");

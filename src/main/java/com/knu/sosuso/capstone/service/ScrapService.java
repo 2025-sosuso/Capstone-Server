@@ -16,10 +16,8 @@ import com.knu.sosuso.capstone.repository.ScrapRepository;
 import com.knu.sosuso.capstone.repository.UserRepository;
 import com.knu.sosuso.capstone.repository.VideoRepository;
 import com.knu.sosuso.capstone.security.jwt.JwtUtil;
-import jakarta.persistence.Entity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -97,8 +95,6 @@ public class ScrapService {
             }
 
             Long userId = jwtUtil.getUserId(token);
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new BusinessException(AuthenticationError.USER_NOT_FOUND));
 
             // 2. 사용자의 스크랩 목록 조회
             List<Scrap> scraps = scrapRepository.findByUserIdOrderByCreatedAtDesc(userId);
@@ -155,7 +151,7 @@ public class ScrapService {
                     ObjectMapper objectMapper = new ObjectMapper();
                     Map<String, Double> sentimentMap = objectMapper.readValue(
                             video.getSentimentDistribution(),
-                            new TypeReference<Map<String, Double>>() {
+                            new TypeReference<>() {
                             }
                     );
 
@@ -177,7 +173,7 @@ public class ScrapService {
                     ObjectMapper objectMapper = new ObjectMapper();
                     keywords = objectMapper.readValue(
                             video.getKeywords(),
-                            new TypeReference<List<String>>() {
+                            new TypeReference<>() {
                             }
                     );
                 } catch (Exception e) {

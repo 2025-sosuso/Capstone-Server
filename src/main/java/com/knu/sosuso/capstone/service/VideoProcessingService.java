@@ -14,6 +14,7 @@ import com.knu.sosuso.capstone.repository.CommentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -37,6 +38,7 @@ public class VideoProcessingService {
      * @param enableAIAnalysis AI 분석 수행 여부
      * @return 처리된 비디오 + 댓글 정보
      */
+    @Transactional
     public DetailPageResponse processVideoToSearchResult(String token, String apiVideoId, boolean enableAIAnalysis) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다.");
@@ -64,7 +66,8 @@ public class VideoProcessingService {
     /**
      * 기존 DB 데이터가 있는 경우 처리
      */
-    private DetailPageResponse handleExistingVideo(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
+    @Transactional
+    public DetailPageResponse handleExistingVideo(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
 
         LocalDateTime oneDayAgo = LocalDateTime.now().minusDays(1);  // 기준점 1일로 설정
         boolean isWithinOneDay = existingVideo.getCreatedAt().isAfter(oneDayAgo);
@@ -92,7 +95,8 @@ public class VideoProcessingService {
     /**
      * 기존 비디오에 댓글이 없는 경우 처리
      */
-    private DetailPageResponse handleExistingVideoWithoutComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
+    @Transactional
+    public DetailPageResponse handleExistingVideoWithoutComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
         log.info("기존 데이터에 댓글 없음, 댓글 수집 시도: apiVideoId={}", apiVideoId);
         List<CommentApiResponse.CommentData> allComments = commentService.fetchAllComments(apiVideoId);
 
@@ -108,7 +112,8 @@ public class VideoProcessingService {
     /**
      * 기존 비디오에 댓글이 있는 경우 처리
      */
-    private DetailPageResponse handleExistingVideoWithComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
+    @Transactional
+    public DetailPageResponse handleExistingVideoWithComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
         boolean isAICompleted = videoService.isAIAnalysisCompleted(existingVideo);
 
         if (isAICompleted) {
@@ -126,12 +131,13 @@ public class VideoProcessingService {
     /**
      * 새로운 비디오 처리
      */
-    private DetailPageResponse handleNewVideo(String token, String apiVideoId, boolean enableAIAnalysis) {
+    @Transactional
+    public DetailPageResponse handleNewVideo(String token, String apiVideoId, boolean enableAIAnalysis) {
 
         log.info("YouTube API에서 비디오 정보 수집 시작: apiVideoId={}", apiVideoId);
 
         // 1. YouTube API로 영상 정보 가져오기
-        VideoApiResponse videoInfo = videoService.getVideoInfo(apiVideoId, null);
+        VideoApiResponse videoInfo = videoService.getVideoInfo(apiVideoId);
         log.info("YouTube API - 비디오 정보 수집 완료: title={}", videoInfo.title());
 
         // 2. 댓글 정보 가져오기
@@ -144,7 +150,6 @@ public class VideoProcessingService {
         }
 
         // 댓글 수 업데이트
-        videoInfo = videoService.updateCommentCount(videoInfo, allComments.size());
         Long videoId = saveVideoAndCommentsToDb(videoInfo, allComments);
 
         AIAnalysisResponse aiAnalysisResponse = tryAIAnalysisAndUpdate(apiVideoId, allComments, videoId, enableAIAnalysis);
@@ -159,7 +164,8 @@ public class VideoProcessingService {
     /**
      * 기존 비디오에 새 댓글 처리
      */
-    private DetailPageResponse processCommentsForExistingVideo(String token, Video existingVideo, List<CommentApiResponse.CommentData> allComments, boolean enableAIAnalysis) {
+    @Transactional
+    public DetailPageResponse processCommentsForExistingVideo(String token, Video existingVideo, List<CommentApiResponse.CommentData> allComments, boolean enableAIAnalysis) {
         try {
             processAndSaveCommentsForExistingVideo(existingVideo, allComments);
             AIAnalysisResponse aiAnalysisResponse = tryAIAnalysisAndUpdate(existingVideo.getApiVideoId(), allComments, existingVideo.getId(), enableAIAnalysis);
@@ -181,7 +187,8 @@ public class VideoProcessingService {
     /**
      * AI 분석만 재시도 (기존 DB 데이터 있는 경우)
      */
-    private DetailPageResponse retryAIAnalysisOnly(String token, Video existingVideo, String apiVideoId) {
+    @Transactional
+    public DetailPageResponse retryAIAnalysisOnly(String token, Video existingVideo, String apiVideoId) {
         List<Comment> existingComments = commentRepository.findAllByVideoId(existingVideo.getId());
 
         List<CommentApiResponse.CommentData> allComments;
@@ -210,7 +217,8 @@ public class VideoProcessingService {
     /**
      * 새 비디오 + 댓글을 DB에 저장 (공통 로직)
      */
-    private Long saveVideoAndCommentsToDb(VideoApiResponse videoInfo, List<CommentApiResponse.CommentData> allComments) {
+    @Transactional
+    public Long saveVideoAndCommentsToDb(VideoApiResponse videoInfo, List<CommentApiResponse.CommentData> allComments) {
         CommentApiResponse commentInfo = commentService.processCommentsForClient(allComments);
         log.info("백엔드 댓글 분석 완료: 히스토그램={}, 타임스탬프={}",
                 commentInfo.commentHistogram().size(), commentInfo.popularTimestamps().size());
@@ -224,7 +232,8 @@ public class VideoProcessingService {
     /**
      * 기존 비디오에 댓글 분석 및 저장 (공통 로직)
      */
-    private void processAndSaveCommentsForExistingVideo(Video existingVideo, List<CommentApiResponse.CommentData> allComments) {
+    @Transactional
+    public void processAndSaveCommentsForExistingVideo(Video existingVideo, List<CommentApiResponse.CommentData> allComments) {
         CommentApiResponse commentInfo = commentService.processCommentsForClient(allComments);
         log.info("기존 비디오 댓글 분석 완료: 히스토그램={}, 타임스탬프={}",
                 commentInfo.commentHistogram().size(), commentInfo.popularTimestamps().size());
@@ -237,7 +246,8 @@ public class VideoProcessingService {
     /**
      * AI 분석 시도 및 DB 업데이트 (공통 로직)
      */
-    private AIAnalysisResponse tryAIAnalysisAndUpdate(String apiVideoId, List<CommentApiResponse.CommentData> allComments, Long videoId, boolean enableAIAnalysis) {
+    @Transactional
+    public AIAnalysisResponse tryAIAnalysisAndUpdate(String apiVideoId, List<CommentApiResponse.CommentData> allComments, Long videoId, boolean enableAIAnalysis) {
         if (!enableAIAnalysis) {
             log.info("AI 분석 비활성화, 백엔드 분석 데이터만 제공: apiVideoId={}", apiVideoId);
             return null;
