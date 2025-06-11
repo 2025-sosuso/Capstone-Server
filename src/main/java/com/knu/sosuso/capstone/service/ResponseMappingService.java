@@ -13,6 +13,7 @@ import com.knu.sosuso.capstone.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
@@ -50,6 +51,7 @@ public class ResponseMappingService {
     /**
      * DB 데이터를 SearchResultResponse로 변환 (기존 데이터)
      */
+    @Transactional
     public DetailPageResponse mapFromDbToSearchResult(String token, Video video) {
         try {
             DetailVideoDto detailVideoDto = mapDbVideoToVideoResponse(token, video);
@@ -182,7 +184,8 @@ public class ResponseMappingService {
     /**
      * DB Video -> AnalysisResponse 변환
      */
-    private DetailAnalysisDto mapDbVideoToAnalysisResponse(Video video) {
+    @Transactional
+    public DetailAnalysisDto mapDbVideoToAnalysisResponse(Video video) {
         try {
             // 백엔드 분석 데이터 (항상 있음)
             Map<Integer, Integer> commentHistogramData = parseJsonToMap(video.getCommentHistogram(), Integer.class, Integer.class);
@@ -340,6 +343,7 @@ public class ResponseMappingService {
     /**
      * DB에서 좋아요 TOP 5 댓글 추출 (public 메서드로 추가)
      */
+    @Transactional
     public List<Comment> mapToTopCommentsFromDb(String apiVideoId) {
 
         Optional<Video> videoOpt  = videoRepository.findByApiVideoId(apiVideoId);
@@ -359,7 +363,8 @@ public class ResponseMappingService {
     /**
      * DB에서 좋아요 TOP 5 댓글 추출
      */
-    private List<DetailCommentDto> mapToTopCommentsFromDb(Long videoId) {
+    @Transactional
+    public List<DetailCommentDto> mapToTopCommentsFromDb(Long videoId) {
         return mapDbCommentsToCommentResponses(videoId).stream()
                 .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
                 .limit(5)

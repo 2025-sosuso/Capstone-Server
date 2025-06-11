@@ -16,10 +16,8 @@ import com.knu.sosuso.capstone.repository.ScrapRepository;
 import com.knu.sosuso.capstone.repository.UserRepository;
 import com.knu.sosuso.capstone.repository.VideoRepository;
 import com.knu.sosuso.capstone.security.jwt.JwtUtil;
-import jakarta.persistence.Entity;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

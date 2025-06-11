@@ -58,10 +58,9 @@ public class VideoService {
      * YouTube API로 비디오 정보 조회
      *
      * @param videoId            비디오 ID
-     * @param actualCommentCount 실제 수집된 댓글 수 (선택적)
      * @return 비디오 API 응답 객체
      */
-    public VideoApiResponse getVideoInfo(String videoId, Integer actualCommentCount) {
+    public VideoApiResponse getVideoInfo(String videoId) {
         if (videoId == null || videoId.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다");
         }
@@ -87,7 +86,7 @@ public class VideoService {
             JsonNode channelItem = channelJson.get("items").get(0);
 
             // 3. 응답 생성
-            VideoApiResponse response = buildVideoResponse(videoItem, channelItem, actualCommentCount);
+            VideoApiResponse response = buildVideoResponse(videoItem, channelItem);
 
             log.info("비디오 정보 조회 완료: apiVideoId={}", videoId);
             return response;
@@ -108,30 +107,6 @@ public class VideoService {
             log.error("비디오 정보 조회 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
             throw new RuntimeException("비디오 정보 조회 중 오류 발생", e);
         }
-    }
-
-    /**
-     * 댓글 수 업데이트
-     *
-     * @param videoApiResponse   기존 비디오 응답 객체
-     * @param actualCommentCount 실제 수집된 댓글 수
-     * @return 댓글 수가 업데이트된 비디오 응답 객체
-     */
-    public VideoApiResponse updateCommentCount(VideoApiResponse videoApiResponse, int actualCommentCount) {
-        return new VideoApiResponse(
-                videoApiResponse.apiVideoId(),
-                videoApiResponse.title(),
-                videoApiResponse.description(),
-                videoApiResponse.viewCount(),
-                videoApiResponse.likeCount(),
-                String.valueOf(actualCommentCount),
-                videoApiResponse.thumbnailUrl(),
-                videoApiResponse.channelId(),
-                videoApiResponse.channelTitle(),
-                videoApiResponse.channelThumbnailUrl(),
-                videoApiResponse.subscriberCount(),
-                videoApiResponse.publishedAt()
-        );
     }
 
     /**
@@ -291,7 +266,7 @@ public class VideoService {
                     .orElseThrow(() -> new IllegalArgumentException("비디오를 찾을 수 없습니다: " + videoId));
 
             // 댓글 개수 업데이트
-            video.setCommentCount(String.valueOf(commentInfo.allComments().size()));
+            video.setCommentCount(String.valueOf(video.getCommentCount()));
 
             // 백엔드 분석 결과 업데이트
             video.setCommentHistogram(objectMapper.writeValueAsString(commentInfo.commentHistogram()));
@@ -347,10 +322,9 @@ public class VideoService {
      *
      * @param videoItem          YouTube API의 비디오 아이템 JSON
      * @param channelItem        YouTube API의 채널 아이템 JSON
-     * @param actualCommentCount 실제 수집된 댓글 수 (선택적)
      * @return 변환된 VideoApiResponse 객체
      */
-    private VideoApiResponse buildVideoResponse(JsonNode videoItem, JsonNode channelItem, Integer actualCommentCount) {
+    private VideoApiResponse buildVideoResponse(JsonNode videoItem, JsonNode channelItem) {
         JsonNode snippet = videoItem.get("snippet");
         JsonNode statistics = videoItem.get("statistics");
         JsonNode channelSnippet = channelItem.get("snippet");
@@ -361,21 +335,13 @@ public class VideoService {
         log.info("썸네일 url: {}", thumbnailUrl);
         String channelThumbnailUrl = extractThumbnailUrl(channelSnippet.get("thumbnails"));
 
-        String commentCount;
-        if (actualCommentCount != null) {
-            commentCount = String.valueOf(actualCommentCount);
-        } else {
-            commentCount = statistics.has("commentCount") ? statistics.get("commentCount").asText() : "0";
-        }
-
         return new VideoApiResponse(
                 videoItem.get("id").asText(),
                 snippet.get("title").asText(),
                 snippet.has("description") ? snippet.get("description").asText() : "",
                 statistics.has("viewCount") ? statistics.get("viewCount").asText() : "0",
                 statistics.has("likeCount") ? statistics.get("likeCount").asText() : "0",
-                commentCount,
-                thumbnailUrl,
+                statistics.has("commentCount") ? statistics.get("commentCount").asText() : "0",                thumbnailUrl,
                 snippet.get("channelId").asText(),
                 snippet.get("channelTitle").asText(),
                 channelThumbnailUrl,

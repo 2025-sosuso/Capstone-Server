@@ -17,8 +17,8 @@ public class AnalysisService {
 
     /**
      * AI에 분석 요청
-     * @param aiAnalysisRequest
-     * @return
+     * @param aiAnalysisRequest ai 분석 요청
+     * @return 반환
      */
     public AIAnalysisResponse requestAnalysis(AIAnalysisRequest aiAnalysisRequest) {
         HttpHeaders headers = new HttpHeaders();

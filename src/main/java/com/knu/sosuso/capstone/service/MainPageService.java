@@ -13,6 +13,7 @@ import com.knu.sosuso.capstone.security.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +32,7 @@ public class MainPageService {
     private final FavoriteChannelRepository favoriteChannelRepository;
     private final JwtUtil jwtUtil;
 
+    @Transactional
     public MainPageResponse getMainPageData(String token) {
         log.info("메인 페이지 데이터 조회 시작");
 
@@ -71,7 +73,8 @@ public class MainPageService {
     /**
      * 스크랩된 비디오 목록 조회 (최대 3개)
      */
-    private List<VideoSummaryResponse> getScrapVideos(String token) {
+    @Transactional
+    public List<VideoSummaryResponse> getScrapVideos(String token) {
         try {
             List<VideoSummaryResponse> allScrapVideos = scrapService.getScrappedVideos(token);
 
@@ -91,7 +94,8 @@ public class MainPageService {
     /**
      * 트렌딩 비디오 목록 조회 (최대 3개)
      */
-    private List<VideoSummaryResponse> getTrendingVideos(String token) {
+    @Transactional
+    public List<VideoSummaryResponse> getTrendingVideos(String token) {
         try {
             List<VideoSummaryResponse> trendingVideos = trendingService.getTrendingVideoWithComments(token, "latest", 3);
             log.debug("트렌딩 비디오 조회 완료: 개수={}", trendingVideos.size());
@@ -106,7 +110,8 @@ public class MainPageService {
     /**
      * 즐겨찾기 채널 응답 생성
      */
-    private MainPageResponse.FavoriteChannelResponse getFavoriteChannelResponse(String token) {
+    @Transactional
+    public MainPageResponse.FavoriteChannelResponse getFavoriteChannelResponse(String token) {
         if (!jwtUtil.isValidToken(token)) {
             throw new BusinessException(AuthenticationError.INVALID_TOKEN);
         }
@@ -167,7 +172,8 @@ public class MainPageService {
     /**
      * 비디오의 상위 댓글 조회 (최대 5개)
      */
-    private List<DetailCommentDto> getTopCommentsForVideo(String videoId) {
+    @Transactional
+    public List<DetailCommentDto> getTopCommentsForVideo(String videoId) {
         try {
             log.debug("비디오 상위 댓글 조회 시작: videoId={}", videoId);
 
