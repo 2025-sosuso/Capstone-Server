@@ -33,7 +33,7 @@ public class CommentService {
     private static final Pattern HOUR_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2}):(\\d{2})\\b");
     private static final Pattern MINUTE_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2})\\b");
     private static final int MAX_RESULTS_PER_REQUEST = 100;
-    private static final int MAX_TOTAL_COMMENTS = 500;
+    private static final int MAX_TOTAL_COMMENTS = 300;
 
     private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;
