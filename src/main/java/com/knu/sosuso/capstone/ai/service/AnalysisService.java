@@ -1,6 +1,5 @@
 package com.knu.sosuso.capstone.ai.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.ai.dto.AIAnalysisRequest;
 import com.knu.sosuso.capstone.ai.dto.AIAnalysisResponse;
 import lombok.RequiredArgsConstructor;
@@ -53,8 +52,6 @@ public class AnalysisService {
         HttpEntity<AIAnalysisRequest> entity = new HttpEntity<>(aiAnalysisRequest, headers);
 
         try {
-            ObjectMapper mapper = new ObjectMapper();
-            log.info("aiAnalysisRequest: {}", mapper.writeValueAsString(aiAnalysisRequest));
             log.info("FastAPI로 AI 분석 결과 요청 중");
             ResponseEntity<AIAnalysisResponse> aiAnalysisResponse = restTemplate.postForEntity(
                     FASTAPI_URL,
