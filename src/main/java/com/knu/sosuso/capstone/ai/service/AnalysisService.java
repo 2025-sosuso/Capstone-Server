@@ -21,7 +21,7 @@ import java.security.cert.X509Certificate;
 public class AnalysisService {
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private static final String FASTAPI_URL = "https://8057-34-143-135-191.ngrok-free.app/analyze";
+    private static final String FASTAPI_URL = "https://d35c-34-124-136-29.ngrok-free.app/analyze";
 
     static {
         try {
