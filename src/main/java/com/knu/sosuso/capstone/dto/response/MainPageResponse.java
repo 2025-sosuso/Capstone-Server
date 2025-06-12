@@ -1,7 +1,7 @@
 package com.knu.sosuso.capstone.dto.response;
 
-import com.knu.sosuso.capstone.dto.response.detail.DetailCommentDto;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
+import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteVideoInfoResponse;
 
 import java.util.List;
 
@@ -13,7 +13,6 @@ public record MainPageResponse(
 
     public record FavoriteChannelResponse(
             List<FavoriteChannelListResponse> favoriteChannelList,
-            com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteVideoInfoResponse videoSummary,
-            List<DetailCommentDto> topComments
+            FavoriteVideoInfoResponse videoSummary
     ) {}
 }

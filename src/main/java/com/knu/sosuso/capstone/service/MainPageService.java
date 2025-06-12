@@ -107,7 +107,6 @@ public class MainPageService {
     private MainPageResponse.FavoriteChannelResponse createEmptyFavoriteChannelResponse() {
         return new MainPageResponse.FavoriteChannelResponse(
                 Collections.emptyList(),
-                null,
                 null
         );
     }
@@ -168,8 +167,7 @@ public class MainPageService {
             log.info("즐겨찾기 채널이 없습니다");
             return new MainPageResponse.FavoriteChannelResponse(
                     new ArrayList<>(),
-                    null,
-                    new ArrayList<>()
+                    null
             );
         }
 
@@ -185,67 +183,20 @@ public class MainPageService {
                 String apiChannelId = favoriteChannelOpt.get().getApiChannelId();
 
                 // 해당 채널의 최신 비디오 하나와 댓글 조회
-                FavoriteVideoInfoResponse channelVideo;
-                List<DetailCommentDto> topComments = new ArrayList<>();
-
-                // 채널의 최신 비디오를 가져오는 로직
-                channelVideo = favoriteChannelService.processLatestVideoFromFavoriteChannel(token, apiChannelId);
-
-                if (channelVideo != null) {
-                    topComments = getTopCommentsForVideo(channelVideo.video().id());
-                }
+                FavoriteVideoInfoResponse channelVideo = favoriteChannelService.processLatestVideoFromFavoriteChannel(token, apiChannelId);
 
                 return new MainPageResponse.FavoriteChannelResponse(
                         favoriteChannelList,
-                        channelVideo,
-                        topComments
+                        channelVideo
                 );
             }
         } catch (Exception e) {
             log.error("즐겨찾기 채널 응답 생성 실패: {}", e.getMessage(), e);
             return new MainPageResponse.FavoriteChannelResponse(
                     new ArrayList<>(),
-                    null,
-                    new ArrayList<>()
+                    null
             );
         }
         return null;
-    }
-
-    /**
-     * 비디오의 상위 댓글 조회 (최대 5개)
-     */
-    @Transactional
-    public List<DetailCommentDto> getTopCommentsForVideo(String videoId) {
-        try {
-            log.debug("비디오 상위 댓글 조회 시작: videoId={}", videoId);
-
-            // DB에서 해당 비디오의 댓글 조회 (좋아요 순으로 정렬)
-            List<Comment> comments = responseMappingService.mapToTopCommentsFromDb(videoId);
-
-            if (comments.isEmpty()) {
-                log.debug("해당 비디오에 댓글이 없습니다: videoId={}", videoId);
-                return new ArrayList<>();
-            }
-
-            // Comment 엔티티를 DetailCommentDto로 변환
-            List<DetailCommentDto> topComments = comments.stream()
-                    .map(comment -> new DetailCommentDto(
-                            comment.getApiCommentId(),
-                            comment.getWriter(),
-                            comment.getCommentContent(),
-                            comment.getLikeCount(),
-                            comment.getSentimentType() != null ? comment.getSentimentType().name().toLowerCase() : null,
-                            comment.getWrittenAt()
-                    ))
-                    .collect(Collectors.toList());
-
-            log.debug("상위 댓글 조회 완료: videoId={}, 댓글 수={}", videoId, topComments.size());
-            return topComments;
-
-        } catch (Exception e) {
-            log.error("상위 댓글 조회 실패: videoId={}, error={}", videoId, e.getMessage(), e);
-            return new ArrayList<>();
-        }
     }
 }
