@@ -76,10 +76,11 @@ public class FavoriteChannelService {
         List<FavoriteChannelListResponse> favoriteChannelListResponses = new ArrayList<>();
         for (FavoriteChannel favoriteChannel : favoriteChannelList) {
             Long favoriteChannelId = favoriteChannel.getId();
+            String apiChannelId = favoriteChannel.getApiChannelId();
             String apiChannelName = favoriteChannel.getApiChannelName();
             String apiChannelThumbnail = favoriteChannel.getApiChannelThumbnail();
             FavoriteChannelListResponse favoriteChannelListResponse
-                    = new FavoriteChannelListResponse(favoriteChannelId, apiChannelName, apiChannelThumbnail);
+                    = new FavoriteChannelListResponse(favoriteChannelId, apiChannelId, apiChannelName, apiChannelThumbnail);
             favoriteChannelListResponses.add(favoriteChannelListResponse);
         }
 

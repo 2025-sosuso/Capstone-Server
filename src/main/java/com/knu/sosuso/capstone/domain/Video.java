@@ -54,7 +54,7 @@ public class Video extends BaseEntity {
     @Column(name = "popular_timestamps", columnDefinition = "JSON")
     private String popularTimestamps;
 
-    @Column(name = "summation")
+    @Column(name = "summation", columnDefinition = "TEXT")
     private String summation;
 
     @Column(name = "warning")

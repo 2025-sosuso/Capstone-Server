@@ -158,11 +158,13 @@ public interface FavoriteChannelControllerSwagger {
                                                     "data": [
                                                         {
                                                             "favoriteChannelId": 1,
+                                                            "apiChannelId": "UCsjD7wxKCD8C62_idZQdGJg",
                                                             "apiChannelName": "Troye Sivan",
                                                             "apiChannelThumbnail": "https://i.ytimg.com/vi/iPgt1tDN_So/sddefault.jpg"
                                                         },
                                                         {
                                                             "favoriteChannelId": 2,
+                                                            "apiChannelId": "UCZ8HXiVLpvaGJYJ2jcN3Afg",
                                                             "apiChannelName": "BLACKPINK",
                                                             "apiChannelThumbnail": "https://i.ytimg.com/vi/abcd1234/sddefault.jpg"
                                                         }
