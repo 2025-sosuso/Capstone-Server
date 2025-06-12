@@ -3,10 +3,11 @@ package com.knu.sosuso.capstone.service;
 import com.knu.sosuso.capstone.domain.FavoriteChannel;
 import com.knu.sosuso.capstone.domain.User;
 import com.knu.sosuso.capstone.dto.request.RegisterFavoriteChannelRequest;
-import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
+import com.knu.sosuso.capstone.dto.response.detail.DetailCommentDto;
 import com.knu.sosuso.capstone.dto.response.detail.DetailPageResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.CancelFavoriteChannelResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
+import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.RegisterFavoriteChannelResponse;
 import com.knu.sosuso.capstone.exception.BusinessException;
 import com.knu.sosuso.capstone.exception.error.AuthenticationError;
@@ -32,7 +33,6 @@ public class FavoriteChannelService {
     private final JwtUtil jwtUtil;
     private final ChannelService channelService;
     private final VideoProcessingService videoProcessingService;
-    private final TrendingService trendingService;
 
     @Transactional
     public RegisterFavoriteChannelResponse registerFavoriteChannel(String token, RegisterFavoriteChannelRequest registerFavoriteChannelRequest) {
@@ -107,13 +107,69 @@ public class FavoriteChannelService {
     }
 
     @Transactional
-    public VideoSummaryResponse processLatestVideoFromFavoriteChannel(String token, String apiChannelId){
+    public FavoriteVideoInfoResponse processLatestVideoFromFavoriteChannel(String token, String apiChannelId){
 
         String latestApiVideoId = channelService.getlatestApiVideoId(apiChannelId);
 
         DetailPageResponse response = videoProcessingService.processVideoToSearchResult(token, latestApiVideoId, true);
 
-        return trendingService.convertToVideoSummaryResponse(response);
+        return convertToVideoSummaryFavoriteResponse(response);
     }
 
+
+
+
+    public FavoriteVideoInfoResponse convertToVideoSummaryFavoriteResponse(DetailPageResponse detailResponse) {
+        try {
+            var video = detailResponse.video();
+            var channel = detailResponse.channel();
+            var analysis = detailResponse.analysis();
+
+            // 하위 객체 생성
+            FavoriteVideoInfoResponse.Video videoDto = new FavoriteVideoInfoResponse.Video(
+                    video.id(),
+                    video.title(),
+                    video.description(),
+                    video.publishedAt(),
+                    video.thumbnailUrl(),
+                    video.viewCount(),
+                    video.likeCount(),
+                    video.commentCount()
+            );
+
+            FavoriteVideoInfoResponse.Channel channelDto = new FavoriteVideoInfoResponse.Channel(
+                    channel.id(),
+                    channel.title(),
+                    channel.thumbnailUrl(),
+                    channel.subscriberCount()
+            );
+
+            FavoriteVideoInfoResponse.SentimentDistribution sentimentDto = null;
+            if (analysis != null && analysis.sentimentDistribution() != null) {
+                var s = analysis.sentimentDistribution();
+                sentimentDto = new FavoriteVideoInfoResponse.SentimentDistribution(s.positive(), s.negative(), s.other());
+            }
+
+            List<String> keywords = (analysis != null && analysis.keywords() != null) ? analysis.keywords() : List.of();
+            String summary = (analysis != null) ? analysis.summary() : null;
+
+            List<DetailCommentDto> topComments = List.of();
+            if (analysis != null && analysis.topComments() != null) {
+                topComments = analysis.topComments();
+            }
+
+            FavoriteVideoInfoResponse.Analysis analysisDto = new FavoriteVideoInfoResponse.Analysis(
+                    summary,
+                    sentimentDto,
+                    keywords,
+                    topComments
+            );
+
+            return new FavoriteVideoInfoResponse(videoDto, channelDto, analysisDto);
+
+        } catch (Exception e) {
+            log.error("VideoSummaryResponse 변환 실패: error={}", e.getMessage(), e);
+            throw new RuntimeException("응답 변환 중 오류 발생", e);
+        }
+    }
 }

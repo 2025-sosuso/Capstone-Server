@@ -6,6 +6,7 @@ import com.knu.sosuso.capstone.dto.response.MainPageResponse;
 import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.dto.response.detail.DetailCommentDto;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
+import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.exception.BusinessException;
 import com.knu.sosuso.capstone.exception.error.AuthenticationError;
 import com.knu.sosuso.capstone.repository.FavoriteChannelRepository;
@@ -184,7 +185,7 @@ public class MainPageService {
                 String apiChannelId = favoriteChannelOpt.get().getApiChannelId();
 
                 // 해당 채널의 최신 비디오 하나와 댓글 조회
-                VideoSummaryResponse channelVideo;
+                FavoriteVideoInfoResponse channelVideo;
                 List<DetailCommentDto> topComments = new ArrayList<>();
 
                 // 채널의 최신 비디오를 가져오는 로직

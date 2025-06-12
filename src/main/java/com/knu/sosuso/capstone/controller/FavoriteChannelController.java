@@ -2,9 +2,9 @@ package com.knu.sosuso.capstone.controller;
 
 import com.knu.sosuso.capstone.dto.ResponseDto;
 import com.knu.sosuso.capstone.dto.request.RegisterFavoriteChannelRequest;
-import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.CancelFavoriteChannelResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
+import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.RegisterFavoriteChannelResponse;
 import com.knu.sosuso.capstone.service.FavoriteChannelService;
 import com.knu.sosuso.capstone.swagger.FavoriteChannelControllerSwagger;
@@ -48,11 +48,11 @@ public class FavoriteChannelController implements FavoriteChannelControllerSwagg
     }
 
     @GetMapping("{apiChannelId}")
-    public ResponseDto<VideoSummaryResponse> favoriteChannelVideo(
+    public ResponseDto<FavoriteVideoInfoResponse> favoriteChannelVideo(
             @CookieValue("Authorization") String token,
-            @PathVariable("apiChannelId") String apiChannelId
+            @PathVariable(value = "apiChannelId") String apiChannelId
     ){
-        VideoSummaryResponse favoriteChannelSummaryResponse = favoriteChannelService.processLatestVideoFromFavoriteChannel(token, apiChannelId);
+        FavoriteVideoInfoResponse favoriteChannelSummaryResponse = favoriteChannelService.processLatestVideoFromFavoriteChannel(token, apiChannelId);
         return ResponseDto.of(favoriteChannelSummaryResponse, "successfully summary analysis video favorite channel.");
     }
 

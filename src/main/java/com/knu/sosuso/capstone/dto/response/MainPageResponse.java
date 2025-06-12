@@ -13,7 +13,7 @@ public record MainPageResponse(
 
     public record FavoriteChannelResponse(
             List<FavoriteChannelListResponse> favoriteChannelList,
-            VideoSummaryResponse videoSummary,
+            com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteVideoInfoResponse videoSummary,
             List<DetailCommentDto> topComments
     ) {}
 }

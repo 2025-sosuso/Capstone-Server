@@ -1,14 +1,16 @@
-package com.knu.sosuso.capstone.dto.response;
+package com.knu.sosuso.capstone.dto.response.favorite_channel;
 
+import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.dto.response.detail.DetailCommentDto;
 
 import java.util.List;
 
-public record VideoSummaryResponse(
+public record FavoriteVideoInfoResponse (
         Video video,
         Channel channel,
         Analysis analysis
-) {
+
+){
     public record Video(
             String id,
             String title,
@@ -29,8 +31,9 @@ public record VideoSummaryResponse(
 
     public record Analysis(
             String summary,
-            SentimentDistribution sentimentDistribution,
-            List<String> keywords
+            FavoriteVideoInfoResponse.SentimentDistribution sentimentDistribution,
+            List<String> keywords,
+            List<DetailCommentDto> topComments
     ) {}
 
     public record SentimentDistribution(
