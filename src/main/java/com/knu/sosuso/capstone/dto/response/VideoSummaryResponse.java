@@ -1,7 +1,5 @@
 package com.knu.sosuso.capstone.dto.response;
 
-import com.knu.sosuso.capstone.dto.response.detail.DetailCommentDto;
-
 import java.util.List;
 
 public record VideoSummaryResponse(

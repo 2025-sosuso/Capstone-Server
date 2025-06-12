@@ -1,6 +1,5 @@
 package com.knu.sosuso.capstone.dto.response.favorite_channel;
 
-import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.dto.response.detail.DetailCommentDto;
 
 import java.util.List;

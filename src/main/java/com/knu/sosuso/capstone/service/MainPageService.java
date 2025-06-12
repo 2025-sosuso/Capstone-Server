@@ -1,10 +1,8 @@
 package com.knu.sosuso.capstone.service;
 
-import com.knu.sosuso.capstone.domain.Comment;
 import com.knu.sosuso.capstone.domain.FavoriteChannel;
 import com.knu.sosuso.capstone.dto.response.MainPageResponse;
 import com.knu.sosuso.capstone.dto.response.VideoSummaryResponse;
-import com.knu.sosuso.capstone.dto.response.detail.DetailCommentDto;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteChannelListResponse;
 import com.knu.sosuso.capstone.dto.response.favorite_channel.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.exception.BusinessException;
@@ -21,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -31,7 +28,6 @@ public class MainPageService {
     private final FavoriteChannelService favoriteChannelService;
     private final TrendingService trendingService;
     private final ScrapService scrapService;
-    private final ResponseMappingService responseMappingService;
     private final FavoriteChannelRepository favoriteChannelRepository;
     private final JwtUtil jwtUtil;
 
