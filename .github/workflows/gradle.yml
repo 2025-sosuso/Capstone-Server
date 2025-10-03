@@ -53,4 +53,13 @@ jobs:
             docker pull ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest 
             docker stop myapp || true
             docker rm myapp || true
-            docker run -d -p 8080:8080 --name myapp ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
+            docker run -d -p 8080:8080 --name myapp \
+              -e DB_URL="${{ secrets.DB_URL }}" \
+              -e DB_USERNAME="${{ secrets.DB_USERNAME }}" \
+              -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+              -e GOOGLE_CLIENT_ID="${{ secrets.GOOGLE_CLIENT_ID }}" \
+              -e GOOGLE_CLIENT_SECRET="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
+              -e REDIRECT_URI="${{ secrets.REDIRECT_URI }}" \
+              -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              -e YOUTUBE_API_KEY="${{ secrets.YOUTUBE_API_KEY }}" \
+              ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
