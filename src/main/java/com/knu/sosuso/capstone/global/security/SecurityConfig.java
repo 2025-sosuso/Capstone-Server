@@ -35,7 +35,7 @@ public class SecurityConfig {
                 CorsConfiguration configuration = new CorsConfiguration();
                 configuration.setAllowedOriginPatterns(List.of(
                         "http://localhost:3000",
-                        "https://capstone-client-guka.vercel.app",
+                        "https://capstone-client.vercel.app",
                         "http://localhost:8080",
                         "https://knu-sosuso.com"
                 ));
