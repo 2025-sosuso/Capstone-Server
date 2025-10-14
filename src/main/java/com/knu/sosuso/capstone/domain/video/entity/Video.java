@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.time.LocalDateTime;
+
 @NoArgsConstructor
 @Getter
 @Setter
@@ -73,9 +75,35 @@ public class Video extends BaseEntity {
     @Column(name = "uploaded_at")
     private String uploadedAt;
 
-    @Builder
+    // 댓글 비활성화 여부 (YouTube에서 댓글 기능 꺼진 영상)
+    @Column(name = "comments_disabled", nullable = false)
+    private boolean commentsDisabled = false;
 
-    public Video(String apiVideoId, String title, String description, String viewCount, String likeCount, String commentCount, String thumbnailUrl, String channelId, String channelName, String channelThumbnailUrl, String subscriberCount, String commentHistogram, String popularTimestamps, String summation, boolean isWarning, String languageDistribution, String sentimentDistribution, String keywords, String uploadedAt) {
+    // 댓글이 실제로 0개인지 여부 (비활성화는 아니지만 댓글 없음)
+    @Column(name = "has_no_comments", nullable = false)
+    private boolean hasNoComments = false;
+
+    // 마지막 AI 분석 시도 시간
+    @Column(name = "last_ai_attempt_at")
+    private LocalDateTime lastAiAttemptAt;
+
+    // AI 재시도 횟수
+    @Column(name = "ai_retry_count", nullable = false)
+    private int aiRetryCount = 0;
+
+    // AI 처리 중 여부 (동시 실행 방지용)
+    @Column(name = "ai_processing", nullable = false)
+    private boolean aiProcessing = false;
+
+    @Builder
+    public Video(String apiVideoId, String title, String description, String viewCount,
+                 String likeCount, String commentCount, String thumbnailUrl, String channelId,
+                 String channelName, String channelThumbnailUrl, String subscriberCount,
+                 String commentHistogram, String popularTimestamps, String summation,
+                 boolean isWarning, String languageDistribution, String sentimentDistribution,
+                 String keywords, String uploadedAt,
+                 boolean commentsDisabled, boolean hasNoComments,
+                 LocalDateTime lastAiAttemptAt, int aiRetryCount, boolean aiProcessing) {
         this.apiVideoId = apiVideoId;
         this.title = title;
         this.description = description;
@@ -95,6 +123,10 @@ public class Video extends BaseEntity {
         this.sentimentDistribution = sentimentDistribution;
         this.keywords = keywords;
         this.uploadedAt = uploadedAt;
+        this.commentsDisabled = commentsDisabled;
+        this.hasNoComments = hasNoComments;
+        this.lastAiAttemptAt = lastAiAttemptAt;
+        this.aiRetryCount = aiRetryCount;
+        this.aiProcessing = aiProcessing;
     }
 }
-
