@@ -1,6 +1,5 @@
 package com.knu.sosuso.capstone.global.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,7 +23,6 @@ import java.util.Collection;
 public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
     private final JwtUtil jwtUtil;
-    private final ObjectMapper objectMapper;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
@@ -35,7 +33,6 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
         String role = authorities.iterator().next().getAuthority();
 
-        // JWT 생성 (1시간)
         String token = jwtUtil.createJwt(sub, role, userId, 60 * 60 * 1000L);
 
         ResponseCookie cookie = ResponseCookie.from("Authorization", token)
@@ -48,27 +45,61 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         response.setHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        response.sendRedirect("https://sosuso-client.vercel.app/login/success");
+        String origin = request.getHeader("Origin");
+        if (origin == null || origin.isEmpty()) {
+            String referer = request.getHeader("Referer");
+            if (referer != null) {
+                origin = referer.substring(0, referer.indexOf("/", 8));
+            }
+        }
+
+        String redirectUrl;
+        if (origin != null && origin.startsWith("http://localhost:")) {
+            redirectUrl = origin + "/login/success";
+        } else {
+            redirectUrl = "https://sosuso-client.vercel.app/login/success";
+        }
+
+        log.info("OAuth2 로그인 성공, 리다이렉트: {}", redirectUrl);
+        response.sendRedirect(redirectUrl);
     }
 
-    public void logout(String token, HttpServletResponse response) throws IOException {
+    public void logout(String token, HttpServletRequest request, HttpServletResponse response) throws IOException {
         clearAuthenticationCookie(response);
         org.springframework.security.core.context.SecurityContextHolder.clearContext();
 
         if (isValidToken(token)) {
             Long userId = jwtUtil.getUserId(token);
-
             log.info("OAuth2 로그아웃, 사용자 ID: {}", userId);
 
-            String googleLogoutUrl = buildGoogleLogoutUrl();
+            String origin = request.getHeader("Origin");
+            if (origin == null || origin.isEmpty()) {
+                String referer = request.getHeader("Referer");
+                if (referer != null) {
+                    origin = referer.substring(0, referer.indexOf("/", 8));
+                }
+            }
+
+            String googleLogoutUrl = buildGoogleLogoutUrl(origin);
             response.sendRedirect(googleLogoutUrl);
         }
     }
 
+    private String buildGoogleLogoutUrl(String origin) {
+        String logoutRedirectUrl;
+        if (origin != null && origin.startsWith("http://localhost:")) {
+            logoutRedirectUrl = origin;
+        } else {
+            logoutRedirectUrl = "https://sosuso-client.vercel.app";
+        }
+
+        log.info("구글 로그아웃 리다이렉트: {}", logoutRedirectUrl);
+        return "https://accounts.google.com/logout?continue=" +
+                URLEncoder.encode(logoutRedirectUrl, StandardCharsets.UTF_8);
+    }
+
     /**
      * 토큰 유효성 검사
-     * @param token
-     * @return
      */
     private boolean isValidToken(String token) {
         if (token == null || token.trim().isEmpty()) {
@@ -79,7 +110,6 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     /**
      * 쿠키 삭제
-     * @param response
      */
     private void clearAuthenticationCookie(HttpServletResponse response) {
         ResponseCookie deleteCookie = ResponseCookie.from("Authorization", "")
@@ -91,11 +121,5 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .build();
 
         response.setHeader(HttpHeaders.SET_COOKIE, deleteCookie.toString());
-    }
-
-    private String buildGoogleLogoutUrl() {
-        String logoutRedirectUrl = "https://sosuso-client.vercel.app";
-        return "https://accounts.google.com/logout?continue=" +
-                URLEncoder.encode(logoutRedirectUrl, StandardCharsets.UTF_8);
     }
 }
