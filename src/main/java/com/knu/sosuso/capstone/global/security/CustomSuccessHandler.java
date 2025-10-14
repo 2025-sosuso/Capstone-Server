@@ -48,7 +48,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
         response.setHeader(HttpHeaders.SET_COOKIE, cookie.toString());
 
-        response.sendRedirect("https://capstone-client-guka.vercel.app/login/success");
+        response.sendRedirect("https://sosuso-client.vercel.app/login/success");
     }
 
     public void logout(String token, HttpServletResponse response) throws IOException {
@@ -94,7 +94,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     }
 
     private String buildGoogleLogoutUrl() {
-        String logoutRedirectUrl = "https://capstone-client-guka.vercel.app";
+        String logoutRedirectUrl = "https://sosuso-client.vercel.app";
         return "https://accounts.google.com/logout?continue=" +
                 URLEncoder.encode(logoutRedirectUrl, StandardCharsets.UTF_8);
     }
