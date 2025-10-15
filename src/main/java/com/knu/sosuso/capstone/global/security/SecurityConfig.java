@@ -1,5 +1,6 @@
 package com.knu.sosuso.capstone.global.security;
 
+import com.knu.sosuso.capstone.global.security.OAuth2RedirectCaptureFilter;
 import com.knu.sosuso.capstone.global.security.jwt.JwtFilter;
 import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
 import com.knu.sosuso.capstone.domain.auth.UserRepository;
@@ -10,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
@@ -36,13 +38,14 @@ public class SecurityConfig {
                 configuration.setAllowedOriginPatterns(List.of(
                         "http://localhost:3000",
                         "https://sosuso-client.vercel.app",
+                        "https://*.vercel.app",
                         "http://localhost:8080",
                         "https://knu-sosuso.com"
                 ));
                 configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                 configuration.setAllowedHeaders(List.of("*"));
                 configuration.setExposedHeaders(List.of("Authorization", "Set-Cookie"));
-                configuration.setAllowCredentials(true); // 쿠키 포함 허용
+                configuration.setAllowCredentials(true);
                 configuration.setMaxAge(3600L);
                 return configuration;
             }
@@ -54,12 +57,13 @@ public class SecurityConfig {
 
         http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
+        http.addFilterBefore(new OAuth2RedirectCaptureFilter(), OAuth2AuthorizationRequestRedirectFilter.class);
+        http.addFilterBefore(new JwtFilter(jwtUtil, userRepository), UsernamePasswordAuthenticationFilter.class);
+
         http.oauth2Login(oauth -> oauth
                 .userInfoEndpoint(userInfo -> userInfo.userService(customOAuth2UserService))
                 .successHandler(customSuccessHandler)
         );
-
-        http.addFilterBefore(new JwtFilter(jwtUtil, userRepository), UsernamePasswordAuthenticationFilter.class);
 
         http.authorizeHttpRequests(auth -> auth
                 .anyRequest().permitAll()
