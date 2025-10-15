@@ -3,6 +3,7 @@ package com.knu.sosuso.capstone.domain.auth;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.global.security.CustomSuccessHandler;
 import com.knu.sosuso.capstone.global.swagger.AuthControllerSwagger;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -28,9 +29,10 @@ public class AuthController implements AuthControllerSwagger {
     @PostMapping("/logout")
     public ResponseDto<?> googleLogout(
             @CookieValue(value = "Authorization", required = false) String token,
+            HttpServletRequest request,
             HttpServletResponse response
     ) throws IOException {
-        customSuccessHandler.logout(token, response);
+        customSuccessHandler.logout(token, request, response);
         return ResponseDto.of("Successfully Logged out.");
     }
 }

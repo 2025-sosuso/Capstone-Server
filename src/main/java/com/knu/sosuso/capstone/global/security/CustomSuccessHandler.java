@@ -1,4 +1,3 @@
-// FILE: src/main/java/com/knu/sosuso/capstone/global/security/CustomSuccessHandler.java (전체 교체)
 package com.knu.sosuso.capstone.global.security;
 
 import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;

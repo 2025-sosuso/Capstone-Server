@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.CookieValue;
 
@@ -46,6 +47,7 @@ public interface AuthControllerSwagger {
     @ErrorCode500
     ResponseDto<?> googleLogout(
             @CookieValue(value = "Authorization", required = false) String token,
+            HttpServletRequest request,
             HttpServletResponse response
     ) throws IOException;
 }
