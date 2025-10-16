@@ -171,7 +171,7 @@ public class VideoService {
     @Transactional
     public Long saveVideoAndCommentsWithoutAI(VideoApiResponse videoApiResponse, CommentApiResponse commentInfo) {
         try {
-            // 1. 비디오 저장 (AI 필드들은 null)
+            // 비디오 저장 (AI 필드들은 null)
             Video video = Video.builder()
                     .apiVideoId(videoApiResponse.apiVideoId())
                     .title(videoApiResponse.title())
@@ -187,21 +187,29 @@ public class VideoService {
                     .commentCount(videoApiResponse.commentCount())
                     .commentHistogram(objectMapper.writeValueAsString(commentInfo.commentHistogram()))
                     .popularTimestamps(objectMapper.writeValueAsString(commentInfo.popularTimestamps()))
-                    // AI 필드들은 null로 저장
+                    // AI 필드들은 null
                     .summation(null)
                     .isWarning(false)
                     .languageDistribution(null)
                     .sentimentDistribution(null)
                     .keywords(null)
+                    // Fast Path 관련 필드
+                    .commentsDisabled(false)
+                    .hasNoComments(commentInfo.allComments().isEmpty())
+                    .lastAiAttemptAt(null)
+                    .aiRetryCount(0)
+                    .aiProcessing(false)
                     .build();
 
             Video savedVideo = videoRepository.save(video);
 
-            // 2. 댓글 저장 (sentiment는 null)
-            commentService.saveCommentsToDb(commentInfo.allComments(), savedVideo);
+            // 댓글이 있을 때만 저장
+            if (!commentInfo.allComments().isEmpty()) {
+                commentService.saveCommentsToDb(commentInfo.allComments(), savedVideo);
+            }
 
-            log.info("비디오와 댓글 저장 완료 (AI 분석 없이): apiVideoId={}, videoId={}",
-                    videoApiResponse.apiVideoId(), savedVideo.getId());
+            log.info("비디오와 댓글 저장 완료 (AI 분석 없이): apiVideoId={}, videoId={}, 댓글수={}",
+                    videoApiResponse.apiVideoId(), savedVideo.getId(), commentInfo.allComments().size());
 
             return savedVideo.getId();
 

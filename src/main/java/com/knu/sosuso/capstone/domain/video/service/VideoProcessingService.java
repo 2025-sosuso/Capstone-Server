@@ -12,13 +12,16 @@ import com.knu.sosuso.capstone.domain.detail.dto.DetailVideoDto;
 import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
+import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -30,17 +33,17 @@ public class VideoProcessingService {
     private final AnalysisService analysisService;
     private final ResponseMappingService responseMappingService;
     private final CommentRepository commentRepository;
+    private final VideoRepository videoRepository;
+
+    private static final int AI_RETRY_COOLDOWN_MINUTES = 5; // 5분 쿨타임
+    private static final int MAX_AI_RETRY_COUNT = 3; // 최대 3회 재시도
 
     /**
-     * 비디오 완전 처리 (댓글 수집 + AI 분석 + DB 저장)
-     * SearchService와 TrendingService에서 공통으로 사용
-     *
-     * @param apiVideoId       비디오 ID
-     * @param enableAIAnalysis AI 분석 수행 여부
-     * @return 처리된 비디오 + 댓글 정보
+     * 메인 진입점: 비디오 처리 (Fast Path 적용)
      */
     @Transactional
-    public DetailPageResponse processVideoToSearchResult(String token, String apiVideoId, boolean enableAIAnalysis) {
+    public DetailPageResponse processVideoToSearchResult(String token, String apiVideoId,
+                                                         boolean enableAIAnalysis) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new IllegalArgumentException("비디오 ID는 필수입니다.");
         }
@@ -51,81 +54,187 @@ public class VideoProcessingService {
             Optional<Video> existingVideo = videoService.findByApiVideoId(apiVideoId);
 
             if (existingVideo.isPresent()) {
-                log.info("DB에서 기존 데이터 발견: apiVideoId={}", apiVideoId);
-                return handleExistingVideo(token, existingVideo.get(), apiVideoId, enableAIAnalysis);
+                return handleExistingVideoFastPath(token, existingVideo.get(), apiVideoId, enableAIAnalysis);
             } else {
-                log.info("새로운 데이터 - YouTube API에서 수집: apiVideoId={}", apiVideoId);
                 return handleNewVideo(token, apiVideoId, enableAIAnalysis);
             }
 
         } catch (Exception e) {
-            log.error("비디오 처리 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
+            log.error("비디오 처리 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
             throw e;
         }
     }
 
     /**
-     * 기존 DB 데이터가 있는 경우 처리
+     * Fast Path: DB 데이터 우선 반환
      */
     @Transactional
-    public DetailPageResponse handleExistingVideo(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
+    public DetailPageResponse handleExistingVideoFastPath(String token, Video existingVideo,
+                                                          String apiVideoId, boolean enableAIAnalysis) {
 
-        LocalDateTime oneDayAgo = LocalDateTime.now().minusDays(1);  // 기준점 1일로 설정
-        boolean isWithinOneDay = existingVideo.getCreatedAt().isAfter(oneDayAgo);
-
-        if (!isWithinOneDay) {
-            // 1일 지남 - 기존 데이터 삭제 후 새로 처리
+        // 1. 1일 지났는지 체크
+        LocalDateTime oneDayAgo = LocalDateTime.now().minusDays(1);
+        if (existingVideo.getCreatedAt().isBefore(oneDayAgo)) {
             log.info("1일 지난 데이터, 삭제 후 새로 처리: apiVideoId={}", apiVideoId);
             videoService.deleteExistingData(existingVideo.getId());
             return handleNewVideo(token, apiVideoId, enableAIAnalysis);
         }
 
-        // 1일 이내 - 댓글 유무 먼저 확인
-        boolean hasComments = commentRepository.existsByVideoId(existingVideo.getId());
-
-        if (!hasComments) {
-            // 댓글 없음 - YouTube API에서 댓글 수집 시도
-            return handleExistingVideoWithoutComments(token, existingVideo, apiVideoId, enableAIAnalysis);
-
-        } else {
-            // 댓글 있음 - AI 분석 상태 확인 (기존 로직)
-            return handleExistingVideoWithComments(token, existingVideo, apiVideoId, enableAIAnalysis);
-        }
-    }
-
-    /**
-     * 기존 비디오에 댓글이 없는 경우 처리
-     */
-    @Transactional
-    public DetailPageResponse handleExistingVideoWithoutComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
-        log.info("기존 데이터에 댓글 없음, 댓글 수집 시도: apiVideoId={}", apiVideoId);
-        List<CommentApiResponse.CommentData> allComments = commentService.fetchAllComments(apiVideoId);
-
-        if (allComments.isEmpty()) {
-            log.info("댓글 수집 시도 후에도 댓글 없음, 기존 비디오 정보로 응답: apiVideoId={}", apiVideoId);
+        // 2. 댓글 없는 영상 체크
+        if (existingVideo.isCommentsDisabled() || existingVideo.isHasNoComments()) {
+            log.info("댓글 없는 영상, Fast Path 응답: apiVideoId={}", apiVideoId);
             return createVideoOnlyResponseFromDb(token, existingVideo);
-        } else {
-            log.info("새로운 댓글 발견, 분석 및 저장 진행: apiVideoId={}, 댓글수={}", apiVideoId, allComments.size());
-            return processCommentsForExistingVideo(token, existingVideo, allComments, enableAIAnalysis);
         }
-    }
 
-    /**
-     * 기존 비디오에 댓글이 있는 경우 처리
-     */
-    @Transactional
-    public DetailPageResponse handleExistingVideoWithComments(String token, Video existingVideo, String apiVideoId, boolean enableAIAnalysis) {
+        // 3. AI 완료 여부 체크 (Fast Path의 핵심!)
         boolean isAICompleted = videoService.isAIAnalysisCompleted(existingVideo);
 
         if (isAICompleted) {
-            log.info("AI 분석 완료된 DB 데이터로 응답: apiVideoId={}", apiVideoId);
+            log.info("Fast Path: AI 완료, DB 조회만 (즉시 응답): apiVideoId={}", apiVideoId);
             return responseMappingService.mapFromDbToSearchResult(token, existingVideo);
-        } else if (enableAIAnalysis) {
-            log.info("AI 분석 미완료, 재시도 (DB 데이터 + AI 재분석): apiVideoId={}", apiVideoId);
-            return retryAIAnalysisOnly(token, existingVideo, apiVideoId);
+        }
+
+        // 4. AI 미완료 - Slow Path with Background Processing
+        if (enableAIAnalysis) {
+            return handleAIIncompleteFastPath(token, existingVideo, apiVideoId);
         } else {
-            log.info("AI 분석 비활성화, DB 데이터로 응답: apiVideoId={}", apiVideoId);
+            log.info("AI 비활성화, DB 데이터로 응답: apiVideoId={}", apiVideoId);
             return responseMappingService.mapFromDbToSearchResult(token, existingVideo);
+        }
+    }
+
+    /**
+     * AI 미완료 시 Fast Path 처리
+     */
+    @Transactional
+    public DetailPageResponse handleAIIncompleteFastPath(String token, Video existingVideo,
+                                                         String apiVideoId) {
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime lastAttempt = existingVideo.getLastAiAttemptAt();
+
+        // 재시도 조건 체크
+        boolean shouldRetry = shouldRetryAI(existingVideo, now, lastAttempt);
+
+        if (shouldRetry) {
+            log.info("AI 재시도 조건 충족, 백그라운드 처리 시작: apiVideoId={}", apiVideoId);
+
+            // 즉시 응답 (DB 데이터)
+            DetailPageResponse response = responseMappingService.mapFromDbToSearchResult(token, existingVideo);
+
+            // 백그라운드에서 AI 재시도
+            scheduleBackgroundAIProcessing(existingVideo.getId(), apiVideoId);
+
+            return response;
+
+        } else {
+            log.info("AI 재시도 쿨타임 중 ({}분 이내), DB 데이터로 응답: apiVideoId={}",
+                    AI_RETRY_COOLDOWN_MINUTES, apiVideoId);
+            return responseMappingService.mapFromDbToSearchResult(token, existingVideo);
+        }
+    }
+
+    /**
+     * AI 재시도 여부 판단
+     */
+    private boolean shouldRetryAI(Video video, LocalDateTime now, LocalDateTime lastAttempt) {
+        // 최대 재시도 횟수 초과
+        if (video.getAiRetryCount() >= MAX_AI_RETRY_COUNT) {
+            log.warn("AI 재시도 횟수 초과: apiVideoId={}, count={}",
+                    video.getApiVideoId(), video.getAiRetryCount());
+            return false;
+        }
+
+        // 이미 처리 중
+        if (video.isAiProcessing()) {
+            log.info("AI 처리 중: apiVideoId={}", video.getApiVideoId());
+            return false;
+        }
+
+        // 첫 시도이거나, 쿨타임 경과
+        if (lastAttempt == null) {
+            return true;
+        }
+
+        LocalDateTime cooldownExpiry = lastAttempt.plusMinutes(AI_RETRY_COOLDOWN_MINUTES);
+        return now.isAfter(cooldownExpiry);
+    }
+
+    /**
+     * 백그라운드 AI 처리 스케줄링
+     */
+    @Async("videoProcessingExecutor")
+    @Transactional
+    public void scheduleBackgroundAIProcessing(Long videoId, String apiVideoId) {
+        try {
+            log.info("백그라운드 AI 처리 시작: videoId={}", videoId);
+
+            // 처리 중 플래그 세팅
+            Video video = videoRepository.findById(videoId)
+                    .orElseThrow(() -> new RuntimeException("비디오를 찾을 수 없습니다"));
+
+            video.setAiProcessing(true);
+            video.setLastAiAttemptAt(LocalDateTime.now());
+            videoRepository.save(video);
+
+            // 댓글 조회 (DB 우선)
+            List<Comment> existingComments = commentRepository.findAllByVideoId(videoId);
+
+            List<CommentApiResponse.CommentData> commentDataList;
+            if (existingComments.isEmpty()) {
+                log.info("DB에 댓글 없음, YouTube API에서 수집: apiVideoId={}", apiVideoId);
+                commentDataList = commentService.fetchAllComments(apiVideoId);
+
+                if (commentDataList.isEmpty()) {
+                    video.setHasNoComments(true);
+                    video.setAiProcessing(false);
+                    videoRepository.save(video);
+                    log.info("댓글 수집 결과 없음, 플래그 업데이트: apiVideoId={}", apiVideoId);
+                    return;
+                }
+
+                commentService.saveCommentsToDb(commentDataList, video);
+            } else {
+                log.info("DB에서 기존 댓글 사용: 댓글 수={}", existingComments.size());
+                commentDataList = existingComments.stream()
+                        .map(c -> new CommentApiResponse.CommentData(
+                                c.getApiCommentId(), c.getWriter(), c.getCommentContent(),
+                                c.getLikeCount(), null, c.getWrittenAt()
+                        ))
+                        .collect(Collectors.toList());
+            }
+
+            // AI 분석 실행
+            AIAnalysisResponse aiResponse = performAIAnalysis(apiVideoId, commentDataList, videoId);
+
+            if (aiResponse != null) {
+                videoService.updateWithAIResults(videoId, aiResponse);
+                commentService.updateCommentsWithAnalysis(aiResponse);
+
+                video.setAiProcessing(false);
+                video.setAiRetryCount(0); // 성공 시 카운트 리셋
+                videoRepository.save(video);
+
+                log.info("백그라운드 AI 처리 완료: videoId={}", videoId);
+            } else {
+                // AI 실패
+                video.setAiProcessing(false);
+                video.setAiRetryCount(video.getAiRetryCount() + 1);
+                videoRepository.save(video);
+
+                log.warn("백그라운드 AI 처리 실패: videoId={}, retryCount={}",
+                        videoId, video.getAiRetryCount());
+            }
+
+        } catch (Exception e) {
+            log.error("백그라운드 AI 처리 중 오류: videoId={}, error={}", videoId, e.getMessage(), e);
+
+            // 오류 시 플래그 해제
+            videoRepository.findById(videoId).ifPresent(v -> {
+                v.setAiProcessing(false);
+                v.setAiRetryCount(v.getAiRetryCount() + 1);
+                videoRepository.save(v);
+            });
         }
     }
 
@@ -134,14 +243,11 @@ public class VideoProcessingService {
      */
     @Transactional
     public DetailPageResponse handleNewVideo(String token, String apiVideoId, boolean enableAIAnalysis) {
-
         log.info("YouTube API에서 비디오 정보 수집 시작: apiVideoId={}", apiVideoId);
 
-        // 1. YouTube API로 영상 정보 가져오기
         VideoApiResponse videoInfo = videoService.getVideoInfo(apiVideoId);
         log.info("YouTube API - 비디오 정보 수집 완료: title={}", videoInfo.title());
 
-        // 2. 댓글 정보 가져오기
         List<CommentApiResponse.CommentData> allComments = commentService.fetchAllComments(apiVideoId);
         log.info("YouTube API - 댓글 수집 완료: 댓글 수={}", allComments.size());
 
@@ -150,9 +256,7 @@ public class VideoProcessingService {
             return createVideoOnlyResponse(token, videoInfo);
         }
 
-        // 댓글 수 업데이트
         Long videoId = saveVideoAndCommentsToDb(videoInfo, allComments);
-
         AIAnalysisResponse aiAnalysisResponse = tryAIAnalysisAndUpdate(apiVideoId, allComments, videoId, enableAIAnalysis);
 
         log.info("최종 응답 생성 (YouTube API + 백엔드 분석 + AI 분석={}): apiVideoId={}",
@@ -163,60 +267,7 @@ public class VideoProcessingService {
     }
 
     /**
-     * 기존 비디오에 새 댓글 처리
-     */
-    @Transactional
-    public DetailPageResponse processCommentsForExistingVideo(String token, Video existingVideo, List<CommentApiResponse.CommentData> allComments, boolean enableAIAnalysis) {
-        try {
-            processAndSaveCommentsForExistingVideo(existingVideo, allComments);
-            AIAnalysisResponse aiAnalysisResponse = tryAIAnalysisAndUpdate(existingVideo.getApiVideoId(), allComments, existingVideo.getId(), enableAIAnalysis);
-
-            Video updatedVideo = videoService.findById(existingVideo.getId())
-                    .orElseThrow(() -> new RuntimeException("업데이트된 비디오를 찾을 수 없습니다"));
-
-            log.info("기존 비디오 최종 응답 생성 (새 댓글 + AI 분석={}): apiVideoId={}",
-                    aiAnalysisResponse != null ? "성공" : "실패", existingVideo.getApiVideoId());
-
-            return responseMappingService.mapFromDbToSearchResult(token,updatedVideo);
-
-        } catch (Exception e) {
-            log.error("기존 비디오 새 댓글 처리 실패: videoId={}, error={}", existingVideo.getId(), e.getMessage());
-            throw new RuntimeException("기존 비디오 새 댓글 처리 중 오류 발생", e);
-        }
-    }
-
-    /**
-     * AI 분석만 재시도 (기존 DB 데이터 있는 경우)
-     */
-    @Transactional
-    public DetailPageResponse retryAIAnalysisOnly(String token, Video existingVideo, String apiVideoId) {
-        List<Comment> existingComments = commentRepository.findAllByVideoId(existingVideo.getId());
-
-        List<CommentApiResponse.CommentData> allComments;
-        if (existingComments.isEmpty()) {
-            log.info("DB에 댓글 없음, YouTube API에서 댓글 재수집: apiVideoId={}", apiVideoId);
-            allComments = commentService.fetchAllComments(apiVideoId);
-            processAndSaveCommentsForExistingVideo(existingVideo, allComments);
-        } else {
-            log.info("DB에서 기존 댓글 사용: 댓글 수={}", existingComments.size());
-            allComments = commentService.fetchAllComments(apiVideoId);
-        }
-
-        AIAnalysisResponse analysisResponse = tryAIAnalysisAndUpdate(apiVideoId, allComments, existingVideo.getId(), true);
-
-        Video updatedVideo = videoService.findById(existingVideo.getId())
-                .orElseThrow(() -> new RuntimeException("업데이트된 비디오를 찾을 수 없습니다"));
-
-        log.info("최종 응답 생성 (DB 데이터 + AI 재분석={}): apiVideoId={}",
-                analysisResponse != null ? "성공" : "실패", apiVideoId);
-
-        return responseMappingService.mapFromDbToSearchResult(token, updatedVideo);
-    }
-
-    // ===== 공통 로직 메소드들 =====
-
-    /**
-     * 새 비디오 + 댓글을 DB에 저장 (공통 로직)
+     * 비디오 + 댓글 DB 저장
      */
     @Transactional
     public Long saveVideoAndCommentsToDb(VideoApiResponse videoInfo, List<CommentApiResponse.CommentData> allComments) {
@@ -226,29 +277,16 @@ public class VideoProcessingService {
 
         Long videoId = videoService.saveVideoAndCommentsWithoutAI(videoInfo, commentInfo);
         log.info("DB 저장 완료: videoId={}", videoId);
-
         return videoId;
     }
 
     /**
-     * 기존 비디오에 댓글 분석 및 저장 (공통 로직)
+     * AI 분석 시도 및 DB 업데이트
      */
     @Transactional
-    public void processAndSaveCommentsForExistingVideo(Video existingVideo, List<CommentApiResponse.CommentData> allComments) {
-        CommentApiResponse commentInfo = commentService.processCommentsForClient(allComments);
-        log.info("기존 비디오 댓글 분석 완료: 히스토그램={}, 타임스탬프={}",
-                commentInfo.commentHistogram().size(), commentInfo.popularTimestamps().size());
-
-        commentService.saveCommentsToDb(commentInfo.allComments(), existingVideo);
-        videoService.updateVideoWithCommentAnalysis(existingVideo.getId(), commentInfo);
-        log.info("기존 비디오에 댓글 저장 완료: videoId={}, 댓글수={}", existingVideo.getId(), allComments.size());
-    }
-
-    /**
-     * AI 분석 시도 및 DB 업데이트 (공통 로직)
-     */
-    @Transactional
-    public AIAnalysisResponse tryAIAnalysisAndUpdate(String apiVideoId, List<CommentApiResponse.CommentData> allComments, Long videoId, boolean enableAIAnalysis) {
+    public AIAnalysisResponse tryAIAnalysisAndUpdate(String apiVideoId,
+                                                     List<CommentApiResponse.CommentData> allComments,
+                                                     Long videoId, boolean enableAIAnalysis) {
         if (!enableAIAnalysis) {
             log.info("AI 분석 비활성화, 백엔드 분석 데이터만 제공: apiVideoId={}", apiVideoId);
             return null;
@@ -269,37 +307,12 @@ public class VideoProcessingService {
     }
 
     /**
-     * 댓글이 없는 경우 - 영상 정보만 응답 (YouTube API 데이터)
-     */
-    private DetailPageResponse createVideoOnlyResponse(String token, VideoApiResponse videoInfo) {
-        DetailVideoDto video = responseMappingService.mapToVideoResponse(token, videoInfo);
-        DetailChannelDto channel = responseMappingService.mapToChannelResponse(token, videoInfo);
-        return new DetailPageResponse(video, channel, null, List.of());
-    }
-
-    /**
-     * 댓글이 없는 경우 - 영상 정보만 응답 (DB 데이터)
-     */
-    private DetailPageResponse createVideoOnlyResponseFromDb(String token, Video video) {
-        VideoApiResponse videoInfo = new VideoApiResponse(
-                video.getApiVideoId(), video.getTitle(), video.getDescription(),
-                video.getViewCount(), video.getLikeCount(), video.getCommentCount(),
-                video.getThumbnailUrl(), video.getChannelId(), video.getChannelName(),
-                video.getChannelThumbnailUrl(),
-                video.getSubscriberCount(), video.getUploadedAt()
-        );
-
-        DetailVideoDto videoDto = responseMappingService.mapToVideoResponse(token, videoInfo);
-        DetailChannelDto channelDto = responseMappingService.mapToChannelResponse(token, videoInfo);
-        return new DetailPageResponse(videoDto, channelDto, null, List.of());
-    }
-
-    /**
      * AI 분석 수행
      */
-    private AIAnalysisResponse performAIAnalysis(String apiVideoId, List<CommentApiResponse.CommentData> allComments, Long videoId) {
+    private AIAnalysisResponse performAIAnalysis(String apiVideoId,
+                                                 List<CommentApiResponse.CommentData> allComments,
+                                                 Long videoId) {
         try {
-            // AI 분석용 댓글 추출 (전체 최대 개수 사용)
             Map<String, String> commentsForAI = commentService.extractCommentsForAI(allComments);
 
             if (!commentsForAI.isEmpty()) {
@@ -333,5 +346,31 @@ public class VideoProcessingService {
         }
 
         return null;
+    }
+
+    /**
+     * 댓글이 없는 경우 - 영상 정보만 응답 (YouTube API 데이터)
+     */
+    private DetailPageResponse createVideoOnlyResponse(String token, VideoApiResponse videoInfo) {
+        DetailVideoDto video = responseMappingService.mapToVideoResponse(token, videoInfo);
+        DetailChannelDto channel = responseMappingService.mapToChannelResponse(token, videoInfo);
+        return new DetailPageResponse(video, channel, null, List.of());
+    }
+
+    /**
+     * 댓글이 없는 경우 - 영상 정보만 응답 (DB 데이터)
+     */
+    private DetailPageResponse createVideoOnlyResponseFromDb(String token, Video video) {
+        VideoApiResponse videoInfo = new VideoApiResponse(
+                video.getApiVideoId(), video.getTitle(), video.getDescription(),
+                video.getViewCount(), video.getLikeCount(), video.getCommentCount(),
+                video.getThumbnailUrl(), video.getChannelId(), video.getChannelName(),
+                video.getChannelThumbnailUrl(),
+                video.getSubscriberCount(), video.getUploadedAt()
+        );
+
+        DetailVideoDto videoDto = responseMappingService.mapToVideoResponse(token, videoInfo);
+        DetailChannelDto channelDto = responseMappingService.mapToChannelResponse(token, videoInfo);
+        return new DetailPageResponse(videoDto, channelDto, null, List.of());
     }
 }
