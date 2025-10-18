@@ -36,7 +36,6 @@ public class VideoProcessingService {
     private final VideoRepository videoRepository;
 
     private static final int AI_RETRY_COOLDOWN_MINUTES = 5; // 5분 쿨타임
-    private static final int MAX_AI_RETRY_COUNT = 3; // 최대 3회 재시도
 
     /**
      * 메인 진입점: 비디오 처리 (Fast Path 적용)
@@ -138,13 +137,6 @@ public class VideoProcessingService {
      * AI 재시도 여부 판단
      */
     private boolean shouldRetryAI(Video video, LocalDateTime now, LocalDateTime lastAttempt) {
-        // 최대 재시도 횟수 초과
-        if (video.getAiRetryCount() >= MAX_AI_RETRY_COUNT) {
-            log.warn("AI 재시도 횟수 초과: apiVideoId={}, count={}",
-                    video.getApiVideoId(), video.getAiRetryCount());
-            return false;
-        }
-
         // 이미 처리 중
         if (video.isAiProcessing()) {
             log.info("AI 처리 중: apiVideoId={}", video.getApiVideoId());
