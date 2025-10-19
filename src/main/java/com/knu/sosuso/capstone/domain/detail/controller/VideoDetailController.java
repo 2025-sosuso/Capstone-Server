@@ -3,6 +3,7 @@ package com.knu.sosuso.capstone.domain.detail.controller;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.detail.service.VideoDetailService;
 import com.knu.sosuso.capstone.global.ResponseDto;
+import com.knu.sosuso.capstone.global.swagger.VideoDetailControllerSwagger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +15,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 @RequestMapping("/api/videos")
-public class VideoDetailController {
+public class VideoDetailController implements VideoDetailControllerSwagger {
 
     private final VideoDetailService videoDetailService;
 

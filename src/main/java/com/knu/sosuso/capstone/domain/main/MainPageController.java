@@ -4,6 +4,7 @@ import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteChannelListRe
 import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.global.ResponseDto;
+import com.knu.sosuso.capstone.global.swagger.MainPageControllerSwagger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -15,7 +16,7 @@ import java.util.List;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/main")
-public class MainPageController {
+public class MainPageController implements MainPageControllerSwagger {
 
     private final MainPageService mainPageService;
 
