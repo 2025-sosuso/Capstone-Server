@@ -114,31 +114,7 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
         if (isValidToken(token)) {
             Long userId = jwtUtil.getUserId(token);
             log.info("OAuth2 로그아웃, 사용자 ID: {}", userId);
-
-            String origin = request.getHeader("Origin");
-            if (origin == null || origin.isEmpty()) {
-                String referer = request.getHeader("Referer");
-                if (referer != null) {
-                    origin = referer.substring(0, referer.indexOf("/", 8));
-                }
-            }
-
-            String googleLogoutUrl = buildGoogleLogoutUrl(origin);
-            response.sendRedirect(googleLogoutUrl);
         }
-    }
-
-    private String buildGoogleLogoutUrl(String origin) {
-        String logoutRedirectUrl;
-        if (origin != null && origin.startsWith("http://localhost:")) {
-            logoutRedirectUrl = origin;
-        } else {
-            logoutRedirectUrl = "https://sosuso-client.vercel.app";
-        }
-
-        log.info("구글 로그아웃 리다이렉트: {}", logoutRedirectUrl);
-        return "https://accounts.google.com/logout?continue=" +
-                URLEncoder.encode(logoutRedirectUrl, StandardCharsets.UTF_8);
     }
 
     private boolean isValidToken(String token) {
