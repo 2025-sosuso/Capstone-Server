@@ -40,7 +40,8 @@ public class SecurityConfig {
                         "https://sosuso-client.vercel.app",
                         "https://*.vercel.app",
                         "http://localhost:8080",
-                        "https://knu-sosuso.com"
+                        "https://knu-sosuso.com",
+                        "http://10.2.*.*:3000"
                 ));
                 configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                 configuration.setAllowedHeaders(List.of("*"));
