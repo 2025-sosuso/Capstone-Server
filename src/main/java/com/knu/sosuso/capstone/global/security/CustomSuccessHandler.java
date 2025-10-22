@@ -33,7 +33,8 @@ public class CustomSuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private static final List<Pattern> ALLOWED_REDIRECT_PATTERNS = Arrays.asList(
             Pattern.compile("^https?://localhost:3000(/.*)?$"),
             Pattern.compile("^https://sosuso-client\\.vercel\\.app(/.*)?$"),
-            Pattern.compile("^https://[a-z0-9-]+-sosuso-client\\.vercel\\.app(/.*)?$")
+            Pattern.compile("^https://[a-z0-9-]+-sosuso-client\\.vercel\\.app(/.*)?$"),
+            Pattern.compile("^http://10\\.2\\.[0-9]+\\.[0-9]+:3000(/.*)?$")
     );
 
     @Override
