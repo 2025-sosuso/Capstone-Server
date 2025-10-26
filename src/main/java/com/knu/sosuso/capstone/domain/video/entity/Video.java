@@ -95,6 +95,22 @@ public class Video extends BaseEntity {
     @Column(name = "ai_processing", nullable = false)
     private boolean aiProcessing = false;
 
+    // 메타데이터(조회수, 좋아요 등) 마지막으로 갱신된 시간
+    @Column(name = "last_metadata_updated_at")
+    private LocalDateTime lastMetadataUpdatedAt;
+
+    // YouTube에서 영상이 삭제되었는지 여부 (true: 삭제됨 또는 비공개 처리됨)
+    @Column(name = "is_deleted", nullable = false)
+    private boolean deleted = false;
+
+    // YouTube API로 삭제 여부를 마지막으로 확인한 시간
+    @Column(name = "delete_checked_at")
+    private LocalDateTime deleteCheckedAt;
+
+    // 메타데이터 업데이트 횟수 (통계용)
+    @Column(name = "metadata_update_count", nullable = false)
+    private int metadataUpdateCount = 0;
+
     @Builder
     public Video(String apiVideoId, String title, String description, String viewCount,
                  String likeCount, String commentCount, String thumbnailUrl, String channelId,
@@ -103,7 +119,9 @@ public class Video extends BaseEntity {
                  boolean isWarning, String languageDistribution, String sentimentDistribution,
                  String keywords, String uploadedAt,
                  boolean commentsDisabled, boolean hasNoComments,
-                 LocalDateTime lastAiAttemptAt, int aiRetryCount, boolean aiProcessing) {
+                 LocalDateTime lastAiAttemptAt, int aiRetryCount, boolean aiProcessing,
+                 LocalDateTime lastMetadataUpdatedAt, boolean deleted,
+                 LocalDateTime deleteCheckedAt, int metadataUpdateCount) {
         this.apiVideoId = apiVideoId;
         this.title = title;
         this.description = description;
@@ -128,5 +146,9 @@ public class Video extends BaseEntity {
         this.lastAiAttemptAt = lastAiAttemptAt;
         this.aiRetryCount = aiRetryCount;
         this.aiProcessing = aiProcessing;
+        this.lastMetadataUpdatedAt = lastMetadataUpdatedAt;
+        this.deleted = deleted;
+        this.deleteCheckedAt = deleteCheckedAt;
+        this.metadataUpdateCount = metadataUpdateCount;
     }
 }
