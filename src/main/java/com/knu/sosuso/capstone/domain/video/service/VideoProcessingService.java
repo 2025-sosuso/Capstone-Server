@@ -13,6 +13,7 @@ import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
+import com.knu.sosuso.capstone.global.config.AppConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -34,8 +35,7 @@ public class VideoProcessingService {
     private final ResponseMappingService responseMappingService;
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
-
-    private static final int AI_RETRY_COOLDOWN_MINUTES = 5; // 5분 쿨타임
+    private final AppConfig appConfig;
 
     /**
      * 메인 진입점: 비디오 처리 (Fast Path 적용)
@@ -71,21 +71,38 @@ public class VideoProcessingService {
     public DetailPageResponse handleExistingVideoFastPath(String token, Video existingVideo,
                                                           String apiVideoId, boolean enableAIAnalysis) {
 
-        // 1. 1일 지났는지 체크
-        LocalDateTime oneDayAgo = LocalDateTime.now().minusDays(1);
-        if (existingVideo.getCreatedAt().isBefore(oneDayAgo)) {
-            log.info("1일 지난 데이터, 삭제 후 새로 처리: apiVideoId={}", apiVideoId);
-            videoService.deleteExistingData(existingVideo.getId());
-            return handleNewVideo(token, apiVideoId, enableAIAnalysis);
+        // ========== 1. 삭제 확인 ==========
+        if (shouldCheckDeletion(existingVideo)) {
+            boolean isDeleted = videoService.checkIfVideoDeleted(apiVideoId);
+
+            if (isDeleted) {
+                existingVideo.setDeleted(true);
+                existingVideo.setDeleteCheckedAt(LocalDateTime.now());
+                videoRepository.save(existingVideo);
+
+                throw new IllegalArgumentException("이 영상은 삭제되었거나 비공개 처리되었습니다.");
+            }
+
+            existingVideo.setDeleteCheckedAt(LocalDateTime.now());
+            videoRepository.save(existingVideo);
         }
 
-        // 2. 댓글 없는 영상 체크
+        // ========== 2. 메타데이터 갱신 ==========
+        LocalDateTime updateThreshold = LocalDateTime.now()
+                .minusDays(appConfig.getMetadataUpdateDays());
+
+        if (shouldUpdateMetadata(existingVideo, updateThreshold)) {
+            log.info("메타데이터 갱신 시작: apiVideoId={}", apiVideoId);
+            scheduleMetadataUpdate(existingVideo.getId(), apiVideoId);
+        }
+
+        // ========== 3. 댓글 없는 영상 체크 ==========
         if (existingVideo.isCommentsDisabled() || existingVideo.isHasNoComments()) {
             log.info("댓글 없는 영상, Fast Path 응답: apiVideoId={}", apiVideoId);
             return createVideoOnlyResponseFromDb(token, existingVideo);
         }
 
-        // 3. AI 완료 여부 체크 (Fast Path의 핵심!)
+        // ========== 4. AI 완료 여부 체크 ==========
         boolean isAICompleted = videoService.isAIAnalysisCompleted(existingVideo);
 
         if (isAICompleted) {
@@ -93,7 +110,7 @@ public class VideoProcessingService {
             return responseMappingService.mapFromDbToSearchResult(token, existingVideo);
         }
 
-        // 4. AI 미완료 - Slow Path with Background Processing
+        // ========== 5. AI 미완료 처리 ==========
         if (enableAIAnalysis) {
             return handleAIIncompleteFastPath(token, existingVideo, apiVideoId);
         } else {
@@ -128,28 +145,80 @@ public class VideoProcessingService {
 
         } else {
             log.info("AI 재시도 쿨타임 중 ({}분 이내), DB 데이터로 응답: apiVideoId={}",
-                    AI_RETRY_COOLDOWN_MINUTES, apiVideoId);
+                    appConfig.getAiRetryCooldownMinutes(), apiVideoId);
             return responseMappingService.mapFromDbToSearchResult(token, existingVideo);
         }
+    }
+
+    /**
+     * 삭제 확인이 필요한가?
+     */
+    private boolean shouldCheckDeletion(Video video) {
+        if (video.isDeleted()) {
+            return false; // 이미 삭제된 것으로 확인됨
+        }
+
+        LocalDateTime checkThreshold = LocalDateTime.now()
+                .minusDays(appConfig.getDeletionCheckDays());
+
+        return video.getDeleteCheckedAt() == null ||
+                video.getDeleteCheckedAt().isBefore(checkThreshold);
+    }
+
+    /**
+     * 메타데이터 업데이트가 필요한가?
+     */
+    private boolean shouldUpdateMetadata(Video video, LocalDateTime updateThreshold) {
+        if (video.getLastMetadataUpdatedAt() == null) {
+            return video.getCreatedAt().isBefore(updateThreshold);
+        }
+
+        return video.getLastMetadataUpdatedAt().isBefore(updateThreshold);
     }
 
     /**
      * AI 재시도 여부 판단
      */
     private boolean shouldRetryAI(Video video, LocalDateTime now, LocalDateTime lastAttempt) {
-        // 이미 처리 중
         if (video.isAiProcessing()) {
             log.info("AI 처리 중: apiVideoId={}", video.getApiVideoId());
             return false;
         }
 
-        // 첫 시도이거나, 쿨타임 경과
+        // 최대 재시도 횟수 체크
+        if (video.getAiRetryCount() >= appConfig.getAiMaxRetryCount()) {
+            log.info("AI 재시도 횟수 초과: apiVideoId={}, retryCount={}",
+                    video.getApiVideoId(), video.getAiRetryCount());
+            return false;
+        }
+
         if (lastAttempt == null) {
             return true;
         }
 
-        LocalDateTime cooldownExpiry = lastAttempt.plusMinutes(AI_RETRY_COOLDOWN_MINUTES);
+        LocalDateTime cooldownExpiry = lastAttempt
+                .plusMinutes(appConfig.getAiRetryCooldownMinutes());
+
         return now.isAfter(cooldownExpiry);
+    }
+
+    /**
+     * 백그라운드 메타데이터 업데이트
+     */
+    @Async("videoProcessingExecutor")
+    @Transactional
+    public void scheduleMetadataUpdate(Long videoId, String apiVideoId) {
+        try {
+            log.info("백그라운드 메타데이터 업데이트 시작: videoId={}", videoId);
+
+            videoService.updateMetadataOnly(videoId, apiVideoId);
+
+            log.info("백그라운드 메타데이터 업데이트 완료: videoId={}", videoId);
+
+        } catch (Exception e) {
+            log.error("백그라운드 메타데이터 업데이트 실패: videoId={}, error={}",
+                    videoId, e.getMessage(), e);
+        }
     }
 
     /**

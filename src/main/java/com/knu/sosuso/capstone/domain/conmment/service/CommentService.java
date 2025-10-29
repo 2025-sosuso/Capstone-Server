@@ -9,6 +9,7 @@ import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse.CommentData;
 import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
+import com.knu.sosuso.capstone.global.config.AppConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,9 +33,8 @@ public class CommentService {
     private static final String YOUTUBE_COMMENT_API_URL = "https://www.googleapis.com/youtube/v3/commentThreads";
     private static final Pattern HOUR_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2}):(\\d{2})\\b");
     private static final Pattern MINUTE_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2})\\b");
-    private static final int MAX_RESULTS_PER_REQUEST = 100;
-    private static final int MAX_TOTAL_COMMENTS = 100;
 
+    private final AppConfig appConfig;
     private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -62,9 +62,9 @@ public class CommentService {
                 List<CommentData> pageComments = parseCommentsFromJson(itemsNode);
                 allComments.addAll(pageComments);
 
-                if (allComments.size() >= MAX_TOTAL_COMMENTS) {
+                if (allComments.size() >= appConfig.getMaxCommentFetchCount()) {
                     log.info("댓글 수집 제한 도달: apiVideoId={}, 수집된 댓글 수={}", apiVideoId, allComments.size());
-                    allComments = allComments.subList(0, Math.min(allComments.size(), MAX_TOTAL_COMMENTS));
+                    allComments = allComments.subList(0, Math.min(allComments.size(), appConfig.getMaxCommentFetchCount()));
                     break;
                 }
 
@@ -301,7 +301,7 @@ public class CommentService {
     private String buildApiUrl(String apiVideoId, String pageToken) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(YOUTUBE_COMMENT_API_URL)
                 .queryParam("part", "snippet")
-                .queryParam("maxResults", MAX_RESULTS_PER_REQUEST)
+                .queryParam("maxResults", appConfig.getMaxResultsPerRequest())
                 .queryParam("textFormat", "plainText")
                 .queryParam("order", "relevance")
                 .queryParam("videoId", apiVideoId)

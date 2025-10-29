@@ -21,6 +21,7 @@ public class TrendingService {
     private static final String YOUTUBE_VIDEOS_API_URL = "https://www.googleapis.com/youtube/v3/videos";
 
     private final VideoProcessingService videoProcessingService;
+    private final ResponseMappingService responseMappingService;
     private final ApiConfig config;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -43,12 +44,12 @@ public class TrendingService {
                 try {
                     log.debug("비디오 전체 처리 시작: apiVideoId={}", videoId);
 
-                    // 전체 처리 과정: 영상정보 + 댓글수집 + AI분석 + DB저장
-                    DetailPageResponse detailResponse = videoProcessingService.processVideoToSearchResult(token, videoId, true);
+                    DetailPageResponse detailResponse = videoProcessingService
+                            .processVideoToSearchResult(token, videoId, true);
 
                     if (detailResponse != null) {
-                        // 처리된 결과에서 VideoSummaryResponse로 변환
-                        VideoSummaryResponse summaryResponse = convertToVideoSummaryResponse(detailResponse);
+                        VideoSummaryResponse summaryResponse = responseMappingService
+                                .convertToVideoSummaryResponse(detailResponse);
                         results.add(summaryResponse);
                         log.debug("비디오 처리 완료: apiVideoId={}", videoId);
                     } else {
@@ -56,16 +57,18 @@ public class TrendingService {
                     }
 
                 } catch (Exception e) {
-                    log.error("개별 비디오 처리 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
-                    // 개별 비디오 실패는 전체를 중단시키지 않고 계속 진행
+                    log.error("개별 비디오 처리 실패: apiVideoId={}, error={}",
+                            videoId, e.getMessage(), e);
                 }
             }
 
-            log.info("인기급상승 영상 조회 완료: 요청={}, 성공={}", videoIds.size(), results.size());
+            log.info("인기급상승 영상 조회 완료: 요청={}, 성공={}",
+                    videoIds.size(), results.size());
             return results;
 
         } catch (Exception e) {
-            log.error("인기급상승 영상 조회 실패: categoryType={}, error={}", categoryType, e.getMessage(), e);
+            log.error("인기급상승 영상 조회 실패: categoryType={}, error={}",
+                    categoryType, e.getMessage(), e);
             throw new RuntimeException("인기급상승 영상 조회 중 오류 발생", e);
         }
     }

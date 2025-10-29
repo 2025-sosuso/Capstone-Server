@@ -145,19 +145,70 @@ public class VideoService {
     }
 
     /**
-     * 기존 데이터 삭제 (1일 지난 경우)
-     *
-     * @param videoId 삭제할 비디오의 데이터베이스 ID
+     * YouTube API로 영상 삭제 여부 확인
+     * @return true: 삭제됨/비공개, false: 정상
+     */
+    public boolean checkIfVideoDeleted(String apiVideoId) {
+        try {
+            String apiUrl = UriComponentsBuilder
+                    .fromUriString(YOUTUBE_VIDEOS_API_URL)
+                    .queryParam("part", "id")
+                    .queryParam("id", apiVideoId)
+                    .queryParam("key", apiConfig.getKey())
+                    .build(false)
+                    .toUriString();
+
+            String jsonResponse = restTemplate.getForObject(apiUrl, String.class);
+            JsonNode rootNode = objectMapper.readTree(jsonResponse);
+
+            JsonNode items = rootNode.path("items");
+            boolean isDeleted = items.isEmpty();
+
+            if (isDeleted) {
+                log.info("영상 삭제 확인됨: apiVideoId={}", apiVideoId);
+            }
+
+            return isDeleted;
+
+        } catch (HttpClientErrorException.NotFound e) {
+            log.info("영상 삭제됨 (404): apiVideoId={}", apiVideoId);
+            return true;
+        } catch (HttpClientErrorException.Forbidden e) {
+            log.info("영상 비공개 처리됨 (403): apiVideoId={}", apiVideoId);
+            return true;
+        } catch (Exception e) {
+            log.error("영상 삭제 확인 중 오류: apiVideoId={}, error={}",
+                    apiVideoId, e.getMessage());
+            return false; // 오류 시 삭제 안 된 것으로 간주
+        }
+    }
+
+    /**
+     * 메타데이터만 업데이트 (조회수, 좋아요, 댓글 수)
      */
     @Transactional
-    public void deleteExistingData(Long videoId) {
+    public void updateMetadataOnly(Long videoId, String apiVideoId) {
         try {
-            commentService.deleteCommentsByVideoId(videoId);
-            videoRepository.deleteById(videoId);
-            log.info("기존 데이터 삭제 완료: videoId={}", videoId);
+            Video video = videoRepository.findById(videoId)
+                    .orElseThrow(() -> new IllegalArgumentException("영상을 찾을 수 없습니다"));
+
+            VideoApiResponse latestInfo = getVideoInfo(apiVideoId);
+
+            video.setViewCount(latestInfo.viewCount());
+            video.setLikeCount(latestInfo.likeCount());
+            video.setCommentCount(latestInfo.commentCount());
+            video.setLastMetadataUpdatedAt(java.time.LocalDateTime.now());
+            video.setMetadataUpdateCount(video.getMetadataUpdateCount() + 1);
+
+            videoRepository.save(video);
+
+            log.info("메타데이터 업데이트 완료: videoId={}, 업데이트 횟수={}",
+                    videoId, video.getMetadataUpdateCount());
+
         } catch (Exception e) {
-            log.error("기존 데이터 삭제 실패: videoId={}, error={}", videoId, e.getMessage());
-            throw new RuntimeException("기존 데이터 삭제 중 오류 발생", e);
+            log.error("메타데이터 업데이트 실패: videoId={}, error={}",
+                    videoId, e.getMessage(), e);
+            throw new RuntimeException("메타데이터 업데이트 중 오류 발생", e);
         }
     }
 
@@ -171,7 +222,6 @@ public class VideoService {
     @Transactional
     public Long saveVideoAndCommentsWithoutAI(VideoApiResponse videoApiResponse, CommentApiResponse commentInfo) {
         try {
-            // 비디오 저장 (AI 필드들은 null)
             Video video = Video.builder()
                     .apiVideoId(videoApiResponse.apiVideoId())
                     .title(videoApiResponse.title())
@@ -187,18 +237,20 @@ public class VideoService {
                     .commentCount(videoApiResponse.commentCount())
                     .commentHistogram(objectMapper.writeValueAsString(commentInfo.commentHistogram()))
                     .popularTimestamps(objectMapper.writeValueAsString(commentInfo.popularTimestamps()))
-                    // AI 필드들은 null
                     .summation(null)
                     .isWarning(false)
                     .languageDistribution(null)
                     .sentimentDistribution(null)
                     .keywords(null)
-                    // Fast Path 관련 필드
                     .commentsDisabled(false)
                     .hasNoComments(commentInfo.allComments().isEmpty())
                     .lastAiAttemptAt(null)
                     .aiRetryCount(0)
                     .aiProcessing(false)
+                    .lastMetadataUpdatedAt(null)
+                    .deleted(false)
+                    .deleteCheckedAt(null)
+                    .metadataUpdateCount(0)
                     .build();
 
             Video savedVideo = videoRepository.save(video);
@@ -232,12 +284,10 @@ public class VideoService {
             Video video = videoRepository.findById(videoId)
                     .orElseThrow(() -> new IllegalArgumentException("비디오를 찾을 수 없습니다: " + videoId));
 
-            // null이 아닌 필드만 업데이트
             if (analysisResponse.summation() != null) {
                 video.setSummation(analysisResponse.summation());
             }
 
-            // boolean은 기본값이 false이므로 항상 업데이트
             video.setWarning(analysisResponse.isWarning());
 
             if (analysisResponse.languageRatio() != null) {
@@ -261,35 +311,6 @@ public class VideoService {
             throw new RuntimeException("AI 분석 결과 업데이트 중 오류 발생", e);
         }
     }
-
-    /**
-     * 기존 비디오에 댓글 분석 결과 업데이트 (백엔드 분석)
-     *
-     * @param videoId     업데이트할 비디오의 데이터베이스 ID
-     * @param commentInfo 백엔드에서 분석한 댓글 정보
-     */
-    @Transactional
-    public void updateVideoWithCommentAnalysis(Long videoId, CommentApiResponse commentInfo) {
-        try {
-            Video video = videoRepository.findById(videoId)
-                    .orElseThrow(() -> new IllegalArgumentException("비디오를 찾을 수 없습니다: " + videoId));
-
-            // 댓글 개수 업데이트
-            video.setCommentCount(String.valueOf(video.getCommentCount()));
-
-            // 백엔드 분석 결과 업데이트
-            video.setCommentHistogram(objectMapper.writeValueAsString(commentInfo.commentHistogram()));
-            video.setPopularTimestamps(objectMapper.writeValueAsString(commentInfo.popularTimestamps()));
-
-            videoRepository.save(video);
-            log.info("기존 비디오 댓글 분석 결과 업데이트 완료: videoId={}", videoId);
-
-        } catch (Exception e) {
-            log.error("기존 비디오 댓글 분석 결과 업데이트 실패: videoId={}, error={}", videoId, e.getMessage());
-            throw new RuntimeException("비디오 댓글 분석 업데이트 중 오류 발생", e);
-        }
-    }
-
 
     /**
      * 유튜브에 해당 영상 데이터를 요청
