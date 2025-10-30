@@ -194,44 +194,6 @@ public class CommentService {
     }
 
     /**
-     * 비디오 ID로 댓글 삭제 (1일 지난 데이터 삭제 시 사용)
-     */
-    @Transactional
-    public void deleteCommentsByVideoId(Long videoId) {
-        try {
-            commentRepository.deleteByVideoId(videoId);
-            log.info("댓글 삭제 완료: videoId={}", videoId);
-        } catch (Exception e) {
-            log.error("댓글 삭제 실패: videoId={}, error={}", videoId, e.getMessage());
-            throw new RuntimeException("댓글 삭제 중 오류 발생", e);
-        }
-    }
-
-    /**
-     * DB에서 댓글 조회
-     */
-    @Transactional(readOnly = true)
-    public CommentApiResponse getCommentsFromDb(Long videoId) {
-        List<Comment> dbComments = commentRepository.findByVideoIdOrderByIdAsc(videoId);
-
-        List<CommentData> commentDataList = dbComments.stream()
-                .map(comment -> new CommentData(
-                        comment.getApiCommentId(),
-                        comment.getWriter(),
-                        comment.getCommentContent(),
-                        comment.getLikeCount(),
-                        comment.getSentimentType() != null ? comment.getSentimentType().name().toLowerCase() : null,
-                        comment.getWrittenAt()
-                ))
-                .collect(Collectors.toList());
-
-        Map<Integer, Integer> commentHistogram = analyzeCommentHistogram(commentDataList);
-        Map<String, Integer> popularTimestamps = analyzePopularTimestamps(commentDataList);
-
-        return new CommentApiResponse(commentHistogram, popularTimestamps, commentDataList);
-    }
-
-    /**
      * 시간대별 댓글 분포 분석
      */
     public Map<Integer, Integer> analyzeCommentHistogram(List<CommentData> comments) {

@@ -25,11 +25,11 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
      * - 마지막 업데이트가 threshold 이전인 것들
      */
     @Query("""
-        SELECT DISTINCT v 
-        FROM Video v 
-        INNER JOIN Scrap s ON s.video.id = v.id 
-        WHERE v.deleted = false 
-        AND (v.lastMetadataUpdatedAt IS NULL 
+        SELECT DISTINCT v
+        FROM Video v
+        INNER JOIN Scrap s ON s.video.id = v.id
+        WHERE v.deleted = false
+        AND (v.lastMetadataUpdatedAt IS NULL
              OR v.lastMetadataUpdatedAt < :threshold)
         """)
     List<Video> findVideosNeedingMetadataUpdate(@Param("threshold") LocalDateTime threshold);

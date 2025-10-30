@@ -33,7 +33,6 @@ public class VideoCleanupService {
     /**
      * 오래된 삭제 영상 하드 삭제
      * 매달 1일 새벽 3시에 실행
-     *
      * 삭제 기준:
      * - is_deleted = true
      * - delete_checked_at이 보관 기간(365일) 이전
@@ -95,7 +94,6 @@ public class VideoCleanupService {
     /**
      * 스크랩된 영상의 메타데이터 정기 갱신
      * 매일 새벽 2시에 실행
-     *
      * 갱신 대상:
      * - 삭제되지 않았고
      * - 스크랩된 영상 중

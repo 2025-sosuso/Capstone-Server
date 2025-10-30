@@ -73,57 +73,6 @@ public class TrendingService {
         }
     }
 
-    /**
-     * DetailPageResponse를 VideoSummaryResponse로 변환 (전체 처리 완료 후)
-     */
-    public VideoSummaryResponse convertToVideoSummaryResponse(DetailPageResponse detailResponse) {
-        try {
-            var video = detailResponse.video();
-            var channel = detailResponse.channel();
-            var analysis = detailResponse.analysis();
-
-            // 하위 객체 생성
-            VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
-                    video.id(),
-                    video.title(),
-                    video.description(),
-                    video.publishedAt(),
-                    video.thumbnailUrl(),
-                    video.viewCount(),
-                    video.likeCount(),
-                    video.commentCount()
-            );
-
-            VideoSummaryResponse.Channel channelDto = new VideoSummaryResponse.Channel(
-                    channel.id(),
-                    channel.title(),
-                    channel.thumbnailUrl(),
-                    channel.subscriberCount()
-            );
-
-            VideoSummaryResponse.SentimentDistribution sentimentDto = null;
-            if (analysis != null && analysis.sentimentDistribution() != null) {
-                var s = analysis.sentimentDistribution();
-                sentimentDto = new VideoSummaryResponse.SentimentDistribution(s.positive(), s.negative(), s.other());
-            }
-
-            List<String> keywords = (analysis != null && analysis.keywords() != null) ? analysis.keywords() : List.of();
-            String summary = (analysis != null) ? analysis.summary() : null;
-
-            VideoSummaryResponse.Analysis analysisDto = new VideoSummaryResponse.Analysis(
-                    summary,
-                    sentimentDto,
-                    keywords
-            );
-
-            return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
-
-        } catch (Exception e) {
-            log.error("VideoSummaryResponse 변환 실패: error={}", e.getMessage(), e);
-            throw new RuntimeException("응답 변환 중 오류 발생", e);
-        }
-    }
-
     private String getCategoryId(String categoryType) {
         return switch (categoryType.toLowerCase()) {
             case "latest" -> "0";

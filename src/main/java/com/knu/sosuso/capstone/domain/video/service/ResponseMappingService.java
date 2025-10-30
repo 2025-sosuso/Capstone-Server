@@ -3,7 +3,6 @@ package com.knu.sosuso.capstone.domain.video.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
-import com.knu.sosuso.capstone.domain.conmment.entity.Comment;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
@@ -19,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -394,26 +392,6 @@ public class ResponseMappingService {
                     }
                 })
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * DB에서 좋아요 TOP 5 댓글 추출 (public 메서드로 추가)
-     */
-    @Transactional
-    public List<Comment> mapToTopCommentsFromDb(String apiVideoId) {
-
-        Optional<Video> videoOpt  = videoRepository.findByApiVideoId(apiVideoId);
-
-        if (videoOpt.isPresent()) {
-            Long videoId = videoOpt.get().getId();
-
-            return commentRepository
-                    .findByVideoIdOrderByLikeCountDesc(videoId)
-                    .stream()
-                    .limit(5)
-                    .collect(Collectors.toList());
-        }
-        return null;
     }
 
     /**

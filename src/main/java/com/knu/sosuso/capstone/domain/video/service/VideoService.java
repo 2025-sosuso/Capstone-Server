@@ -121,16 +121,6 @@ public class VideoService {
     }
 
     /**
-     * DB에서 비디오 조회 (ID로)
-     *
-     * @param id 비디오 데이터베이스 ID
-     * @return 조회된 비디오 (Optional)
-     */
-    public Optional<Video> findById(Long id) {
-        return videoRepository.findById(id);
-    }
-
-    /**
      * AI 분석 완료 여부 체크
      *
      * @param video 확인할 비디오 엔티티
