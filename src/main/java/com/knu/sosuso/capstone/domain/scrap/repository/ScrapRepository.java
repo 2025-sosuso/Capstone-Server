@@ -12,6 +12,7 @@ import java.util.Optional;
 
 @Repository
 public interface ScrapRepository extends JpaRepository<Scrap, Long> {
+    boolean existsByVideoId(Long videoId);
     boolean existsByUserIdAndApiVideoId(Long userId, String apiVideoId);
     Optional<Scrap> findByUserIdAndApiVideoId(Long userId, String apiVideoId);
 
@@ -27,4 +28,5 @@ public interface ScrapRepository extends JpaRepository<Scrap, Long> {
     @Modifying
     @Query("DELETE FROM Scrap s WHERE s.video.id = :videoId")
     int deleteByVideoId(@Param("videoId") Long videoId);
+
 }

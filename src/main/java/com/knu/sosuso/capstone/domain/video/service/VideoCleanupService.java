@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * 비디오 데이터 정리 배치 작업
- * - 삭제된 영상의 하드 삭제
+ * - 삭제된 영상의 하드 삭제 (스크랩 보존)
  * - 스크랩된 영상의 메타데이터 갱신
  */
 @Slf4j
@@ -33,9 +33,15 @@ public class VideoCleanupService {
     /**
      * 오래된 삭제 영상 하드 삭제
      * 매달 1일 새벽 3시에 실행
+     *
      * 삭제 기준:
      * - is_deleted = true
-     * - delete_checked_at이 보관 기간(365일) 이전
+     * - delete_checked_at이 보관 기간(30일) 이전
+     * - 스크랩되지 않은 영상만 삭제 (스크랩된 영상은 유지)
+     *
+     * 주의사항:
+     * - 스크랩은 사용자가 직접 취소할 때만 삭제됨
+     * - 삭제된 영상도 스크랩 히스토리 보존을 위해 유지
      */
     @Scheduled(cron = "0 0 3 1 * *")  // 매달 1일 03:00
     @Transactional
@@ -53,26 +59,32 @@ public class VideoCleanupService {
             return;
         }
 
-        log.info("정리 대상 영상 수: {}개", oldDeletedVideos.size());
+        log.info("삭제 후보 영상 수: {}개", oldDeletedVideos.size());
 
         int successCount = 0;
         int failCount = 0;
+        int skippedCount = 0;
 
         for (Video video : oldDeletedVideos) {
             try {
+                // 스크랩 여부 확인
+                boolean hasScrap = scrapRepository.existsByVideoId(video.getId());
+
+                if (hasScrap) {
+                    log.info("스크랩된 영상이므로 유지: videoId={}, apiVideoId={}",
+                            video.getId(), video.getApiVideoId());
+                    skippedCount++;
+                    continue;
+                }
+
                 log.info("영상 하드 삭제 시작: videoId={}, apiVideoId={}, 삭제확인일={}",
                         video.getId(), video.getApiVideoId(), video.getDeleteCheckedAt());
 
-                // 1. 관련 스크랩 먼저 삭제
-                int scrapCount = scrapRepository.deleteByVideoId(video.getId());
-                log.info("스크랩 삭제 완료: videoId={}, 삭제된 스크랩 수={}",
-                        video.getId(), scrapCount);
-
-                // 2. 관련 댓글 삭제
+                // 1. 관련 댓글 삭제 (스크랩은 삭제하지 않음)
                 commentRepository.deleteByVideoId(video.getId());
                 log.info("댓글 삭제 완료: videoId={}", video.getId());
 
-                // 3. 영상 삭제
+                // 2. 영상 삭제
                 videoRepository.delete(video);
 
                 log.info("영상 하드 삭제 완료: videoId={}, apiVideoId={}",
@@ -88,7 +100,8 @@ public class VideoCleanupService {
         }
 
         log.info("=== 오래된 삭제 영상 정리 완료 ===");
-        log.info("성공: {}개, 실패: {}개, 전체: {}개", successCount, failCount, oldDeletedVideos.size());
+        log.info("성공: {}개, 스킵(스크랩됨): {}개, 실패: {}개, 전체: {}개",
+                successCount, skippedCount, failCount, oldDeletedVideos.size());
     }
 
     /**

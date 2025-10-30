@@ -36,6 +36,9 @@ public class ScrapService {
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper;
 
+    /**
+     * 스크랩 생성
+     */
     @Transactional
     public CreateScrapResponse createScrap(String token, CreateScrapRequest createScrapRequest) {
         if (!jwtUtil.isValidToken(token)) {
@@ -63,9 +66,15 @@ public class ScrapService {
 
         scrapRepository.save(scrap);
 
+        log.info("스크랩 생성 완료: userId={}, videoId={}, scrapId={}",
+                userId, video.getId(), scrap.getId());
+
         return new CreateScrapResponse(scrap.getId());
     }
 
+    /**
+     * 스크랩 취소 (사용자가 직접 취소하는 유일한 경로)
+     */
     @Transactional
     public void cancelScrap(String token, Long scrapId) {
         if (!jwtUtil.isValidToken(token)) {
@@ -80,7 +89,14 @@ public class ScrapService {
             throw new BusinessException(ScrapError.FORBIDDEN_SCRAP_DELETE);
         }
 
+        // 영상 정보 로깅 (삭제된 영상도 스크랩 취소 가능)
+        Video video = scrap.getVideo();
+        log.info("스크랩 취소: userId={}, scrapId={}, videoId={}, deleted={}",
+                userId, scrapId, video.getId(), video.isDeleted());
+
         scrapRepository.deleteById(scrapId);
+
+        log.info("스크랩 삭제 완료: scrapId={}", scrapId);
     }
 
     /**
@@ -96,7 +112,7 @@ public class ScrapService {
 
             Long userId = jwtUtil.getUserId(token);
 
-            // 2. 사용자의 스크랩 목록 조회
+            // 2. 사용자의 스크랩 목록 조회 (최신순)
             List<Scrap> scraps = scrapRepository.findByUserIdOrderByCreatedAtDesc(userId);
 
             if (scraps.isEmpty()) {
@@ -115,18 +131,18 @@ public class ScrapService {
 
                     // 삭제된 영상 처리
                     if (video.isDeleted()) {
-                        log.info("삭제된 영상 발견: videoId={}, apiVideoId={}",
-                                video.getId(), video.getApiVideoId());
-                        results.add(createDeletedVideoResponse(video));
+                        log.info("삭제된 영상 발견: videoId={}, apiVideoId={}, scrapId={}",
+                                video.getId(), video.getApiVideoId(), scrap.getId());
+                        results.add(createDeletedVideoResponse(video, scrap.getId()));
                         continue;
                     }
 
                     // 정상 영상 처리
-                    VideoSummaryResponse summaryResponse = convertVideoToSummaryResponse(video);
+                    VideoSummaryResponse summaryResponse = convertVideoToSummaryResponse(video, scrap.getId());
                     results.add(summaryResponse);
 
-                    log.debug("스크랩 영상 변환 완료: apiVideoId={}, title={}",
-                            video.getApiVideoId(), video.getTitle());
+                    log.debug("스크랩 영상 변환 완료: apiVideoId={}, title={}, scrapId={}",
+                            video.getApiVideoId(), video.getTitle(), scrap.getId());
 
                 } catch (Exception e) {
                     log.error("개별 스크랩 영상 처리 실패: scrapId={}, error={}",
@@ -149,8 +165,9 @@ public class ScrapService {
 
     /**
      * 삭제된 영상용 응답 생성
+     * 사용자에게 [삭제된 영상]으로 표시하되, 스크랩 히스토리는 보존
      */
-    private VideoSummaryResponse createDeletedVideoResponse(Video video) {
+    private VideoSummaryResponse createDeletedVideoResponse(Video video, Long scrapId) {
         VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
                 video.getApiVideoId(),
                 "[삭제된 영상] " + video.getTitle(),  // 제목 앞에 표시
@@ -179,7 +196,7 @@ public class ScrapService {
     /**
      * Video 엔티티를 VideoSummaryResponse로 변환
      */
-    private VideoSummaryResponse convertVideoToSummaryResponse(Video video) {
+    private VideoSummaryResponse convertVideoToSummaryResponse(Video video, Long scrapId) {
         try {
             // SentimentDistribution 변환
             VideoSummaryResponse.SentimentDistribution sentimentDistribution = null;
