@@ -3,6 +3,7 @@ package com.knu.sosuso.capstone.global.swagger;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.domain.scrap.dto.request.CreateScrapRequest;
 import com.knu.sosuso.capstone.domain.scrap.dto.response.CreateScrapResponse;
+import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode400;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode500;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +18,8 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import java.util.List;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -143,6 +146,96 @@ public interface ScrapControllerSwagger {
     ResponseDto<CreateScrapResponse> createScrap(
             @CookieValue("Authorization") String token,
             @org.springframework.web.bind.annotation.RequestBody @Valid CreateScrapRequest createScrapRequest
+    );
+
+    @Operation(
+            summary = "스크랩한 영상 목록 전체 조회",
+            description = "사용자가 스크랩한 모든 영상 목록을 조회합니다. (스크랩 페이지용)",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "스크랩 목록 조회 성공",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ResponseDto.class),
+                                    examples = @ExampleObject(
+                                            name = "스크랩 목록 조회 (2개)",
+                                            value = """
+                                                    {
+                                                      "timeStamp": "2025-01-20T11:00:00",
+                                                      "message": "스크랩 영상 리스트 조회 성공",
+                                                      "data": [
+                                                        {
+                                                          "video": {
+                                                            "id": "scrap_video_1",
+                                                            "title": "파이썬 코딩 기초 강좌 #1",
+                                                            "description": "파이썬 기초부터 차근차근...",
+                                                            "publishedAt": "2025-01-15T10:00:00Z",
+                                                            "thumbnailUrl": "https://i.ytimg.com/vi/scrap_video_1/maxresdefault.jpg",
+                                                            "viewCount": 89000,
+                                                            "likeCount": 3200,
+                                                            "commentCount": 450
+                                                          },
+                                                          "channel": {
+                                                            "id": "UCxxxxPython",
+                                                            "title": "코딩애플",
+                                                            "thumbnailUrl": "https://yt3.ggpht.com/...",
+                                                            "subscriberCount": 450000
+                                                          },
+                                                          "analysis": {
+                                                            "summary": "파이썬 입문자를 위한 친절한 강의입니다.",
+                                                            "sentimentDistribution": {"positive": 0.82, "negative": 0.05, "other": 0.13},
+                                                            "keywords": ["파이썬", "코딩", "강의"]
+                                                          }
+                                                        },
+                                                        {
+                                                          "video": {
+                                                            "id": "scrap_video_2",
+                                                            "title": "요리 브이로그 | 김치찌개 끓이기",
+                                                            "description": "집에서 쉽게 만드는 김치찌개",
+                                                            "publishedAt": "2025-01-18T14:30:00Z",
+                                                            "thumbnailUrl": "https://i.ytimg.com/vi/scrap_video_2/maxresdefault.jpg",
+                                                            "viewCount": 12400,
+                                                            "likeCount": 890,
+                                                            "commentCount": 67
+                                                          },
+                                                          "channel": {
+                                                            "id": "UCxxxxCooking",
+                                                            "title": "집밥하는 유튜버",
+                                                            "thumbnailUrl": "https://yt3.ggpht.com/...",
+                                                            "subscriberCount": 85000
+                                                          },
+                                                          "analysis": {
+                                                            "summary": "간단하고 맛있는 김치찌개 레시피입니다.",
+                                                            "sentimentDistribution": {"positive": 0.91, "negative": 0.02, "other": 0.07},
+                                                            "keywords": ["요리", "김치찌개", "레시피"]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                    """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "401",
+                            description = "인증 실패 - 유효하지 않은 토큰",
+                            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    )
+            },
+            security = @SecurityRequirement(name = "cookieAuth")
+    )
+    @Parameter(
+            name = "Authorization",
+            description = "JWT 토큰 (Cookie)",
+            required = true,
+            in = ParameterIn.COOKIE,
+            schema = @Schema(type = "string", format = "jwt")
+    )
+    @ErrorCode400
+    @ErrorCode500
+    ResponseEntity<ResponseDto<List<VideoSummaryResponse>>> getScrappedVideos(
+            @CookieValue(value = "Authorization") String token
     );
 
     @Operation(
