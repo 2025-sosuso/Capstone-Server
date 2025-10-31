@@ -36,11 +36,6 @@ public class AppConfig {
      */
     private final int aiRetryCooldownMinutes = 5;
 
-    /**
-     * AI 최대 재시도 횟수
-     */
-    private final int aiMaxRetryCount = 3;
-
     // ========== 댓글 관련 설정 ==========
 
     /**

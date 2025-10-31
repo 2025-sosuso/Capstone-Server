@@ -185,21 +185,26 @@ public class VideoProcessingService {
             return false;
         }
 
-        // 최대 재시도 횟수 체크
-        if (video.getAiRetryCount() >= appConfig.getAiMaxRetryCount()) {
-            log.info("AI 재시도 횟수 초과: apiVideoId={}, retryCount={}",
-                    video.getApiVideoId(), video.getAiRetryCount());
-            return false;
-        }
-
         if (lastAttempt == null) {
+            log.info("첫 AI 시도: apiVideoId={}", video.getApiVideoId());
             return true;
         }
 
         LocalDateTime cooldownExpiry = lastAttempt
                 .plusMinutes(appConfig.getAiRetryCooldownMinutes());
 
-        return now.isAfter(cooldownExpiry);
+        boolean canRetry = now.isAfter(cooldownExpiry);
+
+        if (canRetry) {
+            log.info("AI 재시도 가능 (쿨타임 경과): apiVideoId={}, 마지막시도={}, 현재시간={}, 재시도횟수={}",
+                    video.getApiVideoId(), lastAttempt, now, video.getAiRetryCount());
+        } else {
+            log.debug("AI 재시도 쿨타임 중: apiVideoId={}, 남은시간={}분",
+                    video.getApiVideoId(),
+                    java.time.temporal.ChronoUnit.MINUTES.between(now, cooldownExpiry));
+        }
+
+        return canRetry;
     }
 
     /**
@@ -278,23 +283,29 @@ public class VideoProcessingService {
 
                 log.info("백그라운드 AI 처리 완료: videoId={}", videoId);
             } else {
-                // AI 실패
+                // AI 실패 - 재시도 카운트만 증가 (횟수 제한 없음)
                 video.setAiProcessing(false);
                 video.setAiRetryCount(video.getAiRetryCount() + 1);
+                video.setLastAiAttemptAt(LocalDateTime.now()); // 현재 시간 기록
                 videoRepository.save(video);
 
-                log.warn("백그라운드 AI 처리 실패: videoId={}, retryCount={}",
+                log.warn("백그라운드 AI 처리 실패: videoId={}, retryCount={} (5분 후 재시도 가능)",
                         videoId, video.getAiRetryCount());
             }
 
         } catch (Exception e) {
             log.error("백그라운드 AI 처리 중 오류: videoId={}, error={}", videoId, e.getMessage(), e);
 
-            // 오류 시 플래그 해제
+            // 오류 시 플래그 해제 및 재시도 준비
             videoRepository.findById(videoId).ifPresent(v -> {
                 v.setAiProcessing(false);
                 v.setAiRetryCount(v.getAiRetryCount() + 1);
+                v.setLastAiAttemptAt(LocalDateTime.now()); // 현재 시간 기록
                 videoRepository.save(v);
+
+                log.warn("재시도 준비: videoId={}, 재시도 횟수={}, 다음 재시도 가능시간={}",
+                        v.getId(), v.getAiRetryCount(),
+                        v.getLastAiAttemptAt().plusMinutes(5));
             });
         }
     }
