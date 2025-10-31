@@ -1,0 +1,68 @@
+package com.knu.sosuso.capstone.global.config;
+
+import lombok.Getter;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * 애플리케이션 전역 설정
+ * - 모든 기간/개수 관련 설정을 한 곳에서 관리
+ */
+@Getter
+@Configuration
+public class AppConfig {
+
+    // ========== 비디오 관련 설정 ==========
+
+    /**
+     * 메타데이터 갱신 주기 (일)
+     * 조회수, 좋아요, 댓글 수 등을 얼마나 자주 업데이트할지
+     */
+    private final int metadataUpdateDays = 30;
+
+    /**
+     * YouTube 삭제 여부 확인 주기 (일)
+     * 영상이 삭제되었는지 얼마나 자주 확인할지
+     */
+    private final int deletionCheckDays = 7;
+
+    /**
+     * 데이터 보관 기간 (일)
+     * 삭제된 영상을 이 기간 동안 보관 후 하드 삭제
+     */
+    private final int dataRetentionDays = 30;
+
+    /**
+     * AI 재시도 쿨타임 (분)
+     */
+    private final int aiRetryCooldownMinutes = 5;
+
+    // ========== 댓글 관련 설정 ==========
+
+    /**
+     * 댓글 최대 수집 개수
+     * YouTube API 비용 고려하여 제한
+     */
+    private final int maxCommentFetchCount = 100;
+
+    /**
+     * API 요청당 최대 결과 수
+     */
+    private final int maxResultsPerRequest = 100;
+
+    // ========== 스레드풀 관련 설정 ==========
+
+    /**
+     * 비디오 처리 스레드풀 - 기본 스레드 수
+     */
+    private final int videoProcessingCorePoolSize = 2;
+
+    /**
+     * 비디오 처리 스레드풀 - 최대 스레드 수
+     */
+    private final int videoProcessingMaxPoolSize = 5;
+
+    /**
+     * 비디오 처리 스레드풀 - 큐 크기
+     */
+    private final int videoProcessingQueueCapacity = 50;
+}

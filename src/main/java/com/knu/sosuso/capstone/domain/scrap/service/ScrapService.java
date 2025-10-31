@@ -34,7 +34,11 @@ public class ScrapService {
     private final UserRepository userRepository;
     private final VideoRepository videoRepository;
     private final JwtUtil jwtUtil;
+    private final ObjectMapper objectMapper;
 
+    /**
+     * 스크랩 생성
+     */
     @Transactional
     public CreateScrapResponse createScrap(String token, CreateScrapRequest createScrapRequest) {
         if (!jwtUtil.isValidToken(token)) {
@@ -62,12 +66,15 @@ public class ScrapService {
 
         scrapRepository.save(scrap);
 
-        return new CreateScrapResponse(
-                scrap.getId()
-        );
+        log.info("스크랩 생성 완료: userId={}, videoId={}, scrapId={}",
+                userId, video.getId(), scrap.getId());
+
+        return new CreateScrapResponse(scrap.getId());
     }
 
-    // Todo custom exception으로 바꾸기
+    /**
+     * 스크랩 취소 (사용자가 직접 취소하는 유일한 경로)
+     */
     @Transactional
     public void cancelScrap(String token, Long scrapId) {
         if (!jwtUtil.isValidToken(token)) {
@@ -82,11 +89,20 @@ public class ScrapService {
             throw new BusinessException(ScrapError.FORBIDDEN_SCRAP_DELETE);
         }
 
+        // 영상 정보 로깅 (삭제된 영상도 스크랩 취소 가능)
+        Video video = scrap.getVideo();
+        log.info("스크랩 취소: userId={}, scrapId={}, videoId={}, deleted={}",
+                userId, scrapId, video.getId(), video.isDeleted());
+
         scrapRepository.deleteById(scrapId);
+
+        log.info("스크랩 삭제 완료: scrapId={}", scrapId);
     }
 
-
-    // 스크랩 리스트 조회
+    /**
+     * 스크랩한 영상 목록 조회 (삭제된 영상 처리 포함)
+     */
+    @Transactional(readOnly = true)
     public List<VideoSummaryResponse> getScrappedVideos(String token) {
         try {
             // 1. 토큰 검증
@@ -96,7 +112,7 @@ public class ScrapService {
 
             Long userId = jwtUtil.getUserId(token);
 
-            // 2. 사용자의 스크랩 목록 조회
+            // 2. 사용자의 스크랩 목록 조회 (최신순)
             List<Scrap> scraps = scrapRepository.findByUserIdOrderByCreatedAtDesc(userId);
 
             if (scraps.isEmpty()) {
@@ -106,19 +122,27 @@ public class ScrapService {
 
             log.info("스크랩 목록 조회 완료: userId={}, 스크랩 수={}", userId, scraps.size());
 
-            // 3. 각 스크랩의 비디오 정로를 VideoSummaryResponse로 변환
+            // 3. 각 스크랩의 비디오 정보를 VideoSummaryResponse로 변환
             List<VideoSummaryResponse> results = new ArrayList<>();
 
             for (Scrap scrap : scraps) {
                 try {
                     Video video = scrap.getVideo();
 
-                    // Video 엔티티에서 VideoSummaryResponse로 변환
-                    VideoSummaryResponse summaryResponse = convertVideoToSummaryResponse(video);
+                    // 삭제된 영상 처리
+                    if (video.isDeleted()) {
+                        log.info("삭제된 영상 발견: videoId={}, apiVideoId={}, scrapId={}",
+                                video.getId(), video.getApiVideoId(), scrap.getId());
+                        results.add(createDeletedVideoResponse(video, scrap.getId()));
+                        continue;
+                    }
+
+                    // 정상 영상 처리
+                    VideoSummaryResponse summaryResponse = convertVideoToSummaryResponse(video, scrap.getId());
                     results.add(summaryResponse);
 
-                    log.debug("스크랩 영상 변환 완료: apiVideoId={}, title={}",
-                            video.getApiVideoId(), video.getTitle());
+                    log.debug("스크랩 영상 변환 완료: apiVideoId={}, title={}, scrapId={}",
+                            video.getApiVideoId(), video.getTitle(), scrap.getId());
 
                 } catch (Exception e) {
                     log.error("개별 스크랩 영상 처리 실패: scrapId={}, error={}",
@@ -140,19 +164,47 @@ public class ScrapService {
     }
 
     /**
+     * 삭제된 영상용 응답 생성
+     * 사용자에게 [삭제된 영상]으로 표시하되, 스크랩 히스토리는 보존
+     */
+    private VideoSummaryResponse createDeletedVideoResponse(Video video, Long scrapId) {
+        VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
+                video.getApiVideoId(),
+                "[삭제된 영상] " + video.getTitle(),  // 제목 앞에 표시
+                "이 영상은 삭제되었거나 비공개 처리되었습니다.",
+                video.getUploadedAt(),
+                video.getThumbnailUrl(),  // 썸네일은 유지 (캐시된 것)
+                0L, 0L, 0  // 조회수, 좋아요, 댓글 수는 0으로
+        );
+
+        VideoSummaryResponse.Channel channelDto = new VideoSummaryResponse.Channel(
+                video.getChannelId(),
+                video.getChannelName(),
+                video.getChannelThumbnailUrl(),
+                0L  // 구독자 수도 0으로
+        );
+
+        VideoSummaryResponse.Analysis analysisDto = new VideoSummaryResponse.Analysis(
+                "이 영상은 삭제되었습니다.",
+                null,  // 감정 분포 없음
+                List.of()  // 키워드 없음
+        );
+
+        return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
+    }
+
+    /**
      * Video 엔티티를 VideoSummaryResponse로 변환
      */
-    private VideoSummaryResponse convertVideoToSummaryResponse(Video video) {
+    private VideoSummaryResponse convertVideoToSummaryResponse(Video video, Long scrapId) {
         try {
             // SentimentDistribution 변환
             VideoSummaryResponse.SentimentDistribution sentimentDistribution = null;
             if (video.getSentimentDistribution() != null && !video.getSentimentDistribution().trim().isEmpty()) {
                 try {
-                    ObjectMapper objectMapper = new ObjectMapper();
                     Map<String, Double> sentimentMap = objectMapper.readValue(
                             video.getSentimentDistribution(),
-                            new TypeReference<>() {
-                            }
+                            new TypeReference<>() {}
                     );
 
                     sentimentDistribution = new VideoSummaryResponse.SentimentDistribution(
@@ -170,11 +222,9 @@ public class ScrapService {
             List<String> keywords = new ArrayList<>();
             if (video.getKeywords() != null && !video.getKeywords().trim().isEmpty()) {
                 try {
-                    ObjectMapper objectMapper = new ObjectMapper();
                     keywords = objectMapper.readValue(
                             video.getKeywords(),
-                            new TypeReference<>() {
-                            }
+                            new TypeReference<>() {}
                     );
                 } catch (Exception e) {
                     log.warn("Keywords 파싱 실패: videoId={}, error={}", video.getId(), e.getMessage());
@@ -238,4 +288,3 @@ public class ScrapService {
         }
     }
 }
-

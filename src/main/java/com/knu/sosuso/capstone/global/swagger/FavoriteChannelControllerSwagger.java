@@ -5,6 +5,7 @@ import com.knu.sosuso.capstone.domain.channel.dto.request.RegisterFavoriteChanne
 import com.knu.sosuso.capstone.domain.channel.dto.response.CancelFavoriteChannelResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteChannelListResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.RegisterFavoriteChannelResponse;
+import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.global.exception.ErrorResponse;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode400;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode500;
@@ -207,6 +208,93 @@ public interface FavoriteChannelControllerSwagger {
     @ErrorCode500
     ResponseDto<List<FavoriteChannelListResponse>> favoriteChannelList(
             @CookieValue("Authorization") String token
+    );
+
+    @Operation(
+            summary = "관심 채널의 최신 영상 조회",
+            description = "특정 관심 채널의 최신 업로드 영상 1개에 대한 상세 정보를 조회합니다. (영상 정보, AI 분석 포함)",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "관심 채널 최신 영상 조회 성공",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ResponseDto.class),
+                                    examples = @ExampleObject(
+                                            name = "관심 채널 최신 영상 조회",
+                                            value = """
+                                                    {
+                                                      "timeStamp": "2025-01-20T10:00:00",
+                                                      "message": "successfully summary analysis video favorite channel.",
+                                                      "data": {
+                                                        "video": {
+                                                          "id": "dQw4w9WgXcQ",
+                                                          "title": "[다큐] 우주의 신비 - 블랙홀의 비밀",
+                                                          "description": "블랙홀에 대한 최신 연구 결과를 소개합니다...",
+                                                          "publishedAt": "2025-01-20T09:00:00Z",
+                                                          "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+                                                          "viewCount": 125000,
+                                                          "likeCount": 8500,
+                                                          "commentCount": 342,
+                                                          "scrapId": 123
+                                                        },
+                                                        "channel": {
+                                                          "id": "UCZf__ehlCEBPop-_sldpBUQ",
+                                                          "title": "EBS 다큐",
+                                                          "thumbnailUrl": "https://yt3.ggpht.com/...",
+                                                          "subscriberCount": 1250000,
+                                                          "favoriteChannelId": 1
+                                                        },
+                                                        "analysis": {
+                                                          "summary": "블랙홀의 형성 과정과 중력파 관측 성과를 다룬 영상입니다.",
+                                                          "sentimentDistribution": {
+                                                            "positive": 0.72,
+                                                            "negative": 0.08,
+                                                            "other": 0.20
+                                                          },
+                                                          "keywords": ["블랙홀", "우주", "중력파", "과학"]
+                                                        }
+                                                      }
+                                                    }
+                                                    """
+                                    )
+                            )
+                    ),
+                    @ApiResponse(
+                            responseCode = "401",
+                            description = "인증 실패 - 유효하지 않은 토큰",
+                            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    ),
+                    @ApiResponse(
+                            responseCode = "404",
+                            description = "채널 또는 영상을 찾을 수 없음",
+                            content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    )
+            },
+            security = @SecurityRequirement(name = "cookieAuth")
+    )
+    @Parameters({
+            @Parameter(
+                    name = "Authorization",
+                    description = "JWT 토큰 (Cookie)",
+                    required = true,
+                    in = ParameterIn.COOKIE,
+                    schema = @Schema(type = "string", format = "jwt")
+            ),
+            @Parameter(
+                    name = "apiChannelId",
+                    description = "YouTube 채널 ID",
+                    required = true,
+                    in = ParameterIn.PATH,
+                    schema = @Schema(type = "string"),
+                    example = "UCmGSJVG3mCRXVOP4yZrU1Dw"
+            )
+    })
+    @ErrorCode400
+    @ErrorCode500
+    ResponseDto<FavoriteVideoInfoResponse> favoriteChannelVideo(
+            @CookieValue("Authorization") String token,
+            @PathVariable(value = "apiChannelId") String apiChannelId
     );
 
 

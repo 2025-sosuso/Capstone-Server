@@ -1,9 +1,9 @@
 package com.knu.sosuso.capstone.domain.video.service;
 
 import com.knu.sosuso.capstone.domain.channel.ChannelService;
-import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.ChannelSearchResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.SearchApiResponse;
+import com.knu.sosuso.capstone.domain.video.dto.response.VideoIdResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -18,9 +18,12 @@ public class SearchService {
 
     private final VideoService videoService;
     private final ChannelService channelService;
-    private final VideoProcessingService videoProcessingService;
 
-    // 1. 검색어 입력
+    /**
+     * 통합 검색
+     * - URL: apiVideoId만 추출하여 반환 (프론트가 상세 페이지로 이동)
+     * - 채널명: ChannelSearchResponse 반환
+     */
     @Transactional
     public SearchApiResponse<?> search(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
@@ -30,13 +33,23 @@ public class SearchService {
         String trimmedQuery = query.trim();
         log.info("검색 요청: query={}, type={}", trimmedQuery, isVideoUrl(trimmedQuery) ? "URL" : "CHANNEL");
 
-        // 2. URL or 채널 구분
-        // -> URL이면 영상 정보 추출 메서드 호출
         try {
             if (isVideoUrl(trimmedQuery)) {
-                DetailPageResponse videoResult = searchVideo(token, trimmedQuery);
-                return new SearchApiResponse<>("URL", List.of(videoResult));
+                // URL 검색 -> apiVideoId만 추출
+                String apiVideoId = videoService.extractVideoId(trimmedQuery);
+
+                if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
+                    throw new IllegalArgumentException("유효하지 않은 YouTube URL입니다");
+                }
+
+                log.info("영상 ID 추출 완료: apiVideoId={}", apiVideoId);
+
+                // apiVideoId만 담아서 반환
+                VideoIdResponse videoIdResponse = new VideoIdResponse(apiVideoId);
+                return new SearchApiResponse<>("URL", List.of(videoIdResponse));
+
             } else {
+                // 채널 검색
                 ChannelSearchResponse channelSearchResult = channelService.searchChannels(token, query);
                 return new SearchApiResponse<>("CHANNEL", channelSearchResult.results());
             }
@@ -46,21 +59,7 @@ public class SearchService {
         }
     }
 
-    // 3. 영상 정보 가져옴
-    private DetailPageResponse searchVideo(String token, String videoUrl) {
-        String apiVideoId = videoService.extractVideoId(videoUrl);
-
-        if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
-            throw new IllegalArgumentException("유효하지 않은 YouTube URL입니다");
-        }
-
-        log.info("비디오 검색 시작: apiVideoId={}", apiVideoId);
-
-        return videoProcessingService.processVideoToSearchResult(token, apiVideoId, true);
-    }
-
     private boolean isVideoUrl(String url) {
         return url.contains("youtube.com/watch?v=") || url.contains("youtu.be/");
     }
-
 }

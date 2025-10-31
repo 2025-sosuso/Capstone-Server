@@ -33,7 +33,7 @@ public class VideoDetailService {
     /**
      * 영상 기본 정보 조회
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
         log.info("영상 기본 정보 조회: apiVideoId={}", apiVideoId);
 

@@ -3,10 +3,10 @@ package com.knu.sosuso.capstone.domain.video.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
-import com.knu.sosuso.capstone.domain.conmment.entity.Comment;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
+import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -245,6 +244,61 @@ public class ResponseMappingService {
     }
 
     /**
+     * DetailPageResponse를 VideoSummaryResponse로 변환
+     */
+    public VideoSummaryResponse convertToVideoSummaryResponse(DetailPageResponse detailResponse) {
+        try {
+            var video = detailResponse.video();
+            var channel = detailResponse.channel();
+            var analysis = detailResponse.analysis();
+
+            VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
+                    video.id(),
+                    video.title(),
+                    video.description(),
+                    video.publishedAt(),
+                    video.thumbnailUrl(),
+                    video.viewCount(),
+                    video.likeCount(),
+                    video.commentCount()
+            );
+
+            VideoSummaryResponse.Channel channelDto = new VideoSummaryResponse.Channel(
+                    channel.id(),
+                    channel.title(),
+                    channel.thumbnailUrl(),
+                    channel.subscriberCount()
+            );
+
+            VideoSummaryResponse.SentimentDistribution sentimentDto = null;
+            if (analysis != null && analysis.sentimentDistribution() != null) {
+                var s = analysis.sentimentDistribution();
+                sentimentDto = new VideoSummaryResponse.SentimentDistribution(
+                        s.positive(), s.negative(), s.other()
+                );
+            }
+
+            List<String> keywords = (analysis != null && analysis.keywords() != null)
+                    ? analysis.keywords()
+                    : List.of();
+
+            String summary = (analysis != null) ? analysis.summary() : null;
+
+            VideoSummaryResponse.Analysis analysisDto = new VideoSummaryResponse.Analysis(
+                    summary,
+                    sentimentDto,
+                    keywords
+            );
+
+            return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
+
+        } catch (Exception e) {
+            log.error("VideoSummaryResponse 변환 실패: error={}", e.getMessage(), e);
+            throw new RuntimeException("응답 변환 중 오류 발생", e);
+        }
+    }
+
+    /**
      * 댓글 리스트 변환 (관련도 순서 유지)
      */
     private List<DetailCommentDto> mapToCommentResponses(
@@ -338,26 +392,6 @@ public class ResponseMappingService {
                     }
                 })
                 .collect(Collectors.toList());
-    }
-
-    /**
-     * DB에서 좋아요 TOP 5 댓글 추출 (public 메서드로 추가)
-     */
-    @Transactional
-    public List<Comment> mapToTopCommentsFromDb(String apiVideoId) {
-
-        Optional<Video> videoOpt  = videoRepository.findByApiVideoId(apiVideoId);
-
-        if (videoOpt.isPresent()) {
-            Long videoId = videoOpt.get().getId();
-
-            return commentRepository
-                    .findByVideoIdOrderByLikeCountDesc(videoId)
-                    .stream()
-                    .limit(5)
-                    .collect(Collectors.toList());
-        }
-        return null;
     }
 
     /**

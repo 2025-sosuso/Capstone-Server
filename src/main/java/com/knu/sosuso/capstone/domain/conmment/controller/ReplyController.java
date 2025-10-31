@@ -6,6 +6,7 @@ import com.knu.sosuso.capstone.domain.conmment.dto.ReplyDto;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.ReplyResponse;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
+import com.knu.sosuso.capstone.global.swagger.ReplyControllerSwagger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ import java.util.List;
 @RequestMapping("/api/comments")
 @RequiredArgsConstructor
 @Slf4j
-public class ReplyController {
+public class ReplyController implements ReplyControllerSwagger {
 
     private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;

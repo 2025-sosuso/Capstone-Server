@@ -9,6 +9,7 @@ import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse.CommentData;
 import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
+import com.knu.sosuso.capstone.global.config.AppConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,9 +33,8 @@ public class CommentService {
     private static final String YOUTUBE_COMMENT_API_URL = "https://www.googleapis.com/youtube/v3/commentThreads";
     private static final Pattern HOUR_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2}):(\\d{2})\\b");
     private static final Pattern MINUTE_PATTERN = Pattern.compile("\\b(\\d{1,2}):(\\d{2})\\b");
-    private static final int MAX_RESULTS_PER_REQUEST = 100;
-    private static final int MAX_TOTAL_COMMENTS = 100;
 
+    private final AppConfig appConfig;
     private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -62,9 +62,9 @@ public class CommentService {
                 List<CommentData> pageComments = parseCommentsFromJson(itemsNode);
                 allComments.addAll(pageComments);
 
-                if (allComments.size() >= MAX_TOTAL_COMMENTS) {
+                if (allComments.size() >= appConfig.getMaxCommentFetchCount()) {
                     log.info("댓글 수집 제한 도달: apiVideoId={}, 수집된 댓글 수={}", apiVideoId, allComments.size());
-                    allComments = allComments.subList(0, Math.min(allComments.size(), MAX_TOTAL_COMMENTS));
+                    allComments = allComments.subList(0, Math.min(allComments.size(), appConfig.getMaxCommentFetchCount()));
                     break;
                 }
 
@@ -194,44 +194,6 @@ public class CommentService {
     }
 
     /**
-     * 비디오 ID로 댓글 삭제 (1일 지난 데이터 삭제 시 사용)
-     */
-    @Transactional
-    public void deleteCommentsByVideoId(Long videoId) {
-        try {
-            commentRepository.deleteByVideoId(videoId);
-            log.info("댓글 삭제 완료: videoId={}", videoId);
-        } catch (Exception e) {
-            log.error("댓글 삭제 실패: videoId={}, error={}", videoId, e.getMessage());
-            throw new RuntimeException("댓글 삭제 중 오류 발생", e);
-        }
-    }
-
-    /**
-     * DB에서 댓글 조회
-     */
-    @Transactional(readOnly = true)
-    public CommentApiResponse getCommentsFromDb(Long videoId) {
-        List<Comment> dbComments = commentRepository.findByVideoIdOrderByIdAsc(videoId);
-
-        List<CommentData> commentDataList = dbComments.stream()
-                .map(comment -> new CommentData(
-                        comment.getApiCommentId(),
-                        comment.getWriter(),
-                        comment.getCommentContent(),
-                        comment.getLikeCount(),
-                        comment.getSentimentType() != null ? comment.getSentimentType().name().toLowerCase() : null,
-                        comment.getWrittenAt()
-                ))
-                .collect(Collectors.toList());
-
-        Map<Integer, Integer> commentHistogram = analyzeCommentHistogram(commentDataList);
-        Map<String, Integer> popularTimestamps = analyzePopularTimestamps(commentDataList);
-
-        return new CommentApiResponse(commentHistogram, popularTimestamps, commentDataList);
-    }
-
-    /**
      * 시간대별 댓글 분포 분석
      */
     public Map<Integer, Integer> analyzeCommentHistogram(List<CommentData> comments) {
@@ -301,7 +263,7 @@ public class CommentService {
     private String buildApiUrl(String apiVideoId, String pageToken) {
         UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(YOUTUBE_COMMENT_API_URL)
                 .queryParam("part", "snippet")
-                .queryParam("maxResults", MAX_RESULTS_PER_REQUEST)
+                .queryParam("maxResults", appConfig.getMaxResultsPerRequest())
                 .queryParam("textFormat", "plainText")
                 .queryParam("order", "relevance")
                 .queryParam("videoId", apiVideoId)
