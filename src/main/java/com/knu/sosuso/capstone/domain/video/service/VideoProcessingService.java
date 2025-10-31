@@ -313,7 +313,8 @@ public class VideoProcessingService {
         log.info("YouTube API - 댓글 수집 완료: 댓글 수={}", allComments.size());
 
         if (allComments.isEmpty()) {
-            log.info("댓글이 없음, 비디오 정보만 응답 (YouTube API): apiVideoId={}", apiVideoId);
+            log.info("댓글이 없음: apiVideoId={}", apiVideoId);
+            saveVideoWithoutComments(videoInfo);
             return createVideoOnlyResponse(token, videoInfo);
         }
 
@@ -433,5 +434,29 @@ public class VideoProcessingService {
         DetailVideoDto videoDto = responseMappingService.mapToVideoResponse(token, videoInfo);
         DetailChannelDto channelDto = responseMappingService.mapToChannelResponse(token, videoInfo);
         return new DetailPageResponse(videoDto, channelDto, null, List.of());
+    }
+
+    // 댓글 없는 영상 DB 저장
+    @Transactional
+    public void saveVideoWithoutComments(VideoApiResponse videoInfo) {
+        Video video = Video.builder()
+                .apiVideoId(videoInfo.apiVideoId())
+                .title(videoInfo.title())
+                .description(videoInfo.description())
+                .viewCount(videoInfo.viewCount())
+                .likeCount(videoInfo.likeCount())
+                .commentCount(videoInfo.commentCount())
+                .thumbnailUrl(videoInfo.thumbnailUrl())
+                .channelId(videoInfo.channelId())
+                .channelName(videoInfo.channelTitle())
+                .channelThumbnailUrl(videoInfo.channelThumbnailUrl())
+                .subscriberCount(videoInfo.subscriberCount())
+                .uploadedAt(videoInfo.publishedAt())
+                .hasNoComments(true)  // 댓글 없음 표시
+                .commentsDisabled(false)
+                .build();
+
+        videoRepository.save(video);
+        log.info("댓글 없는 영상 DB 저장: apiVideoId={}", videoInfo.apiVideoId());
     }
 }
