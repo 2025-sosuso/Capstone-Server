@@ -92,6 +92,10 @@ public class MainPageService {
                     null
             );
 
+        } catch (BusinessException e) {
+            log.error("관심 채널 섹션 조회 비즈니스 예외: {}", e.getMessage());
+            throw e;
+
         } catch (Exception e) {
             log.error("관심 채널 섹션 조회 실패: {}", e.getMessage(), e);
             return createEmptyFavoriteChannelResponse();
@@ -112,6 +116,10 @@ public class MainPageService {
 
             log.info("인기 급상승 섹션 조회 완료: 영상 수={}", trendingVideos.size());
             return trendingVideos;
+
+        } catch (BusinessException e) {
+            log.error("인기 급상승 섹션 조회 비즈니스 예외: {}", e.getMessage());
+            throw e;
 
         } catch (Exception e) {
             log.error("인기 급상승 섹션 조회 실패: {}", e.getMessage(), e);
@@ -138,6 +146,10 @@ public class MainPageService {
                     allScrapVideos.size(), limitedScrapVideos.size());
 
             return limitedScrapVideos;
+
+        } catch (BusinessException e) {
+            log.error("스크랩 섹션 조회 비즈니스 예외: {}", e.getMessage());
+            throw e;
 
         } catch (Exception e) {
             log.error("스크랩 섹션 조회 실패: {}", e.getMessage(), e);
@@ -173,9 +185,13 @@ public class MainPageService {
                 return getGuestMainPageData();
             }
 
+        } catch (BusinessException e) {
+            log.error("메인 페이지 데이터 조회 비즈니스 예외: {}", e.getMessage());
+            throw e;
+
         } catch (Exception e) {
             log.error("메인 페이지 데이터 조회 실패: {}", e.getMessage(), e);
-            throw new RuntimeException("메인 페이지 데이터 조회 중 오류 발생", e);
+            throw e;
         }
     }
 

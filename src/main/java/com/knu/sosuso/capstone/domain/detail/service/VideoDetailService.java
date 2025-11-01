@@ -8,6 +8,9 @@ import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.domain.video.service.UserDataService;
 import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.CommonError;
+import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -88,7 +91,7 @@ public class VideoDetailService {
         log.info("영상 분석 정보 조회: apiVideoId={}", apiVideoId);
 
         Video video = videoRepository.findByApiVideoId(apiVideoId)
-                .orElseThrow(() -> new IllegalArgumentException("영상을 찾을 수 없습니다: " + apiVideoId));
+                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
         // 댓글 히스토그램
         Map<Integer, Integer> commentHistogramData = parseJsonToMap(
@@ -133,7 +136,7 @@ public class VideoDetailService {
         log.info("전체 댓글 조회: apiVideoId={}", apiVideoId);
 
         Video video = videoRepository.findByApiVideoId(apiVideoId)
-                .orElseThrow(() -> new IllegalArgumentException("영상을 찾을 수 없습니다: " + apiVideoId));
+                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
         List<DetailCommentDto> comments = commentRepository.findByVideoIdOrderByIdAsc(video.getId())
                 .stream()
@@ -159,7 +162,7 @@ public class VideoDetailService {
         log.info("AI 분석 결과 조회: apiVideoId={}", apiVideoId);
 
         Video video = videoRepository.findByApiVideoId(apiVideoId)
-                .orElseThrow(() -> new IllegalArgumentException("영상을 찾을 수 없습니다: " + apiVideoId));
+                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
         // AI 분석 완료 여부 체크
         boolean hasAIAnalysis = video.getSummation() != null &&
@@ -237,7 +240,7 @@ public class VideoDetailService {
                     objectMapper.getTypeFactory().constructMapType(Map.class, keyClass, valueClass));
         } catch (Exception e) {
             log.warn("JSON 파싱 실패: {}", e.getMessage());
-            return new HashMap<>();
+            throw new BusinessException(CommonError.DATA_PARSING_ERROR);
         }
     }
 

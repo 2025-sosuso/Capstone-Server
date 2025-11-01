@@ -6,6 +6,8 @@ import com.knu.sosuso.capstone.domain.conmment.dto.ReplyDto;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.ReplyResponse;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.swagger.ReplyControllerSwagger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,9 +62,8 @@ public class ReplyController implements ReplyControllerSwagger {
             ));
 
         } catch (Exception e) {
-            log.error("대댓글 조회 실패: {}", e.getMessage());
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("대댓글 조회 실패"));
+            log.error("대댓글 조회 실패: apiCommentId={}, error={}", apiCommentId, e.getMessage());
+            throw new BusinessException(CommonError.INTERNAL_SERVER_ERROR);
         }
     }
 }

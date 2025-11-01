@@ -9,6 +9,9 @@ import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.CommonError;
+import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -63,7 +66,7 @@ public class VideoService {
      */
     public VideoApiResponse getVideoInfo(String videoId) {
         if (videoId == null || videoId.trim().isEmpty()) {
-            throw new IllegalArgumentException("비디오 ID는 필수입니다");
+            throw new BusinessException(VideoError.VIDEO_ID_REQUIRED);
         }
 
         try {
@@ -74,7 +77,7 @@ public class VideoService {
             JsonNode videoJson = objectMapper.readTree(videoResponse);
 
             if (!videoJson.has("items") || videoJson.get("items").isEmpty()) {
-                throw new IllegalArgumentException("존재하지 않는 비디오입니다");
+                throw new BusinessException(VideoError.VIDEO_NOT_FOUND);
             }
 
             JsonNode videoItem = videoJson.get("items").get(0);
@@ -94,7 +97,7 @@ public class VideoService {
 
         } catch (HttpClientErrorException.NotFound e) {
             log.warn("비디오를 찾을 수 없음: apiVideoId={}", videoId);
-            throw new IllegalArgumentException("존재하지 않는 비디오입니다", e);
+            throw new BusinessException(VideoError.VIDEO_NOT_FOUND);
 
         } catch (HttpClientErrorException.Forbidden e) {
             log.warn("비디오 접근 금지: apiVideoId={}", videoId);
@@ -102,11 +105,11 @@ public class VideoService {
 
         } catch (RestClientException e) {
             log.error("YouTube API 호출 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
-            throw new RuntimeException("비디오 정보를 가져올 수 없습니다", e);
+            throw new BusinessException(CommonError.VIDEO_PROCESSING_ERROR);
 
         } catch (Exception e) {
             log.error("비디오 정보 조회 실패: apiVideoId={}, error={}", videoId, e.getMessage(), e);
-            throw new RuntimeException("비디오 정보 조회 중 오류 발생", e);
+            throw new BusinessException(CommonError.VIDEO_PROCESSING_ERROR);
         }
     }
 
@@ -180,7 +183,7 @@ public class VideoService {
     public void updateMetadataOnly(Long videoId, String apiVideoId) {
         try {
             Video video = videoRepository.findById(videoId)
-                    .orElseThrow(() -> new IllegalArgumentException("영상을 찾을 수 없습니다"));
+                    .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
             VideoApiResponse latestInfo = getVideoInfo(apiVideoId);
 
@@ -198,7 +201,7 @@ public class VideoService {
         } catch (Exception e) {
             log.error("메타데이터 업데이트 실패: videoId={}, error={}",
                     videoId, e.getMessage(), e);
-            throw new RuntimeException("메타데이터 업데이트 중 오류 발생", e);
+            throw new BusinessException(CommonError.VIDEO_PROCESSING_ERROR);
         }
     }
 
@@ -258,7 +261,7 @@ public class VideoService {
         } catch (Exception e) {
             log.error("비디오 저장 실패: apiVideoId={}, error={}",
                     videoApiResponse.apiVideoId(), e.getMessage());
-            throw new RuntimeException("비디오 저장 중 오류 발생", e);
+            throw new BusinessException(CommonError.VIDEO_PROCESSING_ERROR);
         }
     }
 
@@ -272,7 +275,7 @@ public class VideoService {
     public void updateWithAIResults(Long videoId, AIAnalysisResponse analysisResponse) {
         try {
             Video video = videoRepository.findById(videoId)
-                    .orElseThrow(() -> new IllegalArgumentException("비디오를 찾을 수 없습니다: " + videoId));
+                    .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
             if (analysisResponse.summation() != null) {
                 video.setSummation(analysisResponse.summation());
@@ -298,7 +301,7 @@ public class VideoService {
 
         } catch (Exception e) {
             log.error("AI 분석 결과 업데이트 실패: videoId={}, error={}", videoId, e.getMessage());
-            throw new RuntimeException("AI 분석 결과 업데이트 중 오류 발생", e);
+            throw new BusinessException(CommonError.VIDEO_PROCESSING_ERROR);
         }
     }
 

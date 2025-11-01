@@ -1,7 +1,10 @@
 package com.knu.sosuso.capstone.global.security.jwt;
 
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.AuthenticationError;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -10,13 +13,17 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
+@Slf4j
 @Component
 public class JwtUtil {
 
     private SecretKey secretKey;
 
     public JwtUtil(@Value("${spring.jwt.secret}") String secret) {
-        this.secretKey = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), Jwts.SIG.HS256.key().build().getAlgorithm());
+        this.secretKey = new SecretKeySpec(
+                secret.getBytes(StandardCharsets.UTF_8),
+                Jwts.SIG.HS256.key().build().getAlgorithm()
+        );
     }
 
     /**
@@ -45,7 +52,8 @@ public class JwtUtil {
                     .parseSignedClaims(token)
                     .getPayload();
         } catch (Exception e) {
-            throw new RuntimeException("유효하지 않은 JWT 토큰입니다: " + e.getMessage());
+            log.error("JWT 토큰 파싱 실패: {}", e.getMessage());
+            throw new BusinessException(AuthenticationError.TOKEN_PARSING_ERROR);
         }
     }
 
@@ -61,14 +69,13 @@ public class JwtUtil {
         return extractClaims(token).get("userId", Long.class);
     }
 
-    /*public Boolean isExpired(String token) {
-        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload().getExpiration().before(new Date());
-    }*/
-
     public Boolean isExpired(String token) {
         try {
             return extractClaims(token).getExpiration().before(new Date());
+        } catch (BusinessException e) {
+            return true;
         } catch (Exception e) {
+            log.warn("토큰 만료 확인 중 예외 발생: {}", e.getMessage());
             return true;
         }
     }
@@ -82,7 +89,10 @@ public class JwtUtil {
         try {
             extractClaims(token);
             return !isExpired(token);
+        } catch (BusinessException e) {
+            return false;
         } catch (Exception e) {
+            log.warn("토큰 유효성 검증 실패: {}", e.getMessage());
             return false;
         }
     }

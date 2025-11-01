@@ -10,6 +10,8 @@ import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse.CommentData;
 import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
 import com.knu.sosuso.capstone.global.config.AppConfig;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.CommentError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -86,10 +88,14 @@ public class CommentService {
                 log.info("댓글이 비활성화된 영상: apiVideoId={}", apiVideoId);
                 return new ArrayList<>(); // 빈 리스트 반환
             }
-            throw e; // 다른 403 에러는 재던지기
+            throw new BusinessException(CommentError.COMMENTS_DISABLED);
+
+        } catch (BusinessException e) {
+            throw e;
+
         } catch (Exception e) {
             log.error("댓글 수집 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
-            throw new RuntimeException("댓글 수집 중 오류 발생", e);
+            throw new BusinessException(CommentError.COMMENT_FETCH_ERROR);
         }
 
         log.info("댓글 수집 완료: apiVideoId={}, 총 댓글 수={}", apiVideoId, allComments.size());
@@ -165,7 +171,7 @@ public class CommentService {
 
         } catch (Exception e) {
             log.error("댓글 DB 저장 실패: apiVideoId={}, error={}", video.getApiVideoId(), e.getMessage(), e);
-            throw new RuntimeException("댓글 저장 중 오류 발생", e);
+            throw new BusinessException(CommentError.COMMENT_SAVE_ERROR);
         }
     }
 

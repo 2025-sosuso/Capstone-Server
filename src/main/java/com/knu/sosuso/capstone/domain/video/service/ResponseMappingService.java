@@ -10,6 +10,8 @@ import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,10 +26,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 @Service
 public class ResponseMappingService {
-
     private final ObjectMapper objectMapper;
     private final CommentRepository commentRepository;
-    private final VideoRepository videoRepository;
     private final UserDataService userDataService;
 
     /**
@@ -62,7 +62,7 @@ public class ResponseMappingService {
 
         } catch (Exception e) {
             log.error("DB 데이터 매핑 실패: videoId={}, error={}", video.getId(), e.getMessage());
-            throw new RuntimeException("DB 데이터 매핑 중 오류 발생", e);
+            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
         }
     }
 
@@ -239,7 +239,7 @@ public class ResponseMappingService {
 
         } catch (Exception e) {
             log.error("DB AnalysisResponse 매핑 실패: videoId={}, error={}", video.getId(), e.getMessage());
-            throw new RuntimeException("DB 분석 데이터 매핑 중 오류 발생", e);
+            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
         }
     }
 
@@ -294,7 +294,7 @@ public class ResponseMappingService {
 
         } catch (Exception e) {
             log.error("VideoSummaryResponse 변환 실패: error={}", e.getMessage(), e);
-            throw new RuntimeException("응답 변환 중 오류 발생", e);
+            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
         }
     }
 

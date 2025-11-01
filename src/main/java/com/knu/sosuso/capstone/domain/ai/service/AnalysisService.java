@@ -2,6 +2,8 @@ package com.knu.sosuso.capstone.domain.ai.service;
 
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisRequest;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.AIError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -42,8 +44,6 @@ public class AnalysisService {
 
     /**
      * AI에 분석 요청
-     * @param aiAnalysisRequest
-     * @return
      */
     public AIAnalysisResponse requestAnalysis(AIAnalysisRequest aiAnalysisRequest) {
         HttpHeaders headers = new HttpHeaders();
@@ -63,12 +63,16 @@ public class AnalysisService {
             if (aiAnalysisResponse.getStatusCode() == HttpStatus.OK && aiAnalysisResponse.getBody() != null) {
                 return aiAnalysisResponse.getBody();
             } else {
-                throw new RuntimeException("FastAPI request failed: " + aiAnalysisResponse.getStatusCode());
+                log.error("FastAPI 요청 실패: status={}", aiAnalysisResponse.getStatusCode());
+                throw new BusinessException(AIError.AI_ANALYSIS_REQUEST_FAILED);
             }
 
+        } catch (BusinessException e) {
+            throw e;
+
         } catch (Exception e) {
-            log.error("FastAPI 요청 중 예외 발생", e);
-            throw new RuntimeException("FastAPI 호출 실패", e);
+            log.error("FastAPI 요청 중 예외 발생: error={}", e.getMessage(), e);
+            throw new BusinessException(AIError.FASTAPI_CONNECTION_ERROR);
         }
     }
 }

@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.domain.channel;
+package com.knu.sosuso.capstone.domain.channel.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -6,6 +6,9 @@ import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.channel.dto.response.ChannelSearchResponse;
 
 import com.knu.sosuso.capstone.domain.video.service.UserDataService;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.ChannelError;
+import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,10 +33,9 @@ public class ChannelService {
     private final ObjectMapper objectMapper;
     private final UserDataService userDataService;
 
-
     public ChannelSearchResponse searchChannels(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
-            throw new IllegalArgumentException("검색어는 필수입니다");
+            throw new BusinessException(ChannelError.CHANNEL_QUERY_REQUIRED);
         }
 
         try {
@@ -61,15 +63,18 @@ public class ChannelService {
 
         } catch (HttpClientErrorException.Forbidden e) {
             log.warn("YouTube API 접근 금지: query={}", query);
-            throw new IllegalStateException("YouTube API에 접근할 수 없습니다", e);
+            throw new BusinessException(ChannelError.CHANNEL_API_ACCESS_DENIED);
 
         } catch (RestClientException e) {
             log.error("YouTube API 호출 실패: query={}, error={}", query, e.getMessage(), e);
-            throw new RuntimeException("채널 검색을 수행할 수 없습니다", e);
+            throw new BusinessException(ChannelError.CHANNEL_API_ERROR);
+
+        } catch (BusinessException e) {
+            throw e;
 
         } catch (Exception e) {
             log.error("채널 검색 실패: query={}, error={}", query, e.getMessage(), e);
-            throw new RuntimeException("채널 검색 중 오류 발생", e);
+            throw new BusinessException(ChannelError.CHANNEL_API_ERROR);
         }
     }
 
@@ -107,10 +112,9 @@ public class ChannelService {
             return channelIds;
         } catch (Exception e) {
             log.error("채널 ID 추출 실패: {}", e.getMessage(), e);
-            return List.of();
+            throw new BusinessException(CommonError.DATA_PARSING_ERROR);
         }
     }
-
 
     private String getChannelsDetails(List<String> channelIds) {
         String channelIdsStr = String.join(",", channelIds);
@@ -125,38 +129,50 @@ public class ChannelService {
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
+    public String getlatestApiVideoId(String apiChannelId) {
+        try {
+            String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_SEARCH_API_URL)
+                    .queryParam("part", "snippet")
+                    .queryParam("channelId", apiChannelId)
+                    .queryParam("order", "date")
+                    .queryParam("maxResults", 1)
+                    .queryParam("type", "video")
+                    .queryParam("key", config.getKey())
+                    .toUriString();
 
-    // 채널 api id로 해당 채널의 최근 영상 apiVideoId 조회
-    public String getlatestApiVideoId(String apiChannelId){
-        String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_SEARCH_API_URL)
-                .queryParam("part", "snippet")
-                .queryParam("channelId", apiChannelId)
-                .queryParam("order", "date")
-                .queryParam("maxResults", 1)
-                .queryParam("type","video")
-                .queryParam("key", config.getKey())
-                .toUriString();
+            String response = restTemplate.getForObject(apiUrl, String.class);
+            String videoId = extractVideoIdFromSearchResponse(response);
 
-        String response = restTemplate.getForObject(apiUrl, String.class);
+            if (videoId == null || videoId.trim().isEmpty()) {
+                throw new BusinessException(ChannelError.CHANNEL_LATEST_VIDEO_NOT_FOUND);
+            }
 
+            return videoId;
 
-        return extractVideoIdFromSearchResponse(response);
+        } catch (BusinessException e) {
+            throw e;
+
+        } catch (Exception e) {
+            log.error("관심 채널 최신 영상 조회 실패: channelId={}, error={}", apiChannelId, e.getMessage(), e);
+            throw new BusinessException(ChannelError.CHANNEL_API_ERROR);
+        }
     }
 
-    private String extractVideoIdFromSearchResponse(String json){
-        try{
+    private String extractVideoIdFromSearchResponse(String json) {
+        try {
             JsonNode root = objectMapper.readTree(json);
             JsonNode items = root.path("items");
 
-            if(items.isArray() && !items.isEmpty()){
+            if (items.isArray() && !items.isEmpty()) {
                 JsonNode videoIdNode = items.get(0).path("id").path("videoId");
                 return videoIdNode.asText();
             }
-        }catch (Exception e){
-            log.error("관심 채널 최근 영상 응답 파싱 실패: {}", e.getMessage(), e);
             return null;
+
+        } catch (Exception e) {
+            log.error("관심 채널 최근 영상 응답 파싱 실패: {}", e.getMessage(), e);
+            throw new BusinessException(CommonError.DATA_PARSING_ERROR);
         }
-        return null;
     }
 
     private List<ChannelSearchResponse.ChannelDto> parseChannelsResponse(String token, String channelsResponse) {
@@ -174,10 +190,8 @@ public class ChannelService {
                     String handle = snippetNode.path("customUrl").asText();
                     String description = snippetNode.path("description").asText();
 
-                    // 썸네일 URL 추출
                     String thumbnailUrl = extractThumbnailUrl(snippetNode.path("thumbnails"));
 
-                    // 구독자 수 정보 가져오기
                     JsonNode statisticsNode = channel.path("statistics");
                     String subscriberCountStr = statisticsNode.path("subscriberCount").asText();
                     Long subscriberCount = parseLong(subscriberCountStr);
@@ -193,14 +207,14 @@ public class ChannelService {
             results.sort((a, b) -> Long.compare(b.subscriberCount(), a.subscriberCount()));
 
             return results;
+
         } catch (Exception e) {
             log.error("채널 응답 파싱 실패: {}", e.getMessage(), e);
-            return List.of();
+            throw new BusinessException(CommonError.DATA_PARSING_ERROR);
         }
     }
 
     private String extractThumbnailUrl(JsonNode thumbnailsNode) {
-        // medium 썸네일 우선, 없으면 default
         JsonNode mediumNode = thumbnailsNode.path("medium");
         if (!mediumNode.isMissingNode()) {
             String url = mediumNode.path("url").asText();

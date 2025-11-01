@@ -17,32 +17,19 @@ public class SearchController implements SearchControllerSwagger {
 
     private final SearchService searchService;
 
-
     @GetMapping
     public ResponseEntity<ResponseDto<SearchApiResponse<?>>> search(
             @CookieValue(value = "Authorization", required = false) String token,
             @RequestParam String query) {
-        try {
-            log.info("검색 요청: query={}", query);
 
-            SearchApiResponse<?> searchResult = searchService.search(token, query);
+        log.info("검색 요청: query={}", query);
 
-            String message = buildSuccessMessage(searchResult.searchType());
-            ResponseDto<SearchApiResponse<?>> response = ResponseDto.of(searchResult, message);
+        SearchApiResponse<?> searchResult = searchService.search(token, query);
 
-            return ResponseEntity.ok(response);
+        String message = buildSuccessMessage(searchResult.searchType());
+        ResponseDto<SearchApiResponse<?>> response = ResponseDto.of(searchResult, message);
 
-        } catch (IllegalArgumentException e) {
-            log.warn("잘못된 요청: {}", e.getMessage());
-            ResponseDto<SearchApiResponse<?>> errorResponse = ResponseDto.of(e.getMessage());
-            return ResponseEntity.badRequest().body(errorResponse);
-
-        } catch (Exception e) {
-            log.error("검색 중 오류 발생: query={}, error={}", query, e.getMessage(), e);
-            ResponseDto<SearchApiResponse<?>> errorResponse =
-                    ResponseDto.of("검색 중 오류 발생: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errorResponse);
-        }
+        return ResponseEntity.ok(response);
     }
 
     private String buildSuccessMessage(String searchType) {
