@@ -3,6 +3,8 @@ package com.knu.sosuso.capstone.domain.conmment.controller;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentResponse;
 import com.knu.sosuso.capstone.domain.conmment.service.CommentQueryService;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.CommentError;
 import com.knu.sosuso.capstone.global.swagger.CommentControllerSwagger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,41 +30,27 @@ public class CommentController implements CommentControllerSwagger {
     public ResponseEntity<ResponseDto<CommentResponse>> searchComments(
             @PathVariable String apiVideoId,
             @RequestParam(required = false) String q,
-            @RequestParam(required = false) String sentiment,// 일반 텍스트 검색
-            @RequestParam(required = false) String keyword     // AI 키워드 검색
+            @RequestParam(required = false) String sentiment,
+            @RequestParam(required = false) String keyword
     ) {
+        // 정확히 하나의 파라미터만 허용
+        int paramCount = (q != null ? 1 : 0) + (keyword != null ? 1 : 0) + (sentiment != null ? 1 : 0);
 
-        try {
-            // 정확히 하나의 파라미터만 허용
-            int paramCount = (q != null ? 1 : 0) + (keyword != null ? 1 : 0) + (sentiment != null ? 1 : 0);
-
-            if (paramCount == 0) {
-                return ResponseEntity.badRequest()
-                        .body(ResponseDto.of("검색 조건이 필요합니다. (q, keyword, sentiment 중 하나)"));
-            }
-
-            if (paramCount > 1) {
-                return ResponseEntity.badRequest()
-                        .body(ResponseDto.of("하나의 검색 조건만 사용할 수 있습니다."));
-            }
-
-            log.info("댓글 검색: apiVideoId={}, q={}, keyword={}, sentiment={}",
-                    apiVideoId, q, keyword, sentiment);
-
-            CommentResponse result = commentQueryService.searchComments(apiVideoId, q, keyword, sentiment);
-
-            String message = buildSuccessMessage(q, keyword, sentiment, result.results().size());
-            return ResponseEntity.ok(ResponseDto.of(result, message));
-
-        } catch (IllegalArgumentException e) {
-            log.warn("잘못된 요청: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ResponseDto.of(e.getMessage()));
-
-        } catch (Exception e) {
-            log.error("댓글 검색 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("댓글 검색 중 오류가 발생했습니다."));
+        if (paramCount == 0) {
+            throw new BusinessException(CommentError.COMMENT_SEARCH_CONDITION_REQUIRED);
         }
+
+        if (paramCount > 1) {
+            throw new BusinessException(CommentError.COMMENT_SEARCH_CONDITION_REQUIRED);
+        }
+
+        log.info("댓글 검색: apiVideoId={}, q={}, keyword={}, sentiment={}",
+                apiVideoId, q, keyword, sentiment);
+
+        CommentResponse result = commentQueryService.searchComments(apiVideoId, q, keyword, sentiment);
+
+        String message = buildSuccessMessage(q, keyword, sentiment, result.results().size());
+        return ResponseEntity.ok(ResponseDto.of(result, message));
     }
 
     /**

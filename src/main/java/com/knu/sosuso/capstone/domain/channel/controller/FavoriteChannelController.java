@@ -25,7 +25,7 @@ public class FavoriteChannelController implements FavoriteChannelControllerSwagg
     public ResponseDto<RegisterFavoriteChannelResponse> registerFavoriteChannel(
             @CookieValue("Authorization") String token,
             @RequestBody @Valid RegisterFavoriteChannelRequest registerFavoriteChannelRequest
-            ) {
+    ) {
         RegisterFavoriteChannelResponse registerFavoriteChannelResponse = favoriteChannelService.registerFavoriteChannel(token, registerFavoriteChannelRequest);
         return ResponseDto.of(registerFavoriteChannelResponse, "Successfully registered the favorite channel.");
     }

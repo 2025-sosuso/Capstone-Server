@@ -1,7 +1,5 @@
 package com.knu.sosuso.capstone.domain.main;
 
-import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteChannelListResponse;
-import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.global.swagger.MainPageControllerSwagger;
@@ -30,20 +28,13 @@ public class MainPageController implements MainPageControllerSwagger {
 
         log.info("메인 페이지 - 관심 채널 섹션 조회 요청");
 
-        try {
-            MainPageResponse.FavoriteChannelResponse response =
-                    mainPageService.getFavoriteChannelResponse(token);
+        MainPageResponse.FavoriteChannelResponse response =
+                mainPageService.getFavoriteChannelResponse(token);
 
-            log.info("관심 채널 섹션 조회 성공: 채널 수={}",
-                    response.favoriteChannelList() != null ? response.favoriteChannelList().size() : 0);
+        log.info("관심 채널 섹션 조회 성공: 채널 수={}",
+                response.favoriteChannelList() != null ? response.favoriteChannelList().size() : 0);
 
-            return ResponseEntity.ok(ResponseDto.of(response, "관심 채널 섹션 조회 완료"));
-
-        } catch (Exception e) {
-            log.error("관심 채널 섹션 조회 실패: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("관심 채널 섹션 조회 중 오류가 발생했습니다."));
-        }
+        return ResponseEntity.ok(ResponseDto.of(response, "관심 채널 섹션 조회 완료"));
     }
 
     /**
@@ -56,17 +47,10 @@ public class MainPageController implements MainPageControllerSwagger {
 
         log.info("메인 페이지 - 인기 급상승 섹션 조회 요청");
 
-        try {
-            List<VideoSummaryResponse> response = mainPageService.getTrendingVideos(token);
+        List<VideoSummaryResponse> response = mainPageService.getTrendingVideos(token);
 
-            log.info("인기 급상승 섹션 조회 성공: 영상 수={}", response.size());
-            return ResponseEntity.ok(ResponseDto.of(response, "인기 급상승 섹션 조회 완료"));
-
-        } catch (Exception e) {
-            log.error("인기 급상승 섹션 조회 실패: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("인기 급상승 섹션 조회 중 오류가 발생했습니다."));
-        }
+        log.info("인기 급상승 섹션 조회 성공: 영상 수={}", response.size());
+        return ResponseEntity.ok(ResponseDto.of(response, "인기 급상승 섹션 조회 완료"));
     }
 
     /**
@@ -79,17 +63,10 @@ public class MainPageController implements MainPageControllerSwagger {
 
         log.info("메인 페이지 - 스크랩 섹션 조회 요청");
 
-        try {
-            List<VideoSummaryResponse> response = mainPageService.getScrapVideos(token);
+        List<VideoSummaryResponse> response = mainPageService.getScrapVideos(token);
 
-            log.info("스크랩 섹션 조회 성공: 영상 수={}", response.size());
-            return ResponseEntity.ok(ResponseDto.of(response, "스크랩 섹션 조회 완료"));
-
-        } catch (Exception e) {
-            log.error("스크랩 섹션 조회 실패: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("스크랩 섹션 조회 중 오류가 발생했습니다."));
-        }
+        log.info("스크랩 섹션 조회 성공: 영상 수={}", response.size());
+        return ResponseEntity.ok(ResponseDto.of(response, "스크랩 섹션 조회 완료"));
     }
 
     /**
@@ -103,13 +80,7 @@ public class MainPageController implements MainPageControllerSwagger {
 
         log.warn("Deprecated API 호출: GET /api/main - 새로운 분리된 API 사용을 권장합니다.");
 
-        try {
-            MainPageResponse response = mainPageService.getMainPageData(token);
-            return ResponseEntity.ok(ResponseDto.of(response, "메인 페이지 조회 완료 (Deprecated)"));
-
-        } catch (Exception e) {
-            log.error("메인 페이지 데이터 조회 실패: {}", e.getMessage(), e);
-            throw e;
-        }
+        MainPageResponse response = mainPageService.getMainPageData(token);
+        return ResponseEntity.ok(ResponseDto.of(response, "메인 페이지 조회 완료 (Deprecated)"));
     }
 }

@@ -43,18 +43,13 @@ public class ScrapController implements ScrapControllerSwagger {
     @GetMapping()
     public ResponseEntity<ResponseDto<List<VideoSummaryResponse>>> getScrappedVideos(
             @CookieValue(value = "Authorization") String token) {
-        try {
-            var result = scrapService.getScrappedVideos(token);
 
-            log.info("스크랩 영상 리스트 조회 완료: 영상 수={}", result.size());
+        log.info("스크랩 영상 리스트 조회 요청");
 
-            return ResponseEntity.ok(ResponseDto.of(result, "스크랩 영상 리스트 조회 성공"));
-        } catch (IllegalArgumentException e) {
-            log.warn("잘못된 요청: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ResponseDto.of("잘못된 요청: " + e.getMessage()));
-        } catch (Exception e) {
-            log.error("스크랩 페이지 조회 실패: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body(ResponseDto.of("스크랩 페이지 조회 실패: " + e.getMessage()));
-        }
+        List<VideoSummaryResponse> result = scrapService.getScrappedVideos(token);
+
+        log.info("스크랩 영상 리스트 조회 완료: 영상 수={}", result.size());
+
+        return ResponseEntity.ok(ResponseDto.of(result, "스크랩 영상 리스트 조회 성공"));
     }
 }

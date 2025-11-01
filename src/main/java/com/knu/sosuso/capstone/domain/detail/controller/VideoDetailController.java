@@ -28,23 +28,13 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
     public ResponseEntity<ResponseDto<VideoBasicResponse>> getVideoBasic(
             @CookieValue(value = "Authorization", required = false) String token,
             @PathVariable String apiVideoId) {
-        try {
-            log.info("영상 기본 정보 조회 요청: apiVideoId={}", apiVideoId);
 
-            VideoBasicResponse result = videoDetailService.getVideoBasic(token, apiVideoId);
+        log.info("영상 기본 정보 조회 요청: apiVideoId={}", apiVideoId);
 
-            log.info("영상 기본 정보 조회 완료: apiVideoId={}", apiVideoId);
-            return ResponseEntity.ok(ResponseDto.of(result, "영상 기본 정보 조회 성공"));
+        VideoBasicResponse result = videoDetailService.getVideoBasic(token, apiVideoId);
 
-        } catch (IllegalArgumentException e) {
-            log.warn("잘못된 요청: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ResponseDto.of(e.getMessage()));
-
-        } catch (Exception e) {
-            log.error("영상 기본 정보 조회 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("영상 기본 정보 조회 중 오류가 발생했습니다."));
-        }
+        log.info("영상 기본 정보 조회 완료: apiVideoId={}", apiVideoId);
+        return ResponseEntity.ok(ResponseDto.of(result, "영상 기본 정보 조회 성공"));
     }
 
     /**
@@ -56,23 +46,13 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
     @GetMapping("/{apiVideoId}/analysis")
     public ResponseEntity<ResponseDto<VideoAnalysisResponse>> getVideoAnalysis(
             @PathVariable String apiVideoId) {
-        try {
-            log.info("영상 분석 정보 조회 요청: apiVideoId={}", apiVideoId);
 
-            VideoAnalysisResponse result = videoDetailService.getVideoAnalysis(apiVideoId);
+        log.info("영상 분석 정보 조회 요청: apiVideoId={}", apiVideoId);
 
-            log.info("영상 분석 정보 조회 완료: apiVideoId={}", apiVideoId);
-            return ResponseEntity.ok(ResponseDto.of(result, "영상 분석 정보 조회 성공"));
+        VideoAnalysisResponse result = videoDetailService.getVideoAnalysis(apiVideoId);
 
-        } catch (IllegalArgumentException e) {
-            log.warn("잘못된 요청: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ResponseDto.of(e.getMessage()));
-
-        } catch (Exception e) {
-            log.error("영상 분석 정보 조회 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("영상 분석 정보 조회 중 오류가 발생했습니다."));
-        }
+        log.info("영상 분석 정보 조회 완료: apiVideoId={}", apiVideoId);
+        return ResponseEntity.ok(ResponseDto.of(result, "영상 분석 정보 조회 성공"));
     }
 
     /**
@@ -82,23 +62,13 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
     @GetMapping("/{apiVideoId}/comments/all")
     public ResponseEntity<ResponseDto<List<DetailCommentDto>>> getVideoComments(
             @PathVariable String apiVideoId) {
-        try {
-            log.info("전체 댓글 조회 요청: apiVideoId={}", apiVideoId);
 
-            List<DetailCommentDto> result = videoDetailService.getVideoComments(apiVideoId);
+        log.info("전체 댓글 조회 요청: apiVideoId={}", apiVideoId);
 
-            log.info("전체 댓글 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, result.size());
-            return ResponseEntity.ok(ResponseDto.of(result, "전체 댓글 조회 성공"));
+        List<DetailCommentDto> result = videoDetailService.getVideoComments(apiVideoId);
 
-        } catch (IllegalArgumentException e) {
-            log.warn("잘못된 요청: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ResponseDto.of(e.getMessage()));
-
-        } catch (Exception e) {
-            log.error("전체 댓글 조회 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("전체 댓글 조회 중 오류가 발생했습니다."));
-        }
+        log.info("전체 댓글 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, result.size());
+        return ResponseEntity.ok(ResponseDto.of(result, "전체 댓글 조회 성공"));
     }
 
     /**
@@ -111,23 +81,13 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
     @GetMapping("/{apiVideoId}/ai")
     public ResponseEntity<ResponseDto<AIAnalysisResponse>> getAIAnalysis(
             @PathVariable String apiVideoId) {
-        try {
-            log.info("AI 분석 결과 조회 요청: apiVideoId={}", apiVideoId);
 
-            AIAnalysisResponse result = videoDetailService.getAIAnalysis(apiVideoId);
+        log.info("AI 분석 결과 조회 요청: apiVideoId={}", apiVideoId);
 
-            log.info("AI 분석 결과 조회 완료: apiVideoId={}", apiVideoId);
-            return ResponseEntity.ok(ResponseDto.of(result, "AI 분석 결과 조회 성공"));
+        AIAnalysisResponse result = videoDetailService.getAIAnalysis(apiVideoId);
 
-        } catch (IllegalArgumentException e) {
-            log.warn("잘못된 요청: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ResponseDto.of(e.getMessage()));
-
-        } catch (Exception e) {
-            log.error("AI 분석 결과 조회 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("AI 분석 결과 조회 중 오류가 발생했습니다."));
-        }
+        log.info("AI 분석 결과 조회 완료: apiVideoId={}", apiVideoId);
+        return ResponseEntity.ok(ResponseDto.of(result, "AI 분석 결과 조회 성공"));
     }
 
     /**
@@ -141,23 +101,11 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
             @PathVariable String apiVideoId) {
 
         log.warn("Deprecated API 호출: GET /api/videos/{} - 새로운 분리된 API 사용을 권장합니다.", apiVideoId);
+        log.info("비디오 상세 정보 요청: apiVideoId={}", apiVideoId);
 
-        try {
-            log.info("비디오 상세 정보 요청: apiVideoId={}", apiVideoId);
+        DetailPageResponse result = videoDetailService.getVideoDetail(token, apiVideoId);
 
-            DetailPageResponse result = videoDetailService.getVideoDetail(token, apiVideoId);
-
-            log.info("비디오 상세 정보 조회 완료: apiVideoId={}", apiVideoId);
-            return ResponseEntity.ok(ResponseDto.of(result, "비디오 상세 정보 조회 성공 (Deprecated)"));
-
-        } catch (IllegalArgumentException e) {
-            log.warn("잘못된 요청: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ResponseDto.of(e.getMessage()));
-
-        } catch (Exception e) {
-            log.error("비디오 상세 정보 조회 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage(), e);
-            return ResponseEntity.internalServerError()
-                    .body(ResponseDto.of("비디오 상세 정보 조회 중 오류가 발생했습니다."));
-        }
+        log.info("비디오 상세 정보 조회 완료: apiVideoId={}", apiVideoId);
+        return ResponseEntity.ok(ResponseDto.of(result, "비디오 상세 정보 조회 성공 (Deprecated)"));
     }
 }
