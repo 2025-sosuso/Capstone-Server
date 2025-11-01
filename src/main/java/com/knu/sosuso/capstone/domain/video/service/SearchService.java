@@ -1,9 +1,12 @@
 package com.knu.sosuso.capstone.domain.video.service;
 
-import com.knu.sosuso.capstone.domain.channel.ChannelService;
+import com.knu.sosuso.capstone.domain.channel.service.ChannelService;
 import com.knu.sosuso.capstone.domain.channel.dto.response.ChannelSearchResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.SearchApiResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoIdResponse;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.SearchError;
+import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +30,7 @@ public class SearchService {
     @Transactional
     public SearchApiResponse<?> search(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
-            throw new IllegalArgumentException("검색어는 필수입니다");
+            throw new BusinessException(SearchError.SEARCH_QUERY_REQUIRED);
         }
 
         String trimmedQuery = query.trim();
@@ -39,7 +42,7 @@ public class SearchService {
                 String apiVideoId = videoService.extractVideoId(trimmedQuery);
 
                 if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
-                    throw new IllegalArgumentException("유효하지 않은 YouTube URL입니다");
+                    throw new BusinessException(VideoError.INVALID_YOUTUBE_URL);
                 }
 
                 log.info("영상 ID 추출 완료: apiVideoId={}", apiVideoId);
@@ -53,9 +56,13 @@ public class SearchService {
                 ChannelSearchResponse channelSearchResult = channelService.searchChannels(token, query);
                 return new SearchApiResponse<>("CHANNEL", channelSearchResult.results());
             }
+
+        } catch (BusinessException e) {
+            throw e;
+
         } catch (Exception e) {
             log.error("검색 실패: query={}, error={}", trimmedQuery, e.getMessage(), e);
-            throw e;
+            throw new BusinessException(SearchError.SEARCH_ERROR);
         }
     }
 

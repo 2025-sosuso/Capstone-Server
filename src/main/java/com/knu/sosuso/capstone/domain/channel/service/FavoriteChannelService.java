@@ -11,11 +11,11 @@ import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteVideoInfoResp
 import com.knu.sosuso.capstone.domain.channel.dto.response.RegisterFavoriteChannelResponse;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.AuthenticationError;
+import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.FavoriteChannelError;
 import com.knu.sosuso.capstone.domain.channel.repository.FavoriteChannelRepository;
 import com.knu.sosuso.capstone.domain.auth.UserRepository;
 import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
-import com.knu.sosuso.capstone.domain.channel.ChannelService;
 import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,7 +46,8 @@ public class FavoriteChannelService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(AuthenticationError.USER_NOT_FOUND));
 
-        boolean existsFavoriteChannel = favoriteChannelRepository.existsByUserIdAndApiChannelId(userId, registerFavoriteChannelRequest.apiChannelId());
+        boolean existsFavoriteChannel = favoriteChannelRepository.existsByUserIdAndApiChannelId(
+                userId, registerFavoriteChannelRequest.apiChannelId());
         if (existsFavoriteChannel) {
             throw new BusinessException(FavoriteChannelError.FAVORITE_CHANNEL_ALREADY_EXISTS);
         }
@@ -110,17 +111,11 @@ public class FavoriteChannelService {
     }
 
     @Transactional
-    public FavoriteVideoInfoResponse processLatestVideoFromFavoriteChannel(String token, String apiChannelId){
-
+    public FavoriteVideoInfoResponse processLatestVideoFromFavoriteChannel(String token, String apiChannelId) {
         String latestApiVideoId = channelService.getlatestApiVideoId(apiChannelId);
-
         DetailPageResponse response = videoProcessingService.processVideoToSearchResult(token, latestApiVideoId, true);
-
         return convertToVideoSummaryFavoriteResponse(response);
     }
-
-
-
 
     public FavoriteVideoInfoResponse convertToVideoSummaryFavoriteResponse(DetailPageResponse detailResponse) {
         try {
@@ -128,7 +123,6 @@ public class FavoriteChannelService {
             var channel = detailResponse.channel();
             var analysis = detailResponse.analysis();
 
-            // 하위 객체 생성
             FavoriteVideoInfoResponse.Video videoDto = new FavoriteVideoInfoResponse.Video(
                     video.id(),
                     video.title(),
@@ -150,10 +144,12 @@ public class FavoriteChannelService {
             FavoriteVideoInfoResponse.SentimentDistribution sentimentDto = null;
             if (analysis != null && analysis.sentimentDistribution() != null) {
                 var s = analysis.sentimentDistribution();
-                sentimentDto = new FavoriteVideoInfoResponse.SentimentDistribution(s.positive(), s.negative(), s.other());
+                sentimentDto = new FavoriteVideoInfoResponse.SentimentDistribution(
+                        s.positive(), s.negative(), s.other());
             }
 
-            List<String> keywords = (analysis != null && analysis.keywords() != null) ? analysis.keywords() : List.of();
+            List<String> keywords = (analysis != null && analysis.keywords() != null)
+                    ? analysis.keywords() : List.of();
             String summary = (analysis != null) ? analysis.summary() : null;
 
             List<DetailCommentDto> topComments = List.of();
@@ -172,7 +168,7 @@ public class FavoriteChannelService {
 
         } catch (Exception e) {
             log.error("VideoSummaryResponse 변환 실패: error={}", e.getMessage(), e);
-            throw new RuntimeException("응답 변환 중 오류 발생", e);
+            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
         }
     }
 }

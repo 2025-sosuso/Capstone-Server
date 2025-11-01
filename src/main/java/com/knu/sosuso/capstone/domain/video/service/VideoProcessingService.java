@@ -14,6 +14,8 @@ import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.AppConfig;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -44,7 +46,7 @@ public class VideoProcessingService {
     public DetailPageResponse processVideoToSearchResult(String token, String apiVideoId,
                                                          boolean enableAIAnalysis) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
-            throw new IllegalArgumentException("비디오 ID는 필수입니다.");
+            throw new BusinessException(VideoError.VIDEO_ID_REQUIRED);
         }
 
         try {
@@ -80,7 +82,7 @@ public class VideoProcessingService {
                 existingVideo.setDeleteCheckedAt(LocalDateTime.now());
                 videoRepository.save(existingVideo);
 
-                throw new IllegalArgumentException("이 영상은 삭제되었거나 비공개 처리되었습니다.");
+                throw new BusinessException(VideoError.VIDEO_DELETED);
             }
 
             existingVideo.setDeleteCheckedAt(LocalDateTime.now());
@@ -237,7 +239,7 @@ public class VideoProcessingService {
 
             // 처리 중 플래그 세팅
             Video video = videoRepository.findById(videoId)
-                    .orElseThrow(() -> new RuntimeException("비디오를 찾을 수 없습니다"));
+                    .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
             video.setAiProcessing(true);
             video.setLastAiAttemptAt(LocalDateTime.now());

@@ -7,6 +7,9 @@ import com.knu.sosuso.capstone.domain.conmment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentResponse;
 import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.CommentError;
+import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +30,7 @@ public class CommentQueryService {
     public CommentResponse searchComments(String apiVideoId, String q, String keyword, String sentiment) {
         // 비디오 존재 확인
         Video video = videoRepository.findByApiVideoId(apiVideoId)
-                .orElseThrow(() -> new IllegalArgumentException("비디오를 찾을 수 없습니다: " + apiVideoId));
+                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
         List<Comment> comments;
 
@@ -46,7 +49,7 @@ public class CommentQueryService {
             comments = commentRepository.findByVideoIdAndSentimentTypeOrderById(video.getId(), sentimentType);
 
         } else {
-            throw new IllegalArgumentException("검색 조건이 필요합니다.");
+            throw new BusinessException(CommentError.COMMENT_SEARCH_CONDITION_REQUIRED);
         }
 
         // DTO 변환
@@ -69,7 +72,7 @@ public class CommentQueryService {
         try {
             return SentimentType.valueOf(sentiment.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("유효하지 않은 감정 타입입니다: " + sentiment);
+            throw new BusinessException(CommentError.INVALID_SENTIMENT_TYPE);
         }
     }
 }

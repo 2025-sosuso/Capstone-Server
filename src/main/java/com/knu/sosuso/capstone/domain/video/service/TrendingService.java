@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
+import com.knu.sosuso.capstone.global.exception.BusinessException;
+import com.knu.sosuso.capstone.global.exception.error.TrendingError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -66,10 +68,13 @@ public class TrendingService {
                     videoIds.size(), results.size());
             return results;
 
+        } catch (BusinessException e) {
+            throw e;
+
         } catch (Exception e) {
             log.error("인기급상승 영상 조회 실패: categoryType={}, error={}",
                     categoryType, e.getMessage(), e);
-            throw new RuntimeException("인기급상승 영상 조회 중 오류 발생", e);
+            throw new BusinessException(TrendingError.TRENDING_PROCESSING_ERROR);
         }
     }
 
@@ -78,7 +83,7 @@ public class TrendingService {
             case "latest" -> "0";
             case "music" -> "10";
             case "game" -> "20";
-            default -> throw new IllegalArgumentException("지원하지 않는 카테고리입니다: " + categoryType);
+            default -> throw new BusinessException(TrendingError.UNSUPPORTED_CATEGORY);
         };
     }
 
@@ -104,9 +109,10 @@ public class TrendingService {
 
             log.info("인기급상승 비디오 ID 조회 완료: 개수={}", videoIds.size());
             return videoIds;
+
         } catch (Exception e) {
             log.error("인기급상승 비디오 ID 조회 실패: categoryId={}, error={}", categoryId, e.getMessage(), e);
-            throw new RuntimeException("인기급상승 목록을 가져올 수 없습니다", e);
+            throw new BusinessException(TrendingError.TRENDING_FETCH_ERROR);
         }
     }
 
@@ -122,5 +128,4 @@ public class TrendingService {
 
         return builder.build(false).toUriString();
     }
-
 }

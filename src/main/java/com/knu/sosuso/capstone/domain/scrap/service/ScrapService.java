@@ -10,6 +10,7 @@ import com.knu.sosuso.capstone.domain.scrap.dto.response.CreateScrapResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.AuthenticationError;
+import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.ScrapError;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import com.knu.sosuso.capstone.domain.scrap.repository.ScrapRepository;
@@ -159,7 +160,7 @@ public class ScrapService {
             throw e;
         } catch (Exception e) {
             log.error("스크랩 영상 조회 실패: error={}", e.getMessage(), e);
-            throw new RuntimeException("스크랩 영상 조회 중 오류 발생", e);
+            throw new BusinessException(CommonError.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -260,7 +261,7 @@ public class ScrapService {
         } catch (Exception e) {
             log.error("VideoSummaryResponse 변환 실패: videoId={}, error={}",
                     video.getId(), e.getMessage(), e);
-            throw new RuntimeException("영상 응답 변환 중 오류 발생", e);
+            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
         }
     }
 
