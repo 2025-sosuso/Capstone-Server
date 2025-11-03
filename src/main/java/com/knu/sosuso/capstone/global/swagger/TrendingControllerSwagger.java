@@ -1,5 +1,6 @@
 package com.knu.sosuso.capstone.global.swagger;
 
+import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse; // import 추가
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.global.exception.ErrorResponse;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode400;
@@ -17,152 +18,100 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.List; // import 추가
+
 @Tag(
-        name = "인기급상승 영상 API",
-        description = "YouTube 인기급상승 영상 조회 API입니다. " +
-                "카테고리별 인기급상승 영상을 댓글 분석과 함께 제공합니다. " +
-                "로그인한 사용자는 스크랩/관심채널 정보가 추가로 포함됩니다."
+        name = "인기 영상 API",
+        description = "자체 알고리즘 기반 인기 영상 조회 API입니다. " +
+                "최근 N일간(설정값 기준) 검색/조회 횟수와 스크랩 횟수를 기반으로 인기 영상을 선정합니다. " +
+                "매 시간마다 자동으로 업데이트됩니다."
 )
 public interface TrendingControllerSwagger {
     @Operation(
-            summary = "카테고리별 인기급상승 영상 조회",
-            description = "지정된 카테고리의 인기급상승 YouTube 영상을 조회합니다.\n\n" +
-                    "**지원 카테고리:**\n" +
-                    "- `latest`: 전체 카테고리 (기본값)\n" +
-                    "- `music`: 음악\n" +
-                    "- `game`: 게임\n\n" +
+            summary = "자체 알고리즘 기반 인기 영상 조회",
+            description = "우리 서비스의 검색/조회 + 스크랩 데이터를 기반으로 인기 영상 TOP N을 조회합니다.\n\n" +
+                    "**인기도 점수 계산 방식 (AppConfig 설정 기반):**\n" + // 설명 수정
+                    "- 점수 = (최근 N일간 조회수 × 조회 가중치) + (전체 스크랩 횟수 × 스크랩 가중치)\n" +
+                    "- 조회: URL 검색 + 상세 페이지 조회\n" +
+                    "- 스크랩: 실제 저장 행동으로 더 높은 가중치 부여\n\n" +
+                    "**업데이트 주기:**\n" +
+                    "- 매 시간 정각에 자동으로 점수 재계산\n" +
+                    "- 실시간성 있는 인기 영상 반영\n\n" +
                     "**제공 정보:**\n" +
                     "- 영상 기본 정보 (제목, 설명, 조회수, 좋아요 등)\n" +
-                    "- 채널 정보 (채널명, 구독자 수 등)\n" +
-                    "- 댓글 분석 결과 (감정 분석, 언어 분포, 인기 타임스탬프 등)\n" +
-                    "- AI 요약 및 키워드\n\n" +
-                    "**로그인 사용자 혜택:**\n" +
-                    "- 스크랩 여부 및 스크랩 ID 정보 제공\n" +
-                    "- 관심 채널 여부 및 관심 채널 ID 정보 제공\n\n" +
-                    "**지역 설정:** 한국(KR) 기준으로 고정되어 있습니다.",
+                    "- 채널 정보 (채널명, 구독자 수)\n" +
+                    "- AI 분석 결과 (요약, 감정 분포, 키워드)",
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "인기급상승 영상 조회 성공",
+                            description = "인기 영상 조회 성공",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = ResponseDto.class),
                                     examples = {
                                             @ExampleObject(
-                                                    name = "인기급상승 영상 조회 성공 (로그인)",
-                                                    summary = "로그인한 사용자의 인기급상승 영상 조회 결과",
+                                                    name = "인기 영상 조회 성공",
+                                                    summary = "인기 영상 조회 결과",
                                                     value = """
                                                             {
-                                                              "timeStamp": "2025-06-09T15:30:00",
-                                                              "message": "인기급상승 영상 조회 성공",
+                                                              "timeStamp": "2025-11-02T15:30:00",
+                                                              "message": "인기 영상 조회 성공",
                                                               "data": [
                                                                 {
                                                                   "video": {
                                                                     "id": "abc123xyz",
-                                                                    "title": "최신 인기 영상 제목",
-                                                                    "description": "영상 설명...",
-                                                                    "publishedAt": "2025-06-08T12:00:00Z",
+                                                                    "title": "최고 인기 영상 제목",
+                                                                    "description": "영상 설명입니다...",
+                                                                    "publishedAt": "2025-10-28T12:00:00Z",
                                                                     "thumbnailUrl": "https://i.ytimg.com/vi/abc123xyz/maxresdefault.jpg",
-                                                                    "viewCount": 1500000,
-                                                                    "likeCount": 85000,
-                                                                    "commentCount": 12500,
-                                                                    "scrapId": 789
+                                                                    "viewCount": 2500000,
+                                                                    "likeCount": 125000,
+                                                                    "commentCount": 18500
                                                                   },
                                                                   "channel": {
                                                                     "id": "UC_channel_id",
                                                                     "title": "인기 채널",
-                                                                    "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                                    "subscriberCount": 2500000,
-                                                                    "favoriteChannelId": 101
+                                                                    "thumbnailUrl": "https://yt3.ggpht.com/channel-thumbnail.jpg",
+                                                                    "subscriberCount": 3500000
                                                                   },
                                                                   "analysis": {
-                                                                    "summary": "이 영상은 최근 화제가 된...",
-                                                                    "isWarning": false,
-                                                                    "topComments": [
-                                                                      {
-                                                                        "id": "trending_comment1",
-                                                                        "author": "TrendUser",
-                                                                        "text": "최고의 영상!",
-                                                                        "likeCount": 200,
-                                                                        "sentiment": "POSITIVE",
-                                                                        "publishedAt": "2025-06-08T15:00:00Z"
-                                                                      }
-                                                                    ],
-                                                                    "languageDistribution": [
-                                                                      {
-                                                                        "language": "ko",
-                                                                        "ratio": 0.9
-                                                                      },
-                                                                      {
-                                                                        "language": "en",
-                                                                        "ratio": 0.1
-                                                                      }
-                                                                    ],
+                                                                    "summary": "이 영상은 최근 우리 서비스에서 가장 많이 검색되고 스크랩된 영상입니다. AI 분석 결과 긍정적인 반응이 많으며...",
+                                                                    "sentimentDistribution": {
+                                                                      "positive": 0.82,
+                                                                      "negative": 0.10,
+                                                                      "other": 0.08
+                                                                    },
+                                                                    "keywords": ["인기", "트렌드", "화제", "추천", "유익함"]
+                                                                  }
+                                                                },
+                                                                {
+                                                                  "video": {
+                                                                    "id": "def456uvw",
+                                                                    "title": "두 번째 인기 영상",
+                                                                    "description": "이 영상도 많이 검색되었습니다...",
+                                                                    "publishedAt": "2025-10-30T18:30:00Z",
+                                                                    "thumbnailUrl": "https://i.ytimg.com/vi/def456uvw/maxresdefault.jpg",
+                                                                    "viewCount": 1800000,
+                                                                    "likeCount": 85000,
+                                                                    "commentCount": 12500
+                                                                  },
+                                                                  "channel": {
+                                                                    "id": "UC_popular_channel",
+                                                                    "title": "인기 채널 2",
+                                                                    "thumbnailUrl": "https://yt3.ggpht.com/channel2-thumbnail.jpg",
+                                                                    "subscriberCount": 2200000
+                                                                  },
+                                                                  "analysis": {
+                                                                    "summary": "이 영상은 댓글 분석 결과 긍정적 반응이 많은 영상입니다...",
                                                                     "sentimentDistribution": {
                                                                       "positive": 0.75,
                                                                       "negative": 0.15,
                                                                       "other": 0.10
                                                                     },
-                                                                    "popularTimestamps": [
-                                                                      {
-                                                                        "time": "2:15",
-                                                                        "mentionCount": 80
-                                                                      }
-                                                                    ],
-                                                                    "commentHistogram": [
-                                                                      {
-                                                                        "hour": "15",
-                                                                        "count": 300
-                                                                      }
-                                                                    ],
-                                                                    "keywords": ["키워드1", "키워드2", "키워드3"]
-                                                                  },
-                                                                  "comments": [
-                                                                    {
-                                                                      "id": "trending_comment1",
-                                                                      "author": "TrendUser",
-                                                                      "text": "정말 재미있는 영상이네요!",
-                                                                      "likeCount": 200,
-                                                                      "sentiment": "POSITIVE",
-                                                                      "publishedAt": "2025-06-08T15:00:00Z"
-                                                                    }
-                                                                  ]
+                                                                    "keywords": ["유익", "정보", "도움", "좋아요", "최고"]
+                                                                  }
                                                                 }
                                                               ]
-                                                            }
-                                                            """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "인기급상승 영상 조회 성공 (비로그인)",
-                                                    summary = "비로그인 사용자의 인기급상승 영상 조회 결과",
-                                                    value = """
-                                                            {
-                                                                "timeStamp": "2025-06-09T15:30:00",
-                                                                "message": "인기급상승 영상 조회 성공",
-                                                                "data": [
-                                                                    {
-                                                                        "video": {
-                                                                            "id": "def456uvw",
-                                                                            "title": "게임 인기 영상",
-                                                                            "description": "최신 게임 플레이...",
-                                                                            "publishedAt": "2025-06-08T18:30:00Z",
-                                                                            "thumbnailUrl": "https://i.ytimg.com/vi/def456uvw/maxresdefault.jpg",
-                                                                            "viewCount": 980000,
-                                                                            "likeCount": 45000,
-                                                                            "commentCount": 8500,
-                                                                            "scrapId": null
-                                                                        },
-                                                                        "channel": {
-                                                                            "id": "UC_game_channel",
-                                                                            "title": "게임 채널",
-                                                                            "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                                            "subscriberCount": 1200000,
-                                                                            "favoriteChannelId": null
-                                                                        },
-                                                                        "analysis": {...},
-                                                                        "comments": [...]
-                                                                    }
-                                                                ]
                                                             }
                                                             """
                                             )
@@ -171,35 +120,35 @@ public interface TrendingControllerSwagger {
                     ),
                     @ApiResponse(
                             responseCode = "400",
-                            description = "잘못된 요청 - 지원하지 않는 카테고리 또는 잘못된 maxResults",
+                            description = "잘못된 요청 - 잘못된 maxResults 값",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = @ExampleObject(
-                                            name = "잘못된 카테고리 에러",
+                                            name = "잘못된 파라미터 에러",
                                             value = """
                                                     {
                                                         "httpStatus": "BAD_REQUEST",
-                                                        "message": "잘못된 요청: 지원하지 않는 카테고리입니다: invalid_category",
-                                                        "timeStamp": "2025-06-09T15:30:00"
+                                                        "message": "잘못된 요청: maxResults는 1 이상 30 이하여야 합니다",
+                                                        "timeStamp": "2025-11-02T15:30:00"
                                                     }
                                                     """
                                     )
                             )
                     ),
                     @ApiResponse(
-                            responseCode = "503",
-                            description = "YouTube API 서비스 이용 불가",
+                            responseCode = "500",
+                            description = "서버 내부 오류",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorResponse.class),
                                     examples = @ExampleObject(
-                                            name = "YouTube API 오류",
+                                            name = "서버 오류",
                                             value = """
                                                     {
-                                                        "httpStatus": "SERVICE_UNAVAILABLE",
-                                                        "message": "YouTube API에 접근할 수 없습니다",
-                                                        "timeStamp": "2025-06-09T15:30:00"
+                                                        "httpStatus": "INTERNAL_SERVER_ERROR",
+                                                        "message": "인기 영상 조회 중 오류가 발생했습니다",
+                                                        "timeStamp": "2025-11-02T15:30:00"
                                                     }
                                                     """
                                     )
@@ -217,40 +166,23 @@ public interface TrendingControllerSwagger {
                     example = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
             ),
             @Parameter(
-                    name = "categoryType",
-                    description = "인기급상승 영상 카테고리",
-                    required = false,
-                    in = ParameterIn.QUERY,
-                    schema = @Schema(
-                            type = "string",
-                            allowableValues = {"latest", "music", "game"},
-                            defaultValue = "latest"
-                    ),
-                    examples = {
-                            @ExampleObject(name = "전체 카테고리", value = "latest"),
-                            @ExampleObject(name = "음악", value = "music"),
-                            @ExampleObject(name = "게임", value = "game")
-                    }
-            ),
-            @Parameter(
                     name = "maxResults",
-                    description = "조회할 영상 개수 (최대 30개)",
+                    description = "조회할 인기 영상 개수 (최대 30개, 기본값 10개)",
                     required = false,
                     in = ParameterIn.QUERY,
                     schema = @Schema(
                             type = "integer",
                             minimum = "1",
                             maximum = "30",
-                            defaultValue = "5"
+                            defaultValue = "10"
                     ),
-                    example = "5"
+                    example = "10"
             )
     })
     @ErrorCode400
     @ErrorCode500
-    ResponseEntity<?> getByCategory(
+    ResponseEntity<ResponseDto<List<VideoSummaryResponse>>> getPopularVideos(
             @CookieValue(value = "Authorization", required = false) String token,
-            @RequestParam(defaultValue = "latest") String categoryType,
-            @RequestParam(defaultValue = "5") int maxResults
+            @RequestParam(defaultValue = "10") int maxResults
     );
 }
