@@ -1,6 +1,9 @@
 package com.knu.sosuso.capstone.global.config;
 
+import com.knu.sosuso.capstone.domain.video.service.popularity.BasicPopularityStrategy;
+import com.knu.sosuso.capstone.domain.video.service.popularity.PopularityScoreStrategy;
 import lombok.Getter;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -36,6 +39,23 @@ public class AppConfig {
      */
     private final int aiRetryCooldownMinutes = 5;
 
+    // ========== 인기도 계산 설정 ==========
+
+    /**
+     * 조회 로그 보관 기간 (일)
+     */
+    private final int popularityRetentionDays = 7;
+
+    /**
+     * 기본 전략: 조회수 가중치
+     */
+    private final double popularityViewWeight = 1.0;
+
+    /**
+     * 기본 전략: 스크랩 가중치
+     */
+    private final double popularityScrapWeight = 3.0;
+
     // ========== 댓글 관련 설정 ==========
 
     /**
@@ -65,4 +85,18 @@ public class AppConfig {
      * 비디오 처리 스레드풀 - 큐 크기
      */
     private final int videoProcessingQueueCapacity = 50;
+
+
+    /**
+     * 인기도 계산 전략 Bean 등록 (추가된 부분)
+     * @return "basicStrategy"라는 이름의 Bean
+     */
+    @Bean("basicStrategy")
+    public PopularityScoreStrategy basicPopularityStrategy() {
+        // AppConfig가 가진 설정값을 생성자로 주입
+        return new BasicPopularityStrategy(
+                popularityViewWeight,
+                popularityScrapWeight
+        );
+    }
 }
