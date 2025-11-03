@@ -29,4 +29,14 @@ public interface ScrapRepository extends JpaRepository<Scrap, Long> {
     @Query("DELETE FROM Scrap s WHERE s.video.id = :videoId")
     int deleteByVideoId(@Param("videoId") Long videoId);
 
+    /**
+     * 영상별 스크랩 횟수 집계
+     */
+    @Query("""
+        SELECT s.apiVideoId, COUNT(s) as scrapCount
+        FROM Scrap s
+        GROUP BY s.apiVideoId
+        """)
+    List<Object[]> countScrapsByVideo();
+
 }
