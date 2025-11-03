@@ -2,7 +2,9 @@ package com.knu.sosuso.capstone.domain.detail.controller;
 
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.detail.service.VideoDetailService;
+import com.knu.sosuso.capstone.domain.video.service.VideoViewLogService;
 import com.knu.sosuso.capstone.global.ResponseDto;
+import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
 import com.knu.sosuso.capstone.global.swagger.VideoDetailControllerSwagger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,8 @@ import java.util.List;
 public class VideoDetailController implements VideoDetailControllerSwagger {
 
     private final VideoDetailService videoDetailService;
+    private final VideoViewLogService viewLogService;
+    private final JwtUtil jwtUtil;
 
     /**
      * 영상 기본 정보 조회
@@ -30,6 +34,15 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
             @PathVariable String apiVideoId) {
 
         log.info("영상 기본 정보 조회 요청: apiVideoId={}", apiVideoId);
+
+        // 조회 로그 저장
+        try {
+            Long userId = extractUserId(token);
+            viewLogService.logVideoView(apiVideoId, userId);
+            log.debug("영상 조회 로그 저장: apiVideoId={}", apiVideoId);
+        } catch (Exception e) {
+            log.warn("조회 로그 저장 실패: {}", e.getMessage());
+        }
 
         VideoBasicResponse result = videoDetailService.getVideoBasic(token, apiVideoId);
 
@@ -107,5 +120,15 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
 
         log.info("비디오 상세 정보 조회 완료: apiVideoId={}", apiVideoId);
         return ResponseEntity.ok(ResponseDto.of(result, "비디오 상세 정보 조회 성공 (Deprecated)"));
+    }
+
+    /**
+     * 토큰에서 userId 추출
+     */
+    private Long extractUserId(String token) {
+        if (token == null || !jwtUtil.isValidToken(token)) {
+            return null;
+        }
+        return jwtUtil.getUserId(token);
     }
 }
