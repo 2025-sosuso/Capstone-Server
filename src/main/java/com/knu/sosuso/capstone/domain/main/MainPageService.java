@@ -7,10 +7,9 @@ import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteChannelListResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
-import com.knu.sosuso.capstone.global.exception.error.AuthenticationError;
 import com.knu.sosuso.capstone.domain.channel.repository.FavoriteChannelRepository;
 import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
-import com.knu.sosuso.capstone.domain.video.service.TrendingService;
+import com.knu.sosuso.capstone.domain.video.service.PopularVideoService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,7 +27,7 @@ import java.util.Optional;
 public class MainPageService {
 
     private final FavoriteChannelService favoriteChannelService;
-    private final TrendingService trendingService;
+    private final PopularVideoService popularVideoService;
     private final ScrapService scrapService;
     private final FavoriteChannelRepository favoriteChannelRepository;
     private final JwtUtil jwtUtil;
@@ -103,26 +102,27 @@ public class MainPageService {
     }
 
     /**
-     * 인기 급상승 섹션 데이터 조회 (최대 3개)
+     * 인기 영상 섹션 데이터 조회 (최대 3개)
+     * - 자체 알고리즘 기반 (검색/조회 + 스크랩 데이터)
      * - 인증 불필요, 모든 사용자에게 동일하게 제공
      */
     @Transactional
     public List<VideoSummaryResponse> getTrendingVideos(String token) {
-        log.info("인기 급상승 섹션 데이터 조회 시작");
+        log.info("인기 영상 섹션 데이터 조회 시작");
 
         try {
-            List<VideoSummaryResponse> trendingVideos =
-                    trendingService.getTrendingVideoWithComments(token, "latest", 3);
+            List<VideoSummaryResponse> popularVideos =
+                    popularVideoService.getPopularVideos(token, 3);
 
-            log.info("인기 급상승 섹션 조회 완료: 영상 수={}", trendingVideos.size());
-            return trendingVideos;
+            log.info("인기 영상 섹션 조회 완료: 영상 수={}", popularVideos.size());
+            return popularVideos;
 
         } catch (BusinessException e) {
-            log.error("인기 급상승 섹션 조회 비즈니스 예외: {}", e.getMessage());
+            log.error("인기 영상 섹션 조회 비즈니스 예외: {}", e.getMessage());
             throw e;
 
         } catch (Exception e) {
-            log.error("인기 급상승 섹션 조회 실패: {}", e.getMessage(), e);
+            log.error("인기 영상 섹션 조회 실패: {}", e.getMessage(), e);
             return new ArrayList<>(); // 실패해도 빈 리스트 반환하여 다른 섹션에 영향 없도록
         }
     }
