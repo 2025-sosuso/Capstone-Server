@@ -1,7 +1,7 @@
 package com.knu.sosuso.capstone.global.swagger;
 
 import com.knu.sosuso.capstone.global.ResponseDto;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentResponse;
+import com.knu.sosuso.capstone.domain.comment.dto.response.CommentResponse;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode400;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode500;
 import io.swagger.v3.oas.annotations.Operation;

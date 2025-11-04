@@ -1,11 +1,9 @@
-package com.knu.sosuso.capstone.domain.conmment.dto;
+package com.knu.sosuso.capstone.domain.comment.dto;
 
-public record CommentDto(
+public record ReplyDto(
         String id,
         String author,
         String text,
         Integer likeCount,
-        String sentiment,
         String publishedAt
-) {
-}
+) {}

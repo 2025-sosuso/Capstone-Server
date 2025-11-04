@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.domain.conmment.dto.response;
+package com.knu.sosuso.capstone.domain.comment.dto.response;
 
 import java.util.List;
 import java.util.Map;

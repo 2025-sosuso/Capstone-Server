@@ -1,7 +1,7 @@
-package com.knu.sosuso.capstone.domain.conmment.entity;
+package com.knu.sosuso.capstone.domain.comment.entity;
 
 import com.knu.sosuso.capstone.domain.video.entity.Video;
-import com.knu.sosuso.capstone.domain.conmment.entity.value.SentimentType;
+import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import com.knu.sosuso.capstone.global.BaseEntity;
 import jakarta.persistence.*;
 import lombok.Builder;

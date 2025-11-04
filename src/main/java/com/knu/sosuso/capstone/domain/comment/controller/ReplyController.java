@@ -1,9 +1,9 @@
-package com.knu.sosuso.capstone.domain.conmment.controller;
+package com.knu.sosuso.capstone.domain.comment.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knu.sosuso.capstone.domain.conmment.dto.ReplyDto;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.ReplyResponse;
+import com.knu.sosuso.capstone.domain.comment.dto.ReplyDto;
+import com.knu.sosuso.capstone.domain.comment.dto.response.ReplyResponse;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;

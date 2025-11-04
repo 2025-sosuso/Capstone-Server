@@ -1,6 +1,6 @@
 package com.knu.sosuso.capstone.domain.ai.dto;
 
-import com.knu.sosuso.capstone.domain.conmment.entity.value.SentimentType;
+import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 
 import java.util.List;
 import java.util.Map;

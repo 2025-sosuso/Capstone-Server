@@ -1,14 +1,14 @@
-package com.knu.sosuso.capstone.domain.conmment.service;
+package com.knu.sosuso.capstone.domain.comment.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
-import com.knu.sosuso.capstone.domain.conmment.entity.Comment;
+import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse.CommentData;
-import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
+import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
+import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse.CommentData;
+import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommentError;

@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.domain.conmment.entity.value;
+package com.knu.sosuso.capstone.domain.comment.entity.value;
 
 public enum SentimentType {
     POSITIVE,
