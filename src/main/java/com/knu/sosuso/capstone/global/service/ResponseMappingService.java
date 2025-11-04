@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.domain.video.service;
+package com.knu.sosuso.capstone.global.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -9,6 +9,7 @@ import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
+import com.knu.sosuso.capstone.domain.video.service.UserDataService;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import lombok.RequiredArgsConstructor;
