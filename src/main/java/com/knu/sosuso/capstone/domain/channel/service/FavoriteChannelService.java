@@ -3,7 +3,7 @@ package com.knu.sosuso.capstone.domain.channel.service;
 import com.knu.sosuso.capstone.domain.channel.entity.FavoriteChannel;
 import com.knu.sosuso.capstone.domain.auth.User;
 import com.knu.sosuso.capstone.domain.channel.dto.request.RegisterFavoriteChannelRequest;
-import com.knu.sosuso.capstone.domain.detail.dto.DetailCommentDto;
+import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.CancelFavoriteChannelResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteChannelListResponse;
@@ -152,7 +152,7 @@ public class FavoriteChannelService {
                     ? analysis.keywords() : List.of();
             String summary = (analysis != null) ? analysis.summary() : null;
 
-            List<DetailCommentDto> topComments = List.of();
+            List<CommentDto> topComments = List.of();
             if (analysis != null && analysis.topComments() != null) {
                 topComments = analysis.topComments();
             }

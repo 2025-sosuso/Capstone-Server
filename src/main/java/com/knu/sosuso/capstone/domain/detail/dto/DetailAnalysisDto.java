@@ -1,11 +1,13 @@
 package com.knu.sosuso.capstone.domain.detail.dto;
 
+import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
+
 import java.util.List;
 
 public record DetailAnalysisDto(
         String summary,
         Boolean isWarning,
-        List<DetailCommentDto> topComments,
+        List<CommentDto> topComments,
         List<DetailAnalysisDto.LanguageDistribution> languageDistribution,
         DetailAnalysisDto.SentimentDistribution sentimentDistribution,
         List<DetailAnalysisDto.PopularTimestamp> popularTimestamps,

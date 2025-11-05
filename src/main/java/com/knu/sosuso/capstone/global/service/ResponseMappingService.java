@@ -3,6 +3,7 @@ package com.knu.sosuso.capstone.global.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
+import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
@@ -42,7 +43,7 @@ public class ResponseMappingService {
         DetailVideoDto video = mapToVideoResponse(token, videoInfo);
         DetailChannelDto channel = mapToChannelResponse(token, videoInfo);
         DetailAnalysisDto analysis = mapToAnalysisResponse(commentInfo, analysisResponse);
-        List<DetailCommentDto> comments = mapToCommentResponses(commentInfo.allComments(), analysisResponse);
+        List<CommentDto> comments = mapToCommentResponses(commentInfo.allComments(), analysisResponse);
 
         return new DetailPageResponse(video, channel, analysis, comments);
     }
@@ -56,9 +57,9 @@ public class ResponseMappingService {
             DetailVideoDto detailVideoDto = mapDbVideoToVideoResponse(token, video);
             DetailChannelDto detailChannelDto = mapDbVideoToChannelResponse(token, video);
             DetailAnalysisDto detailAnalysisDto = mapDbVideoToAnalysisResponse(video);
-            List<DetailCommentDto> detailCommentDtos = mapDbCommentsToCommentResponses(video.getId());
+            List<CommentDto> commentDtos = mapDbCommentsToCommentResponses(video.getId());
 
-            return new DetailPageResponse(detailVideoDto, detailChannelDto, detailAnalysisDto, detailCommentDtos);
+            return new DetailPageResponse(detailVideoDto, detailChannelDto, detailAnalysisDto, commentDtos);
 
         } catch (Exception e) {
             log.error("DB 데이터 매핑 실패: videoId={}, error={}", video.getId(), e.getMessage());
@@ -301,7 +302,7 @@ public class ResponseMappingService {
     /**
      * 댓글 리스트 변환 (관련도 순서 유지)
      */
-    private List<DetailCommentDto> mapToCommentResponses(
+    private List<CommentDto> mapToCommentResponses(
             List<CommentApiResponse.CommentData> commentDataList,
             AIAnalysisResponse analysisResponse) {
 
@@ -309,7 +310,7 @@ public class ResponseMappingService {
                 commentDataList != null ? commentDataList.size() : 0,
                 analysisResponse != null ? "있음" : "없음");
 
-        List<DetailCommentDto> result = commentDataList.stream()
+        List<CommentDto> result = commentDataList.stream()
                 .map(commentData -> {
                     if (analysisResponse != null) {
                         return mapToCommentResponseWithAI(commentData, analysisResponse);
@@ -326,9 +327,9 @@ public class ResponseMappingService {
     /**
      * DB 댓글을 CommentResponse로 변환
      */
-    private List<DetailCommentDto> mapDbCommentsToCommentResponses(Long videoId) {
+    private List<CommentDto> mapDbCommentsToCommentResponses(Long videoId) {
         return commentRepository.findByVideoIdOrderByIdAsc(videoId).stream()
-                .map(comment -> new DetailCommentDto(
+                .map(comment -> new CommentDto(
                         comment.getApiCommentId(),
                         comment.getWriter(),
                         comment.getCommentContent(),
@@ -342,7 +343,7 @@ public class ResponseMappingService {
     /**
      * AI 분석 결과가 있는 경우 댓글 변환
      */
-    private DetailCommentDto mapToCommentResponseWithAI(
+    private CommentDto mapToCommentResponseWithAI(
             CommentApiResponse.CommentData commentData,
             AIAnalysisResponse analysisResponse) {
         String sentiment = null;
@@ -350,7 +351,7 @@ public class ResponseMappingService {
             sentiment = analysisResponse.sentimentComments().get(commentData.id()).name().toUpperCase();
         }
 
-        return new DetailCommentDto(
+        return new CommentDto(
                 commentData.id(),
                 commentData.authorName(),
                 commentData.commentText(),
@@ -363,8 +364,8 @@ public class ResponseMappingService {
     /**
      * AI 분석 결과가 없는 경우 댓글 변환
      */
-    private DetailCommentDto mapToCommentResponseWithoutAI(CommentApiResponse.CommentData commentData) {
-        return new DetailCommentDto(
+    private CommentDto mapToCommentResponseWithoutAI(CommentApiResponse.CommentData commentData) {
+        return new CommentDto(
                 commentData.id(),
                 commentData.authorName(),
                 commentData.commentText(),
@@ -377,7 +378,7 @@ public class ResponseMappingService {
     /**
      * CommentData에서 좋아요 TOP 5 댓글 추출
      */
-    private List<DetailCommentDto> mapToTopCommentsFromCommentData(
+    private List<CommentDto> mapToTopCommentsFromCommentData(
             List<CommentApiResponse.CommentData> commentDataList,
             AIAnalysisResponse analysisResponse) {
 
@@ -398,7 +399,7 @@ public class ResponseMappingService {
      * DB에서 좋아요 TOP 5 댓글 추출
      */
     @Transactional
-    public List<DetailCommentDto> mapToTopCommentsFromDb(Long videoId) {
+    public List<CommentDto> mapToTopCommentsFromDb(Long videoId) {
         return mapDbCommentsToCommentResponses(videoId).stream()
                 .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
                 .limit(5)

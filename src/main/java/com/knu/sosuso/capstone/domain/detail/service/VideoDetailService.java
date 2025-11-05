@@ -2,6 +2,7 @@ package com.knu.sosuso.capstone.domain.detail.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
@@ -110,11 +111,11 @@ public class VideoDetailService {
                         .collect(Collectors.toList());
 
         // TOP 5 댓글
-        List<DetailCommentDto> topComments = commentRepository
+        List<CommentDto> topComments = commentRepository
                 .findByVideoIdOrderByLikeCountDesc(video.getId())
                 .stream()
                 .limit(5)
-                .map(c -> new DetailCommentDto(
+                .map(c -> new CommentDto(
                         c.getApiCommentId(),
                         c.getWriter(),
                         c.getCommentContent(),
@@ -132,15 +133,15 @@ public class VideoDetailService {
      * 전체 댓글 조회
      */
     @Transactional(readOnly = true)
-    public List<DetailCommentDto> getVideoComments(String apiVideoId) {
+    public List<CommentDto> getVideoComments(String apiVideoId) {
         log.info("전체 댓글 조회: apiVideoId={}", apiVideoId);
 
         Video video = videoRepository.findByApiVideoId(apiVideoId)
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
-        List<DetailCommentDto> comments = commentRepository.findByVideoIdOrderByIdAsc(video.getId())
+        List<CommentDto> comments = commentRepository.findByVideoIdOrderByIdAsc(video.getId())
                 .stream()
-                .map(c -> new DetailCommentDto(
+                .map(c -> new CommentDto(
                         c.getApiCommentId(),
                         c.getWriter(),
                         c.getCommentContent(),

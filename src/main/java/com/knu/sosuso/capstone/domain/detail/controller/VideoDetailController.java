@@ -1,5 +1,6 @@
 package com.knu.sosuso.capstone.domain.detail.controller;
 
+import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.detail.service.VideoDetailService;
 import com.knu.sosuso.capstone.domain.video.service.VideoViewLogService;
@@ -73,12 +74,12 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
      * - 최대 100개
      */
     @GetMapping("/{apiVideoId}/comments/all")
-    public ResponseEntity<ResponseDto<List<DetailCommentDto>>> getVideoComments(
+    public ResponseEntity<ResponseDto<List<CommentDto>>> getVideoComments(
             @PathVariable String apiVideoId) {
 
         log.info("전체 댓글 조회 요청: apiVideoId={}", apiVideoId);
 
-        List<DetailCommentDto> result = videoDetailService.getVideoComments(apiVideoId);
+        List<CommentDto> result = videoDetailService.getVideoComments(apiVideoId);
 
         log.info("전체 댓글 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, result.size());
         return ResponseEntity.ok(ResponseDto.of(result, "전체 댓글 조회 성공"));
