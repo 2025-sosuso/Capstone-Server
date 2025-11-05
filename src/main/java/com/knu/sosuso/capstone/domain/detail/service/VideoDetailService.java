@@ -121,7 +121,8 @@ public class VideoDetailService {
                         c.getCommentContent(),
                         c.getLikeCount(),
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
-                        c.getWrittenAt()
+                        c.getWrittenAt(),
+                        c.getHasReplies() != null && c.getHasReplies()
                 ))
                 .collect(Collectors.toList());
 
@@ -147,7 +148,8 @@ public class VideoDetailService {
                         c.getCommentContent(),
                         c.getLikeCount(),
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
-                        c.getWrittenAt()
+                        c.getWrittenAt(),
+                        c.getHasReplies() != null && c.getHasReplies()
                 ))
                 .collect(Collectors.toList());
 

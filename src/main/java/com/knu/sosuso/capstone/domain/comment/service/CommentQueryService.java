@@ -21,6 +21,7 @@ import java.util.List;
 @Slf4j
 public class CommentQueryService {
 
+    private final CommentMapper commentMapper;
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
 
@@ -53,17 +54,7 @@ public class CommentQueryService {
         }
 
         // DTO 변환
-        List<CommentDto> commentDtos = comments.stream()
-                .map(comment -> new CommentDto(
-                        comment.getApiCommentId(),
-                        comment.getWriter(),
-                        comment.getCommentContent(),
-                        comment.getLikeCount(),
-                        comment.getSentimentType() != null ?
-                                comment.getSentimentType().name().toLowerCase() : null,
-                        comment.getWrittenAt()
-                ))
-                .toList();
+        List<CommentDto> commentDtos = commentMapper.toDtoList(comments);
 
         return new CommentResponse(apiVideoId, commentDtos);
     }

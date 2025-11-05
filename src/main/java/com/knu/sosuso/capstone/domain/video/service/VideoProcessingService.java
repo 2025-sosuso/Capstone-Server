@@ -268,7 +268,7 @@ public class VideoProcessingService {
                 commentDataList = existingComments.stream()
                         .map(c -> new CommentApiResponse.CommentData(
                                 c.getApiCommentId(), c.getWriter(), c.getCommentContent(),
-                                c.getLikeCount(), null, c.getWrittenAt()
+                                c.getLikeCount(), null, c.getWrittenAt(), c.getHasReplies()
                         ))
                         .collect(Collectors.toList());
             }

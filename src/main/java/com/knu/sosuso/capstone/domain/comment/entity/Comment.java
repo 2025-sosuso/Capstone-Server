@@ -39,9 +39,12 @@ public class Comment extends BaseEntity {
     @Column(name = "written_at")
     private String writtenAt;
 
+    @Column(name = "has_replies")
+    private Boolean hasReplies;
+
     @Builder
     public Comment(Video video, String apiCommentId, String commentContent,
-                   Integer likeCount, SentimentType sentimentType, String writer, String writtenAt) {
+                   Integer likeCount, SentimentType sentimentType, String writer, String writtenAt, Boolean hasReplies) {
         this.video = video;
         this.apiCommentId = apiCommentId;
         this.commentContent = commentContent;
@@ -49,5 +52,6 @@ public class Comment extends BaseEntity {
         this.sentimentType = sentimentType;
         this.writer = writer;
         this.writtenAt = writtenAt;
+        this.hasReplies = hasReplies;
     }
 }

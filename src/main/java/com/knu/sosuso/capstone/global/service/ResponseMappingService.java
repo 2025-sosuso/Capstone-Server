@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
+import com.knu.sosuso.capstone.domain.comment.entity.Comment;
+import com.knu.sosuso.capstone.domain.comment.service.CommentMapper;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 @Service
 public class ResponseMappingService {
     private final ObjectMapper objectMapper;
+    private final CommentMapper commentMapper;
     private final CommentRepository commentRepository;
     private final UserDataService userDataService;
 
@@ -328,16 +331,8 @@ public class ResponseMappingService {
      * DB 댓글을 CommentResponse로 변환
      */
     private List<CommentDto> mapDbCommentsToCommentResponses(Long videoId) {
-        return commentRepository.findByVideoIdOrderByIdAsc(videoId).stream()
-                .map(comment -> new CommentDto(
-                        comment.getApiCommentId(),
-                        comment.getWriter(),
-                        comment.getCommentContent(),
-                        comment.getLikeCount(),
-                        comment.getSentimentType() != null ? comment.getSentimentType().name().toUpperCase() : null,
-                        comment.getWrittenAt()
-                ))
-                .collect(Collectors.toList());
+        List<Comment> comments = commentRepository.findByVideoIdOrderByIdAsc(videoId);
+        return commentMapper.toDtoList(comments);
     }
 
     /**
@@ -357,7 +352,8 @@ public class ResponseMappingService {
                 commentData.commentText(),
                 commentData.likeCount(),
                 sentiment,
-                commentData.publishedAt()
+                commentData.publishedAt(),
+                commentData.hasReplies()
         );
     }
 
@@ -371,7 +367,8 @@ public class ResponseMappingService {
                 commentData.commentText(),
                 commentData.likeCount(),
                 null,
-                commentData.publishedAt()
+                commentData.publishedAt(),
+                commentData.hasReplies()
         );
     }
 

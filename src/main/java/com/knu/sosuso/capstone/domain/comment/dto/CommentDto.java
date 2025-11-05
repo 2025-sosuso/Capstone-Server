@@ -6,6 +6,7 @@ public record CommentDto(
         String text,
         Integer likeCount,
         String sentiment,
-        String publishedAt
+        String publishedAt,
+        boolean hasReplies
 ) {
 }
