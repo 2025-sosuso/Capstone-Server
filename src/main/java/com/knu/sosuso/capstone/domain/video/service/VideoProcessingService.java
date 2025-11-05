@@ -3,19 +3,20 @@ package com.knu.sosuso.capstone.domain.video.service;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisRequest;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.ai.service.AnalysisService;
-import com.knu.sosuso.capstone.domain.conmment.entity.Comment;
-import com.knu.sosuso.capstone.domain.conmment.service.CommentService;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
+import com.knu.sosuso.capstone.domain.comment.entity.Comment;
+import com.knu.sosuso.capstone.domain.comment.service.CommentService;
+import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailChannelDto;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailVideoDto;
-import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
+import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
+import com.knu.sosuso.capstone.global.service.ResponseMappingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -267,7 +268,7 @@ public class VideoProcessingService {
                 commentDataList = existingComments.stream()
                         .map(c -> new CommentApiResponse.CommentData(
                                 c.getApiCommentId(), c.getWriter(), c.getCommentContent(),
-                                c.getLikeCount(), null, c.getWrittenAt()
+                                c.getLikeCount(), null, c.getWrittenAt(), c.getHasReplies()
                         ))
                         .collect(Collectors.toList());
             }

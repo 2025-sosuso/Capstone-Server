@@ -3,7 +3,7 @@ package com.knu.sosuso.capstone.global.scheduler;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.domain.scrap.repository.ScrapRepository;
-import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
+import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import lombok.RequiredArgsConstructor;

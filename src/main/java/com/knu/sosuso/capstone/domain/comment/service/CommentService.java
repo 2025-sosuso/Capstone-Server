@@ -1,14 +1,14 @@
-package com.knu.sosuso.capstone.domain.conmment.service;
+package com.knu.sosuso.capstone.domain.comment.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
-import com.knu.sosuso.capstone.domain.conmment.entity.Comment;
+import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentApiResponse.CommentData;
-import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
+import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
+import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse.CommentData;
+import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommentError;
@@ -160,6 +160,7 @@ public class CommentService {
                             .sentimentType(null) // AI 분석 전이므로 null
                             .writer(commentData.authorName())
                             .writtenAt(commentData.publishedAt())
+                            .hasReplies(commentData.hasReplies())
                             .build())
                     .filter(comment -> !commentRepository.existsByApiCommentId(comment.getApiCommentId()))
                     .collect(Collectors.toList());
@@ -321,10 +322,15 @@ public class CommentService {
             String commentText = commentSnippet.path("textDisplay").asText();
             int likeCount = commentSnippet.path("likeCount").asInt(0);
             String publishedAt = commentSnippet.path("publishedAt").asText();
+            int totalReplyCount = snippet.path("totalReplyCount").asInt(0);
+            boolean hasReplies = totalReplyCount > 0;
+
+            log.debug("댓글 파싱: id={}, totalReplyCount={}, hasReplies={}",
+                    commentId, totalReplyCount, hasReplies);
 
             String sentiment = null; // 초기값
 
-            return new CommentData(commentId, authorName, commentText, likeCount, sentiment, publishedAt);
+            return new CommentData(commentId, authorName, commentText, likeCount, sentiment, publishedAt, hasReplies);
 
         } catch (Exception e) {
             log.warn("댓글 파싱 실패: {}", e.getMessage());

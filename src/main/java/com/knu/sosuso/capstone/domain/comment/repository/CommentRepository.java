@@ -1,7 +1,7 @@
-package com.knu.sosuso.capstone.domain.conmment.repository;
+package com.knu.sosuso.capstone.domain.comment.repository;
 
-import com.knu.sosuso.capstone.domain.conmment.entity.Comment;
-import com.knu.sosuso.capstone.domain.conmment.entity.value.SentimentType;
+import com.knu.sosuso.capstone.domain.comment.entity.Comment;
+import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;

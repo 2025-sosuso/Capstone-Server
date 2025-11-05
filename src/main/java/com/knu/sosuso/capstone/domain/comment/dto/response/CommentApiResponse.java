@@ -1,0 +1,21 @@
+package com.knu.sosuso.capstone.domain.comment.dto.response;
+
+import java.util.List;
+import java.util.Map;
+
+public record CommentApiResponse(
+        Map<Integer, Integer> commentHistogram,  // 24시간 단위 댓글 분포 추가
+        Map<String, Integer> popularTimestamps,  // Top 5 타임스탬프 언급
+        List<CommentData> allComments   // 전체 댓글
+) {
+    public record CommentData(
+            String id,  // YouTube API 댓글 고유 ID
+            String authorName,  // 작성자 이름
+            String commentText,  // 댓글 본문
+            int likeCount,  // 좋아요 수
+            String sentiment,  // 감정 분석
+            String publishedAt,  // 작성 시각
+            boolean hasReplies  // 대댓글 유무
+    ) {
+    }
+}

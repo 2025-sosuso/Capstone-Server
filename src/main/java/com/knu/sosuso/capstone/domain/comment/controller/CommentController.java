@@ -1,8 +1,8 @@
-package com.knu.sosuso.capstone.domain.conmment.controller;
+package com.knu.sosuso.capstone.domain.comment.controller;
 
 import com.knu.sosuso.capstone.global.ResponseDto;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentResponse;
-import com.knu.sosuso.capstone.domain.conmment.service.CommentQueryService;
+import com.knu.sosuso.capstone.domain.comment.dto.response.CommentResponse;
+import com.knu.sosuso.capstone.domain.comment.service.CommentQueryService;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommentError;
 import com.knu.sosuso.capstone.global.swagger.CommentControllerSwagger;

@@ -1,7 +1,7 @@
 package com.knu.sosuso.capstone.global.swagger;
 
 import com.knu.sosuso.capstone.global.ResponseDto;
-import com.knu.sosuso.capstone.domain.conmment.dto.response.CommentResponse;
+import com.knu.sosuso.capstone.domain.comment.dto.response.CommentResponse;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode400;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode500;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,7 +63,8 @@ public interface CommentControllerSwagger {
                                                                     "text": "정말 재미있다! 계속 보게 되네요",
                                                                     "likeCount": 42,
                                                                     "sentiment": "positive",
-                                                                    "publishedAt": "2025-06-08T14:30:00Z"
+                                                                    "publishedAt": "2025-06-08T14:30:00Z",
+                                                                    "hasReplies": true
                                                                   },
                                                                   {
                                                                     "id": "UgxKHjF2Mn1wcPdO_9J4AaABAg",
@@ -71,7 +72,8 @@ public interface CommentControllerSwagger {
                                                                     "text": "이렇게 재미있다니 믿을 수 없어",
                                                                     "likeCount": 28,
                                                                     "sentiment": "positive",
-                                                                    "publishedAt": "2025-06-08T16:45:00Z"
+                                                                    "publishedAt": "2025-06-08T16:45:00Z",
+                                                                    "hasReplies": false
                                                                   }
                                                                 ]
                                                               }
@@ -94,7 +96,8 @@ public interface CommentControllerSwagger {
                                                                     "text": "최고의 영상입니다! 👍👍👍",
                                                                     "likeCount": 156,
                                                                     "sentiment": "positive",
-                                                                    "publishedAt": "2025-06-08T12:15:00Z"
+                                                                    "publishedAt": "2025-06-08T12:15:00Z",
+                                                                    "hasReplies": true
                                                                   },
                                                                   {
                                                                     "id": "UgwABC987zyx654wvu321_BbB",
@@ -102,7 +105,8 @@ public interface CommentControllerSwagger {
                                                                     "text": "감동적이에요 ㅠㅠ 너무 좋아요",
                                                                     "likeCount": 89,
                                                                     "sentiment": "positive",
-                                                                    "publishedAt": "2025-06-08T13:22:00Z"
+                                                                    "publishedAt": "2025-06-08T13:22:00Z",
+                                                                    "hasReplies": false
                                                                   }
                                                                 ]
                                                               }
@@ -125,7 +129,8 @@ public interface CommentControllerSwagger {
                                                                     "text": "이런 음악이야말로 진짜 명곡이죠",
                                                                     "likeCount": 73,
                                                                     "sentiment": "positive",
-                                                                    "publishedAt": "2025-06-08T11:30:00Z"
+                                                                    "publishedAt": "2025-06-08T11:30:00Z",
+                                                                    "hasReplies": true
                                                                   }
                                                                 ]
                                                               }

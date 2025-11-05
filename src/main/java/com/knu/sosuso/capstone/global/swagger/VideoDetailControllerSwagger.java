@@ -1,5 +1,6 @@
 package com.knu.sosuso.capstone.global.swagger;
 
+import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.global.exception.ErrorResponse;
@@ -139,7 +140,8 @@ public interface VideoDetailControllerSwagger {
                                                             "text": "정말 유익한 영상이네요!",
                                                             "likeCount": 150,
                                                             "sentiment": "POSITIVE",
-                                                            "publishedAt": "2025-01-15T10:00:00Z"
+                                                            "publishedAt": "2025-01-15T10:00:00Z",
+                                                            "hasReplies": false
                                                           }
                                                         ]
                                                       }
@@ -192,7 +194,8 @@ public interface VideoDetailControllerSwagger {
                                                           "text": "댓글 내용...",
                                                           "likeCount": 150,
                                                           "sentiment": "POSITIVE",
-                                                          "publishedAt": "2025-01-15T10:00:00Z"
+                                                          "publishedAt": "2025-01-15T10:00:00Z",
+                                                          "hasReplies": true
                                                         }
                                                       ]
                                                     }
@@ -211,7 +214,7 @@ public interface VideoDetailControllerSwagger {
     )
     @ErrorCode400
     @ErrorCode500
-    ResponseEntity<ResponseDto<List<DetailCommentDto>>> getVideoComments(
+    ResponseEntity<ResponseDto<List<CommentDto>>> getVideoComments(
             @PathVariable String apiVideoId
     );
 

@@ -2,7 +2,8 @@ package com.knu.sosuso.capstone.domain.detail.service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knu.sosuso.capstone.domain.conmment.repository.CommentRepository;
+import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
+import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
@@ -85,6 +86,7 @@ public class VideoDetailService {
 
     /**
      * 영상 분석 정보 조회 (백엔드 분석 + TOP 5 댓글)
+     * TOP 5 댓글은 hasReplies를 무조건 false로 설정
      */
     @Transactional(readOnly = true)
     public VideoAnalysisResponse getVideoAnalysis(String apiVideoId) {
@@ -109,18 +111,18 @@ public class VideoDetailService {
                         .map(e -> new DetailAnalysisDto.PopularTimestamp(e.getKey(), e.getValue()))
                         .collect(Collectors.toList());
 
-        // TOP 5 댓글
-        List<DetailCommentDto> topComments = commentRepository
+        List<CommentDto> topComments = commentRepository
                 .findByVideoIdOrderByLikeCountDesc(video.getId())
                 .stream()
                 .limit(5)
-                .map(c -> new DetailCommentDto(
+                .map(c -> new CommentDto(
                         c.getApiCommentId(),
                         c.getWriter(),
                         c.getCommentContent(),
                         c.getLikeCount(),
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
-                        c.getWrittenAt()
+                        c.getWrittenAt(),
+                        false  // TOP 5 댓글은 항상 false
                 ))
                 .collect(Collectors.toList());
 
@@ -132,21 +134,22 @@ public class VideoDetailService {
      * 전체 댓글 조회
      */
     @Transactional(readOnly = true)
-    public List<DetailCommentDto> getVideoComments(String apiVideoId) {
+    public List<CommentDto> getVideoComments(String apiVideoId) {
         log.info("전체 댓글 조회: apiVideoId={}", apiVideoId);
 
         Video video = videoRepository.findByApiVideoId(apiVideoId)
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
-        List<DetailCommentDto> comments = commentRepository.findByVideoIdOrderByIdAsc(video.getId())
+        List<CommentDto> comments = commentRepository.findByVideoIdOrderByIdAsc(video.getId())
                 .stream()
-                .map(c -> new DetailCommentDto(
+                .map(c -> new CommentDto(
                         c.getApiCommentId(),
                         c.getWriter(),
                         c.getCommentContent(),
                         c.getLikeCount(),
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
-                        c.getWrittenAt()
+                        c.getWrittenAt(),
+                        c.getHasReplies() != null && c.getHasReplies()
                 ))
                 .collect(Collectors.toList());
 
