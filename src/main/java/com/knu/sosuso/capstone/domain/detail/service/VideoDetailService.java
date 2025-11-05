@@ -86,6 +86,7 @@ public class VideoDetailService {
 
     /**
      * 영상 분석 정보 조회 (백엔드 분석 + TOP 5 댓글)
+     * TOP 5 댓글은 hasReplies를 무조건 false로 설정
      */
     @Transactional(readOnly = true)
     public VideoAnalysisResponse getVideoAnalysis(String apiVideoId) {
@@ -110,7 +111,6 @@ public class VideoDetailService {
                         .map(e -> new DetailAnalysisDto.PopularTimestamp(e.getKey(), e.getValue()))
                         .collect(Collectors.toList());
 
-        // TOP 5 댓글
         List<CommentDto> topComments = commentRepository
                 .findByVideoIdOrderByLikeCountDesc(video.getId())
                 .stream()
@@ -122,7 +122,7 @@ public class VideoDetailService {
                         c.getLikeCount(),
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
                         c.getWrittenAt(),
-                        c.getHasReplies() != null && c.getHasReplies()
+                        false  // TOP 5 댓글은 항상 false
                 ))
                 .collect(Collectors.toList());
 

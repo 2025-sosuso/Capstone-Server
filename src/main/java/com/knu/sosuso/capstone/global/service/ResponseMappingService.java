@@ -4,8 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
-import com.knu.sosuso.capstone.domain.comment.entity.Comment;
-import com.knu.sosuso.capstone.domain.comment.service.CommentMapper;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
@@ -30,7 +28,6 @@ import java.util.stream.Collectors;
 @Service
 public class ResponseMappingService {
     private final ObjectMapper objectMapper;
-    private final CommentMapper commentMapper;
     private final CommentRepository commentRepository;
     private final UserDataService userDataService;
 
@@ -194,33 +191,23 @@ public class ResponseMappingService {
             Map<Integer, Integer> commentHistogramData = parseJsonToMap(video.getCommentHistogram(), Integer.class, Integer.class);
             Map<String, Integer> popularTimestampsData = parseJsonToMap(video.getPopularTimestamps(), String.class, Integer.class);
 
-            List<DetailAnalysisDto.PopularTimestamp> popularTimestamps = mapToPopularTimestamps(popularTimestampsData);
-            List<DetailAnalysisDto.CommentHistogram> commentHistogram = mapToCommentHistogram(commentHistogramData);
+            List<DetailAnalysisDto.CommentHistogram> commentHistogram =
+                    commentHistogramData.entrySet().stream()
+                            .map(e -> new DetailAnalysisDto.CommentHistogram(String.valueOf(e.getKey()), e.getValue()))
+                            .collect(Collectors.toList());
 
-            // AI 분석 완료 여부 체크
-            boolean hasAIAnalysis = video.getSummation() != null &&
-                    video.getLanguageDistribution() != null &&
-                    video.getSentimentDistribution() != null &&
-                    video.getKeywords() != null;
+            List<DetailAnalysisDto.PopularTimestamp> popularTimestamps =
+                    popularTimestampsData.entrySet().stream()
+                            .map(e -> new DetailAnalysisDto.PopularTimestamp(e.getKey(), e.getValue()))
+                            .collect(Collectors.toList());
 
-            if (!hasAIAnalysis) {
-                // AI 분석 미완료
-                return new DetailAnalysisDto(
-                        null, false, mapToTopCommentsFromDb(video.getId()), List.of(),
-                        new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0),
-                        popularTimestamps, commentHistogram, List.of()
-                );
-            }
-
-            // AI 분석 완료
+            // AI 분석 데이터 (없을 수 있음)
             Map<String, Double> languageRatio = parseJsonToMap(video.getLanguageDistribution(), String.class, Double.class);
             Map<String, Double> sentimentRatio = parseJsonToMap(video.getSentimentDistribution(), String.class, Double.class);
-            List<String> keywords = objectMapper.readValue(video.getKeywords(), new TypeReference<>() {
-            });
 
             List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
                     languageRatio.entrySet().stream()
-                            .map(entry -> new DetailAnalysisDto.LanguageDistribution(entry.getKey(), entry.getValue()))
+                            .map(e -> new DetailAnalysisDto.LanguageDistribution(e.getKey(), e.getValue()))
                             .collect(Collectors.toList());
 
             DetailAnalysisDto.SentimentDistribution sentimentDistribution =
@@ -229,6 +216,16 @@ public class ResponseMappingService {
                             sentimentRatio.getOrDefault("negative", 0.0),
                             sentimentRatio.getOrDefault("other", 0.0)
                     );
+
+            List<String> keywords = List.of();
+            try {
+                if (video.getKeywords() != null && !video.getKeywords().trim().isEmpty()) {
+                    keywords = objectMapper.readValue(video.getKeywords(), new TypeReference<>() {
+                    });
+                }
+            } catch (Exception e) {
+                log.warn("키워드 파싱 실패: {}", e.getMessage());
+            }
 
             return new DetailAnalysisDto(
                     video.getSummation(),
@@ -331,8 +328,17 @@ public class ResponseMappingService {
      * DB 댓글을 CommentResponse로 변환
      */
     private List<CommentDto> mapDbCommentsToCommentResponses(Long videoId) {
-        List<Comment> comments = commentRepository.findByVideoIdOrderByIdAsc(videoId);
-        return commentMapper.toDtoList(comments);
+        return commentRepository.findByVideoIdOrderByIdAsc(videoId).stream()
+                .map(comment -> new CommentDto(
+                        comment.getApiCommentId(),
+                        comment.getWriter(),
+                        comment.getCommentContent(),
+                        comment.getLikeCount(),
+                        comment.getSentimentType() != null ? comment.getSentimentType().name().toUpperCase() : null,
+                        comment.getWrittenAt(),
+                        comment.getHasReplies() != null && comment.getHasReplies()
+                ))
+                .collect(Collectors.toList());
     }
 
     /**
@@ -374,6 +380,7 @@ public class ResponseMappingService {
 
     /**
      * CommentData에서 좋아요 TOP 5 댓글 추출
+     * TOP 5 댓글은 hasReplies를 무조건 false로 설정
      */
     private List<CommentDto> mapToTopCommentsFromCommentData(
             List<CommentApiResponse.CommentData> commentDataList,
@@ -383,23 +390,42 @@ public class ResponseMappingService {
                 .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
                 .limit(5)
                 .map(commentData -> {
-                    if (analysisResponse != null) {
-                        return mapToCommentResponseWithAI(commentData, analysisResponse);
-                    } else {
-                        return mapToCommentResponseWithoutAI(commentData);
+                    String sentiment = null;
+                    if (analysisResponse != null && analysisResponse.sentimentComments().containsKey(commentData.id())) {
+                        sentiment = analysisResponse.sentimentComments().get(commentData.id()).name().toUpperCase();
                     }
+
+                    // TOP 5 댓글은 hasReplies를 무조건 false로 설정
+                    return new CommentDto(
+                            commentData.id(),
+                            commentData.authorName(),
+                            commentData.commentText(),
+                            commentData.likeCount(),
+                            sentiment,
+                            commentData.publishedAt(),
+                            false  // TOP 5 댓글은 항상 false
+                    );
                 })
                 .collect(Collectors.toList());
     }
 
     /**
      * DB에서 좋아요 TOP 5 댓글 추출
+     * TOP 5 댓글은 hasReplies를 무조건 false로 설정
      */
     @Transactional
     public List<CommentDto> mapToTopCommentsFromDb(Long videoId) {
-        return mapDbCommentsToCommentResponses(videoId).stream()
-                .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
+        return commentRepository.findByVideoIdOrderByLikeCountDesc(videoId).stream()
                 .limit(5)
+                .map(comment -> new CommentDto(
+                        comment.getApiCommentId(),
+                        comment.getWriter(),
+                        comment.getCommentContent(),
+                        comment.getLikeCount(),
+                        comment.getSentimentType() != null ? comment.getSentimentType().name().toUpperCase() : null,
+                        comment.getWrittenAt(),
+                        false  // TOP 5 댓글은 항상 false
+                ))
                 .collect(Collectors.toList());
     }
 
