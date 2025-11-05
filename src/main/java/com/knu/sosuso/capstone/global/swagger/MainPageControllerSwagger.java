@@ -90,7 +90,27 @@ public interface MainPageControllerSwagger {
                                                                       "negative": 0.08,
                                                                       "other": 0.20
                                                                     },
-                                                                    "keywords": ["블랙홀", "우주", "중력파", "과학"]
+                                                                    "keywords": ["블랙홀", "우주", "중력파", "과학"],
+                                                                    "topComments": [
+                                                                      {
+                                                                        "id": "comment1",
+                                                                        "author": "과학덕후",
+                                                                        "text": "정말 명쾌한 설명입니다! 블랙홀에 대해 이해가 잘 됐어요",
+                                                                        "likeCount": 285,
+                                                                        "sentiment": "POSITIVE",
+                                                                        "publishedAt": "2025-01-20T10:30:00Z",
+                                                                        "hasReplies": false
+                                                                      },
+                                                                      {
+                                                                        "id": "comment2",
+                                                                        "author": "우주탐험가",
+                                                                        "text": "시각 자료가 정말 인상적이네요",
+                                                                        "likeCount": 142,
+                                                                        "sentiment": "POSITIVE",
+                                                                        "publishedAt": "2025-01-20T11:00:00Z",
+                                                                        "hasReplies": false
+                                                                      }
+                                                                    ]
                                                                   }
                                                                 }
                                                               }

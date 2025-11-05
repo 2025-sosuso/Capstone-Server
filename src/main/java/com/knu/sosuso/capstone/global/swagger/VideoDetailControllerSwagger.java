@@ -140,7 +140,8 @@ public interface VideoDetailControllerSwagger {
                                                             "text": "정말 유익한 영상이네요!",
                                                             "likeCount": 150,
                                                             "sentiment": "POSITIVE",
-                                                            "publishedAt": "2025-01-15T10:00:00Z"
+                                                            "publishedAt": "2025-01-15T10:00:00Z",
+                                                            "hasReplies": false
                                                           }
                                                         ]
                                                       }
@@ -193,7 +194,8 @@ public interface VideoDetailControllerSwagger {
                                                           "text": "댓글 내용...",
                                                           "likeCount": 150,
                                                           "sentiment": "POSITIVE",
-                                                          "publishedAt": "2025-01-15T10:00:00Z"
+                                                          "publishedAt": "2025-01-15T10:00:00Z",
+                                                          "hasReplies": true
                                                         }
                                                       ]
                                                     }
