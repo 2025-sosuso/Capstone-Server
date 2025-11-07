@@ -64,5 +64,5 @@ jobs:
               -e YOUTUBE_API_KEY="${{ secrets.YOUTUBE_API_KEY }}" \
               -e OPENAI_MODEL="${{ secrets.OPENAI_MODEL }}" \
               -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
-              -e OPENAI_BASE_URL="${{ secrets.OPENAI_BASE_URL }}" \
+              -e OPENAI_BASE_URL="${{ secrets.OPENAI_API_URL }}" \
               ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
