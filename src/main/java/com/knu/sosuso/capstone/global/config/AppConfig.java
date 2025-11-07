@@ -69,6 +69,20 @@ public class AppConfig {
      */
     private final int maxResultsPerRequest = 100;
 
+    // ========== 검색 관련 설정 ==========
+
+    /**
+     * 검색 결과 페이지 당 개수
+     * YouTube API 한 번 호출 시 가져올 결과 수
+     */
+    private final int searchResultsPerPage = 5;
+
+    /**
+     * 검색 결과 최대 페이지 수
+     * 무한 스크롤 제한 (총 searchResultsPerPage * maxSearchPages 개)
+     */
+    private final int maxSearchPages = 5;
+
     // ========== 스레드풀 관련 설정 ==========
 
     /**
