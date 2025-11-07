@@ -36,3 +36,9 @@ spring:
 youtube:
   api:
     key: ${YOUTUBE_API_KEY}
+
+openai:
+  model: ${OPENAI_MODEL}
+  api:
+    key: ${OPENAI_API_KEY}
+    url: ${OPENAI_API_URL}
