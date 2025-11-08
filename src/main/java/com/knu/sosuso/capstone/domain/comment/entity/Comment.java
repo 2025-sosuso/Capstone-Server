@@ -4,6 +4,9 @@ import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import com.knu.sosuso.capstone.global.BaseEntity;
 import jakarta.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -11,9 +14,11 @@ import lombok.Setter;
 
 @Getter
 @Setter
-@Entity
-@Table(name = "comment")
+@Builder
 @NoArgsConstructor
+@AllArgsConstructor
+@Table(name = "comment")
+@Entity
 public class Comment extends BaseEntity {
 
     @JoinColumn(name = "video_id")
@@ -30,8 +35,11 @@ public class Comment extends BaseEntity {
     private Integer likeCount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "sentiment_type", length = 255)
+    @Column(name = "sentiment_type")
     private SentimentType sentimentType;
+
+    @OneToMany(mappedBy = "comment", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<DetailSentiment> detailSentiments = new ArrayList<>();
 
     @Column(name = "writer")
     private String writer;
@@ -41,17 +49,4 @@ public class Comment extends BaseEntity {
 
     @Column(name = "has_replies")
     private Boolean hasReplies;
-
-    @Builder
-    public Comment(Video video, String apiCommentId, String commentContent,
-                   Integer likeCount, SentimentType sentimentType, String writer, String writtenAt, Boolean hasReplies) {
-        this.video = video;
-        this.apiCommentId = apiCommentId;
-        this.commentContent = commentContent;
-        this.likeCount = likeCount;
-        this.sentimentType = sentimentType;
-        this.writer = writer;
-        this.writtenAt = writtenAt;
-        this.hasReplies = hasReplies;
-    }
 }
