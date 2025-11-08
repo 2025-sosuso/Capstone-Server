@@ -2,6 +2,7 @@ package com.knu.sosuso.capstone.domain.comment.repository;
 
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -39,5 +40,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     List<Comment> findByVideoIdOrderByLikeCountDesc(Long video_id);
 
+    Optional<Comment> findByApiCommentId(String apiCommentId);
 }
 

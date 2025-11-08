@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
+import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
@@ -347,9 +348,16 @@ public class ResponseMappingService {
     private CommentDto mapToCommentResponseWithAI(
             CommentApiResponse.CommentData commentData,
             AIAnalysisResponse analysisResponse) {
+
+        // List에서 해당 댓글의 감정 분석 결과 찾기
+        CommentSentimentDetail sentimentDetail = analysisResponse.sentimentComments().stream()
+                .filter(detail -> detail.apiCommentId().equals(commentData.id()))
+                .findFirst()
+                .orElse(null);
+
         String sentiment = null;
-        if (analysisResponse.sentimentComments().containsKey(commentData.id())) {
-            sentiment = analysisResponse.sentimentComments().get(commentData.id()).name().toUpperCase();
+        if (sentimentDetail != null) {
+            sentiment = sentimentDetail.sentimentType().name().toUpperCase();
         }
 
         return new CommentDto(
@@ -362,7 +370,6 @@ public class ResponseMappingService {
                 commentData.hasReplies()
         );
     }
-
     /**
      * AI 분석 결과가 없는 경우 댓글 변환
      */
@@ -391,8 +398,16 @@ public class ResponseMappingService {
                 .limit(5)
                 .map(commentData -> {
                     String sentiment = null;
-                    if (analysisResponse != null && analysisResponse.sentimentComments().containsKey(commentData.id())) {
-                        sentiment = analysisResponse.sentimentComments().get(commentData.id()).name().toUpperCase();
+                    if (analysisResponse != null) {
+                        // List에서 해당 댓글의 감정 분석 결과 찾기
+                        CommentSentimentDetail sentimentDetail = analysisResponse.sentimentComments().stream()
+                                .filter(detail -> detail.apiCommentId().equals(commentData.id()))
+                                .findFirst()
+                                .orElse(null);
+
+                        if (sentimentDetail != null) {
+                            sentiment = sentimentDetail.sentimentType().name().toUpperCase();
+                        }
                     }
 
                     // TOP 5 댓글은 hasReplies를 무조건 false로 설정

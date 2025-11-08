@@ -3,6 +3,9 @@ package com.knu.sosuso.capstone.domain.comment.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
+import com.knu.sosuso.capstone.domain.comment.entity.DetailSentiment;
+import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
+import com.knu.sosuso.capstone.domain.comment.entity.value.DetailSentimentType;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
@@ -177,22 +180,40 @@ public class CommentService {
     }
 
     /**
-     * AI 분석 결과로 댓글 업데이트
+     * AI 분석 결과로 댓글 업데이트 (sentiment + detail sentiments)
      */
     @Transactional
     public void updateCommentsWithAnalysis(AIAnalysisResponse analysisResponse) {
         try {
-            List<Comment> comments = commentRepository.findAllByVideoId(analysisResponse.videoId());
+            // AI 분석 결과 순회
+            for (CommentSentimentDetail sentimentDetail : analysisResponse.sentimentComments()) {
+                // apiCommentId로 댓글 찾기
+                Comment comment = commentRepository.findByApiCommentId(sentimentDetail.apiCommentId())
+                        .orElse(null);
 
-            for (Comment comment : comments) {
-                if (analysisResponse.sentimentComments().containsKey(comment.getApiCommentId())) {
-                    comment.setSentimentType(analysisResponse.sentimentComments().get(comment.getApiCommentId()));
+                if (comment == null) {
+                    log.warn("댓글을 찾을 수 없음: apiCommentId={}", sentimentDetail.apiCommentId());
+                    continue;
                 }
+
+                // 1. 전체 감정 타입 업데이트
+                comment.setSentimentType(sentimentDetail.sentimentType());
+
+                // 2. 세부 감정 저장
+                for (DetailSentimentType detailType : sentimentDetail.detailSentimentTypes()) {
+                    DetailSentiment detailSentiment = DetailSentiment.builder()
+                            .comment(comment)
+                            .detailSentimentType(detailType)
+                            .build();
+                    comment.getDetailSentiments().add(detailSentiment);
+                }
+
+                commentRepository.save(comment);
             }
 
-            commentRepository.saveAll(comments);
             log.info("댓글 감정 분석 결과 업데이트 완료: videoId={}, 업데이트된 댓글 수={}",
-                    analysisResponse.videoId(), comments.size());
+                    analysisResponse.videoId(), analysisResponse.sentimentComments().size());
+
         } catch (Exception e) {
             log.error("댓글 감정 분석 업데이트 실패: videoId={}, error={}",
                     analysisResponse.videoId(), e.getMessage());
