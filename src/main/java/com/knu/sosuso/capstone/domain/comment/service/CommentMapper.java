@@ -4,6 +4,7 @@ import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
+import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -64,10 +65,15 @@ public class CommentMapper {
             AIAnalysisResponse analysisResponse) {
 
         String sentiment = null;
-        if (analysisResponse != null &&
-                analysisResponse.sentimentComments().containsKey(commentData.id())) {
-            sentiment = analysisResponse.sentimentComments()
-                    .get(commentData.id()).name().toUpperCase();
+        if (analysisResponse != null) {
+            CommentSentimentDetail sentimentDetail = analysisResponse.sentimentComments().stream()
+                    .filter(detail -> detail.apiCommentId().equals(commentData.id()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (sentimentDetail != null) {
+                sentiment = sentimentDetail.sentimentType().name().toUpperCase();
+            }
         }
 
         return new CommentDto(
