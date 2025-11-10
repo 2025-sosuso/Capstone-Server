@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -66,6 +67,27 @@ public class VideoSearchService {
             // 2. 검색 결과 파싱 및 DB 저장 (Fast Path)
             return processSearchResults(token, searchResponse, query, "VIDEO");
 
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 403) {
+                String responseBody = e.getResponseBodyAsString();
+
+                if (responseBody.contains("quotaExceeded")) {
+                    log.error("YouTube API quota 초과: query={}", query);
+                    throw new BusinessException(SearchError.YOUTUBE_API_QUOTA_EXCEEDED);
+                }
+
+                if (responseBody.contains("IP address restriction")) {
+                    log.error("YouTube API IP 제한: query={}", query);
+                    throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
+                }
+
+                log.error("YouTube API 403 에러: query={}, error={}", query, responseBody);
+                throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
+            }
+
+            log.error("YouTube API 클라이언트 에러: query={}, status={}", query, e.getStatusCode());
+            throw new BusinessException(SearchError.YOUTUBE_API_ERROR);
+
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -97,6 +119,27 @@ public class VideoSearchService {
 
             // 2. 검색 결과 파싱 및 DB 저장 (Fast Path)
             return processSearchResults(token, searchResponse, query, "SHORT");
+
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode().value() == 403) {
+                String responseBody = e.getResponseBodyAsString();
+
+                if (responseBody.contains("quotaExceeded")) {
+                    log.error("YouTube API quota 초과: query={}", query);
+                    throw new BusinessException(SearchError.YOUTUBE_API_QUOTA_EXCEEDED);
+                }
+
+                if (responseBody.contains("IP address restriction")) {
+                    log.error("YouTube API IP 제한: query={}", query);
+                    throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
+                }
+
+                log.error("YouTube API 403 에러: query={}, error={}", query, responseBody);
+                throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
+            }
+
+            log.error("YouTube API 클라이언트 에러: query={}, status={}", query, e.getStatusCode());
+            throw new BusinessException(SearchError.YOUTUBE_API_ERROR);
 
         } catch (BusinessException e) {
             throw e;
@@ -149,9 +192,18 @@ public class VideoSearchService {
             String nextPageToken = rootNode.path("nextPageToken").asText(null);
 
             List<VideoSummaryResponse> results = new ArrayList<>();
+            int skippedCount = 0;
 
             if (itemsNode.isArray()) {
                 for (JsonNode item : itemsNode) {
+                    String kind = item.path("id").path("kind").asText();
+
+                    if (!"youtube#video".equals(kind)) {
+                        skippedCount++;
+                        log.debug("비디오가 아닌 항목 스킵: kind={}", kind);
+                        continue;
+                    }
+
                     String apiVideoId = item.path("id").path("videoId").asText();
 
                     if (apiVideoId == null || apiVideoId.isEmpty()) {
@@ -175,8 +227,8 @@ public class VideoSearchService {
 
             boolean hasMore = nextPageToken != null && !nextPageToken.isEmpty();
 
-            log.info("{} 검색 완료: query={}, 결과 수={}, hasMore={}",
-                    searchType, query, results.size(), hasMore);
+            log.info("{} 검색 완료: query={}, 전체={}, 비디오={}, 스킵={}, hasMore={}",
+                    searchType, query, itemsNode.size(), results.size(), skippedCount, hasMore);
 
             return new SearchResultPageResponse(
                     results,
