@@ -39,6 +39,12 @@ public class AppConfig {
      */
     private final int aiRetryCooldownMinutes = 5;
 
+    /**
+     * 감정 흐름 분석 최대 데이터 포인트 수
+     * 전체 기간을 이 개수로 샘플링
+     */
+    private final int sentimentFlowMaxDataPoints = 6;
+
     // ========== 인기도 계산 설정 ==========
 
     /**
