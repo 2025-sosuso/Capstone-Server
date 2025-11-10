@@ -38,4 +38,12 @@ public record DetailAnalysisDto(
             Integer count
     ) {
     }
+
+    public record SentimentFlow(
+            String date,
+            Double positive,
+            Double negative,
+            Double other
+    ) {
+    }
 }

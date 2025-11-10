@@ -3,12 +3,15 @@ package com.knu.sosuso.capstone.domain.detail.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
+import com.knu.sosuso.capstone.domain.comment.entity.Comment;
+import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.domain.video.service.UserDataService;
 import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
+import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
@@ -17,6 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +37,7 @@ public class VideoDetailService {
     private final UserDataService userDataService;
     private final VideoProcessingService videoProcessingService;
     private final ObjectMapper objectMapper;
+    private final AppConfig appConfig;
 
     /**
      * 영상 기본 정보 조회
@@ -85,7 +90,7 @@ public class VideoDetailService {
     }
 
     /**
-     * 영상 분석 정보 조회 (백엔드 분석 + TOP 5 댓글)
+     * 영상 분석 정보 조회 (백엔드 분석 + TOP 5 댓글 + 감정 흐름)
      * TOP 5 댓글은 hasReplies를 무조건 false로 설정
      */
     @Transactional(readOnly = true)
@@ -95,7 +100,7 @@ public class VideoDetailService {
         Video video = videoRepository.findByApiVideoId(apiVideoId)
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
-        // 댓글 히스토그램
+        // 1. 댓글 히스토그램
         Map<Integer, Integer> commentHistogramData = parseJsonToMap(
                 video.getCommentHistogram(), Integer.class, Integer.class);
         List<DetailAnalysisDto.CommentHistogram> commentHistogram =
@@ -103,7 +108,7 @@ public class VideoDetailService {
                         .map(e -> new DetailAnalysisDto.CommentHistogram(String.valueOf(e.getKey()), e.getValue()))
                         .collect(Collectors.toList());
 
-        // 인기 타임스탬프
+        // 2. 인기 타임스탬프
         Map<String, Integer> popularTimestampsData = parseJsonToMap(
                 video.getPopularTimestamps(), String.class, Integer.class);
         List<DetailAnalysisDto.PopularTimestamp> popularTimestamps =
@@ -111,6 +116,7 @@ public class VideoDetailService {
                         .map(e -> new DetailAnalysisDto.PopularTimestamp(e.getKey(), e.getValue()))
                         .collect(Collectors.toList());
 
+        // 3. TOP 5 댓글
         List<CommentDto> topComments = commentRepository
                 .findByVideoIdOrderByLikeCountDesc(video.getId())
                 .stream()
@@ -126,8 +132,13 @@ public class VideoDetailService {
                 ))
                 .collect(Collectors.toList());
 
-        log.info("영상 분석 정보 조회 완료: apiVideoId={}, TOP 댓글 수={}", apiVideoId, topComments.size());
-        return new VideoAnalysisResponse(commentHistogram, popularTimestamps, topComments);
+        // 4. 감정 흐름 분석
+        List<DetailAnalysisDto.SentimentFlow> sentimentFlow = calculateSentimentFlow(video);
+
+        log.info("영상 분석 정보 조회 완료: apiVideoId={}, TOP 댓글 수={}, 감정 흐름 데이터={}개",
+                apiVideoId, topComments.size(), sentimentFlow.size());
+
+        return new VideoAnalysisResponse(commentHistogram, popularTimestamps, topComments, sentimentFlow);
     }
 
     /**
@@ -230,6 +241,166 @@ public class VideoDetailService {
     public DetailPageResponse getVideoDetail(String token, String apiVideoId) {
         log.warn("Deprecated 메서드 호출: getVideoDetail() - 분리된 메서드 사용 권장");
         return videoProcessingService.processVideoToSearchResult(token, apiVideoId, true);
+    }
+
+    // ==================== 감정 흐름 분석 ====================
+
+    /**
+     * 감정 흐름 데이터 계산 (최대 N개 데이터 포인트)
+     * 전체 기간을 균등하게 샘플링하여 대표값 추출
+     */
+    private List<DetailAnalysisDto.SentimentFlow> calculateSentimentFlow(Video video) {
+        try {
+            // 1. 댓글 조회 (작성 시간 순)
+            List<Comment> comments = commentRepository
+                    .findByVideoIdOrderByWrittenAtAsc(video.getId());
+
+            if (comments.isEmpty()) {
+                log.debug("댓글 없음, 빈 감정 흐름 반환: videoId={}", video.getId());
+                return new ArrayList<>();
+            }
+
+            // 2. 감정 타입이 있는 댓글 확인 (AI 분석 완료 여부)
+            long commentsWithSentiment = comments.stream()
+                    .filter(c -> c.getSentimentType() != null)
+                    .count();
+
+            if (commentsWithSentiment == 0) {
+                log.debug("AI 분석 미완료, 빈 감정 흐름 반환: videoId={}", video.getId());
+                return new ArrayList<>();
+            }
+
+            // 3. 날짜별로 댓글 그룹화
+            Map<LocalDate, List<Comment>> commentsByDate = comments.stream()
+                    .filter(c -> c.getSentimentType() != null)
+                    .collect(Collectors.groupingBy(comment ->
+                            parseCommentDate(comment.getWrittenAt())));
+
+            if (commentsByDate.isEmpty()) {
+                log.debug("날짜별 그룹화 실패, 빈 감정 흐름 반환: videoId={}", video.getId());
+                return new ArrayList<>();
+            }
+
+            // 4. 날짜 순으로 정렬
+            List<LocalDate> sortedDates = commentsByDate.keySet().stream()
+                    .sorted()
+                    .collect(Collectors.toList());
+
+            // 5. 각 날짜의 감정 분포 계산
+            List<DailySentimentData> allDailyData = sortedDates.stream()
+                    .map(date -> calculateDailySentiment(date, commentsByDate.get(date)))
+                    .collect(Collectors.toList());
+
+            // 6. 최대 N개로 샘플링
+            List<DetailAnalysisDto.SentimentFlow> sampledData =
+                    sampleSentimentData(allDailyData);
+
+            log.info("감정 흐름 계산 완료: videoId={}, 전체 {}일 → 샘플링 {}개",
+                    video.getId(), allDailyData.size(), sampledData.size());
+
+            return sampledData;
+
+        } catch (Exception e) {
+            log.warn("감정 흐름 계산 중 오류 발생, 빈 리스트 반환: videoId={}, error={}",
+                    video.getId(), e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 하루치 감정 데이터 계산
+     */
+    private DailySentimentData calculateDailySentiment(LocalDate date, List<Comment> dayComments) {
+        long total = dayComments.size();
+        long positive = dayComments.stream()
+                .filter(c -> c.getSentimentType() == SentimentType.POSITIVE)
+                .count();
+        long negative = dayComments.stream()
+                .filter(c -> c.getSentimentType() == SentimentType.NEGATIVE)
+                .count();
+        long other = total - positive - negative;
+
+        return new DailySentimentData(
+                date,
+                total > 0 ? positive / (double) total : 0.0,
+                total > 0 ? negative / (double) total : 0.0,
+                total > 0 ? other / (double) total : 0.0
+        );
+    }
+
+    /**
+     * 감정 데이터를 최대 N개로 샘플링
+     * 전체 기간을 균등하게 나누어 대표값 선택
+     */
+    private List<DetailAnalysisDto.SentimentFlow> sampleSentimentData(
+            List<DailySentimentData> allData) {
+
+        int totalDays = allData.size();
+        int maxPoints = appConfig.getSentimentFlowMaxDataPoints();
+
+        // maxPoints 이하면 전체 반환
+        if (totalDays <= maxPoints) {
+            return allData.stream()
+                    .map(this::convertToSentimentFlow)
+                    .collect(Collectors.toList());
+        }
+
+        // maxPoints를 초과하면 균등 간격으로 샘플링
+        List<DetailAnalysisDto.SentimentFlow> result = new ArrayList<>();
+
+        // 첫 번째는 항상 포함
+        result.add(convertToSentimentFlow(allData.get(0)));
+
+        // 중간 포인트들을 균등 간격으로 선택
+        double step = (totalDays - 1) / (double) (maxPoints - 1);
+
+        for (int i = 1; i < maxPoints - 1; i++) {
+            int index = (int) Math.round(step * i);
+            result.add(convertToSentimentFlow(allData.get(index)));
+        }
+
+        // 마지막은 항상 포함
+        result.add(convertToSentimentFlow(allData.get(totalDays - 1)));
+
+        return result;
+    }
+
+    /**
+     * 내부 데이터를 응답 DTO로 변환
+     */
+    private DetailAnalysisDto.SentimentFlow convertToSentimentFlow(DailySentimentData data) {
+        return new DetailAnalysisDto.SentimentFlow(
+                data.date().toString(),
+                data.positive(),
+                data.negative(),
+                data.other()
+        );
+    }
+
+    /**
+     * 날짜 파싱 헬퍼 메서드
+     */
+    private LocalDate parseCommentDate(String writtenAt) {
+        try {
+            if (writtenAt == null || writtenAt.length() < 10) {
+                return LocalDate.now();
+            }
+            return LocalDate.parse(writtenAt.substring(0, 10));
+        } catch (Exception e) {
+            log.warn("댓글 날짜 파싱 실패: {}", writtenAt);
+            return LocalDate.now();
+        }
+    }
+
+    /**
+     * 내부 계산용 데이터 클래스
+     */
+    private record DailySentimentData(
+            LocalDate date,
+            Double positive,
+            Double negative,
+            Double other
+    ) {
     }
 
     // ==================== Helper Methods ====================
