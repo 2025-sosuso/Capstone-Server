@@ -7,6 +7,7 @@ import java.util.List;
 public record VideoAnalysisResponse(
         List<DetailAnalysisDto.CommentHistogram> commentHistogram,
         List<DetailAnalysisDto.PopularTimestamp> popularTimestamps,
-        List<CommentDto> topComments
+        List<CommentDto> topComments,
+        List<DetailAnalysisDto.SentimentFlow> sentimentFlow
 ) {
 }

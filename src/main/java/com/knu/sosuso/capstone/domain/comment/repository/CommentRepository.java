@@ -41,5 +41,8 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     List<Comment> findByVideoIdOrderByLikeCountDesc(Long video_id);
 
     Optional<Comment> findByApiCommentId(String apiCommentId);
+
+    // 영상의 댓글을 작성 시간 순으로 조회 (오래된 순)
+    List<Comment> findByVideoIdOrderByWrittenAtAsc(Long videoId);
 }
 
