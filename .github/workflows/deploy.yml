@@ -65,4 +65,5 @@ jobs:
               -e OPENAI_MODEL="${{ secrets.OPENAI_MODEL }}" \
               -e OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
               -e OPENAI_API_URL="${{ secrets.OPENAI_API_URL }}" \
+              -e FASTAPI_URL="${{ secrets.FASTAPI_URL }}" \
               ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
