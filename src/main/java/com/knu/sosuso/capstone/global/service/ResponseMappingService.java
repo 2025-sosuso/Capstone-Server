@@ -12,6 +12,7 @@ import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.service.UserDataService;
+import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class ResponseMappingService {
     private final ObjectMapper objectMapper;
     private final CommentRepository commentRepository;
     private final UserDataService userDataService;
+    private final AppConfig appConfig;
 
     /**
      * YouTube API 데이터를 SearchResultResponse로 변환 (새로운 데이터)
@@ -407,7 +409,7 @@ public class ResponseMappingService {
 
         return commentDataList.stream()
                 .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
-                .limit(5)
+                .limit(appConfig.getTopCommentsCount())
                 .map(commentData -> {
                     String sentiment = null;
                     List<String> detailSentiments = new ArrayList<>();
@@ -449,7 +451,7 @@ public class ResponseMappingService {
     @Transactional(readOnly = true)
     public List<CommentDto> mapToTopCommentsFromDb(Long videoId) {
         return commentRepository.findByVideoIdOrderByLikeCountDesc(videoId).stream()
-                .limit(5)
+                .limit(appConfig.getTopCommentsCount())
                 .map(comment -> new CommentDto(
                         comment.getApiCommentId(),
                         comment.getWriter(),
