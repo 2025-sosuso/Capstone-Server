@@ -37,7 +37,7 @@ public class AppConfig {
     /**
      * AI 재시도 쿨타임 (분)
      */
-    private final int aiRetryCooldownMinutes = 5;
+    private final int aiRetryCooldownMinutes = 0;
 
     /**
      * 감정 흐름 분석 최대 데이터 포인트 수
