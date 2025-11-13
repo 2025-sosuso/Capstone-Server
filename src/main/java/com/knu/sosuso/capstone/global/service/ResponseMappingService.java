@@ -19,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -337,7 +338,12 @@ public class ResponseMappingService {
                         comment.getLikeCount(),
                         comment.getSentimentType() != null ? comment.getSentimentType().name().toUpperCase() : null,
                         comment.getWrittenAt(),
-                        comment.getHasReplies() != null && comment.getHasReplies()
+                        comment.getHasReplies() != null && comment.getHasReplies(),
+                        comment.getDetailSentiments() != null ?
+                                comment.getDetailSentiments().stream()
+                                        .map(Enum::name)
+                                        .collect(Collectors.toList()) :
+                                new ArrayList<>()
                 ))
                 .collect(Collectors.toList());
     }
@@ -356,8 +362,13 @@ public class ResponseMappingService {
                 .orElse(null);
 
         String sentiment = null;
+        List<String> detailSentiments = new ArrayList<>();
+
         if (sentimentDetail != null) {
             sentiment = sentimentDetail.sentimentType().name().toUpperCase();
+            detailSentiments = sentimentDetail.detailSentimentTypes().stream()
+                    .map(Enum::name)
+                    .collect(Collectors.toList());
         }
 
         return new CommentDto(
@@ -367,9 +378,11 @@ public class ResponseMappingService {
                 commentData.likeCount(),
                 sentiment,
                 commentData.publishedAt(),
-                commentData.hasReplies()
+                commentData.hasReplies(),
+                detailSentiments
         );
     }
+
     /**
      * AI 분석 결과가 없는 경우 댓글 변환
      */
@@ -381,7 +394,8 @@ public class ResponseMappingService {
                 commentData.likeCount(),
                 null,
                 commentData.publishedAt(),
-                commentData.hasReplies()
+                commentData.hasReplies(),
+                new ArrayList<>()
         );
     }
 
@@ -398,6 +412,8 @@ public class ResponseMappingService {
                 .limit(5)
                 .map(commentData -> {
                     String sentiment = null;
+                    List<String> detailSentiments = new ArrayList<>();
+
                     if (analysisResponse != null) {
                         // List에서 해당 댓글의 감정 분석 결과 찾기
                         CommentSentimentDetail sentimentDetail = analysisResponse.sentimentComments().stream()
@@ -407,6 +423,9 @@ public class ResponseMappingService {
 
                         if (sentimentDetail != null) {
                             sentiment = sentimentDetail.sentimentType().name().toUpperCase();
+                            detailSentiments = sentimentDetail.detailSentimentTypes().stream()
+                                    .map(Enum::name)
+                                    .collect(Collectors.toList());
                         }
                     }
 
@@ -418,7 +437,8 @@ public class ResponseMappingService {
                             commentData.likeCount(),
                             sentiment,
                             commentData.publishedAt(),
-                            false  // TOP 5 댓글은 항상 false
+                            false,  // TOP 5 댓글은 항상 false
+                            detailSentiments
                     );
                 })
                 .collect(Collectors.toList());
@@ -439,7 +459,12 @@ public class ResponseMappingService {
                         comment.getLikeCount(),
                         comment.getSentimentType() != null ? comment.getSentimentType().name().toUpperCase() : null,
                         comment.getWrittenAt(),
-                        false  // TOP 5 댓글은 항상 false
+                        false,  // TOP 5 댓글은 항상 false
+                        comment.getDetailSentiments() != null ?
+                                comment.getDetailSentiments().stream()
+                                        .map(Enum::name)
+                                        .collect(Collectors.toList()) :
+                                new ArrayList<>()
                 ))
                 .collect(Collectors.toList());
     }

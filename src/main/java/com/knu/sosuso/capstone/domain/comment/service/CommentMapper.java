@@ -7,6 +7,7 @@ import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -29,7 +30,12 @@ public class CommentMapper {
                 comment.getSentimentType() != null ?
                         comment.getSentimentType().name().toUpperCase() : null,
                 comment.getWrittenAt(),
-                comment.getHasReplies() != null && comment.getHasReplies()
+                comment.getHasReplies() != null && comment.getHasReplies(),
+                comment.getDetailSentiments() != null ?
+                        comment.getDetailSentiments().stream()
+                                .map(Enum::name)
+                                .collect(Collectors.toList()) :
+                        new ArrayList<>()
         );
     }
 
@@ -53,7 +59,8 @@ public class CommentMapper {
                 commentData.likeCount(),
                 null,  // sentiment는 AI 분석 전이므로 null
                 commentData.publishedAt(),
-                commentData.hasReplies()
+                commentData.hasReplies(),
+                new ArrayList<>()  // AI 분석 전이므로 빈 리스트
         );
     }
 
@@ -65,6 +72,8 @@ public class CommentMapper {
             AIAnalysisResponse analysisResponse) {
 
         String sentiment = null;
+        List<String> detailSentiments = new ArrayList<>();
+
         if (analysisResponse != null) {
             CommentSentimentDetail sentimentDetail = analysisResponse.sentimentComments().stream()
                     .filter(detail -> detail.apiCommentId().equals(commentData.id()))
@@ -73,6 +82,9 @@ public class CommentMapper {
 
             if (sentimentDetail != null) {
                 sentiment = sentimentDetail.sentimentType().name().toUpperCase();
+                detailSentiments = sentimentDetail.detailSentimentTypes().stream()
+                        .map(Enum::name)
+                        .collect(Collectors.toList());
             }
         }
 
@@ -83,7 +95,8 @@ public class CommentMapper {
                 commentData.likeCount(),
                 sentiment,
                 commentData.publishedAt(),
-                commentData.hasReplies()
+                commentData.hasReplies(),
+                detailSentiments
         );
     }
 

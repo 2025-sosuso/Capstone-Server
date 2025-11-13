@@ -3,9 +3,7 @@ package com.knu.sosuso.capstone.domain.comment.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
-import com.knu.sosuso.capstone.domain.comment.entity.DetailSentiment;
 import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
-import com.knu.sosuso.capstone.domain.comment.entity.value.DetailSentimentType;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
@@ -199,14 +197,8 @@ public class CommentService {
                 // 1. 전체 감정 타입 업데이트
                 comment.setSentimentType(sentimentDetail.sentimentType());
 
-                // 2. 세부 감정 저장
-                for (DetailSentimentType detailType : sentimentDetail.detailSentimentTypes()) {
-                    DetailSentiment detailSentiment = DetailSentiment.builder()
-                            .comment(comment)
-                            .detailSentimentType(detailType)
-                            .build();
-                    comment.getDetailSentiments().add(detailSentiment);
-                }
+                // 2. 세부 감정 리스트로 저장 (JSON 컬럼에 자동 저장)
+                comment.setDetailSentiments(sentimentDetail.detailSentimentTypes());
 
                 commentRepository.save(comment);
             }

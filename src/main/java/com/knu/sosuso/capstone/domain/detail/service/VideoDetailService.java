@@ -1,6 +1,5 @@
 package com.knu.sosuso.capstone.domain.detail.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
@@ -21,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +41,8 @@ public class VideoDetailService {
 
     /**
      * 영상 기본 정보 조회
+     * 새 영상이면 YouTube API에서 수집하고 백그라운드 AI 스케줄
+     * 기존 영상이면 DB에서 조회하고, AI 미완료 시 재시도
      */
     @Transactional
     public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
@@ -55,10 +57,25 @@ public class VideoDetailService {
             DetailPageResponse fullResponse = videoProcessingService.processVideoToSearchResult(
                     token, apiVideoId, false);
 
+            // 새로 저장된 영상이면 백그라운드 AI 스케줄링
+            Video savedVideo = videoRepository.findByApiVideoId(apiVideoId).orElse(null);
+            if (savedVideo != null && !savedVideo.isCommentsDisabled() && !savedVideo.isHasNoComments()) {
+                log.info("백그라운드 AI 분석 스케줄: apiVideoId={}", apiVideoId);
+                videoProcessingService.scheduleBackgroundAIProcessing(savedVideo.getId(), apiVideoId);
+            }
+
             return new VideoBasicResponse(
                     fullResponse.video(),
                     fullResponse.channel()
             );
+        }
+
+        // 기존 영상인데 AI 미완료면 백그라운드 AI 재시도
+        if (!isAICompleted(video) && !video.isCommentsDisabled() && !video.isHasNoComments()) {
+            if (shouldRetryAI(video)) {
+                log.info("기존 영상 백그라운드 AI 재시도: apiVideoId={}", apiVideoId);
+                videoProcessingService.scheduleBackgroundAIProcessing(video.getId(), apiVideoId);
+            }
         }
 
         // DB에서 기본 정보 반환
@@ -116,7 +133,7 @@ public class VideoDetailService {
                         .map(e -> new DetailAnalysisDto.PopularTimestamp(e.getKey(), e.getValue()))
                         .collect(Collectors.toList());
 
-        // 3. TOP 5 댓글
+        // 3. TOP 5 댓글 (세부 감정 포함)
         List<CommentDto> topComments = commentRepository
                 .findByVideoIdOrderByLikeCountDesc(video.getId())
                 .stream()
@@ -128,7 +145,13 @@ public class VideoDetailService {
                         c.getLikeCount(),
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
                         c.getWrittenAt(),
-                        false  // TOP 5 댓글은 항상 false
+                        false,  // TOP 5 댓글은 항상 false
+                        // 세부 감정 추가
+                        c.getDetailSentiments() != null ?
+                                c.getDetailSentiments().stream()
+                                        .map(Enum::name)
+                                        .collect(Collectors.toList()) :
+                                new ArrayList<>()
                 ))
                 .collect(Collectors.toList());
 
@@ -142,7 +165,7 @@ public class VideoDetailService {
     }
 
     /**
-     * 전체 댓글 조회
+     * 전체 댓글 조회 (세부 감정 포함)
      */
     @Transactional(readOnly = true)
     public List<CommentDto> getVideoComments(String apiVideoId) {
@@ -160,7 +183,13 @@ public class VideoDetailService {
                         c.getLikeCount(),
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
                         c.getWrittenAt(),
-                        c.getHasReplies() != null && c.getHasReplies()
+                        c.getHasReplies() != null && c.getHasReplies(),
+                        // 세부 감정 추가
+                        c.getDetailSentiments() != null ?
+                                c.getDetailSentiments().stream()
+                                        .map(Enum::name)
+                                        .collect(Collectors.toList()) :
+                                new ArrayList<>()
                 ))
                 .collect(Collectors.toList());
 
@@ -179,10 +208,7 @@ public class VideoDetailService {
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
         // AI 분석 완료 여부 체크
-        boolean hasAIAnalysis = video.getSummation() != null &&
-                video.getLanguageDistribution() != null &&
-                video.getSentimentDistribution() != null &&
-                video.getKeywords() != null;
+        boolean hasAIAnalysis = isAICompleted(video);
 
         if (!hasAIAnalysis) {
             log.info("AI 분석이 아직 완료되지 않음: apiVideoId={}", apiVideoId);
@@ -215,18 +241,13 @@ public class VideoDetailService {
                 );
 
         // 키워드
-        List<String> keywords = new ArrayList<>();
-        try {
-            keywords = objectMapper.readValue(video.getKeywords(), new TypeReference<>() {
-            });
-        } catch (Exception e) {
-            log.warn("키워드 파싱 실패: {}", e.getMessage());
-        }
+        List<String> keywords = parseJsonToList(video.getKeywords(), String.class);
 
         log.info("AI 분석 결과 조회 완료: apiVideoId={}", apiVideoId);
+
         return new AIAnalysisResponse(
                 video.getSummation(),
-                video.isWarning(),
+                Boolean.TRUE.equals(video.isWarning()),
                 languageDistribution,
                 sentimentDistribution,
                 keywords
@@ -295,7 +316,7 @@ public class VideoDetailService {
             List<DetailAnalysisDto.SentimentFlow> sampledData =
                     sampleSentimentData(allDailyData);
 
-            log.info("감정 흐름 계산 완료: videoId={}, 전체 {}일 → 샘플링 {}개",
+            log.info("감정 흐름 계산 완료: videoId={}, 전체 {}일 -> 샘플링 {}개",
                     video.getId(), allDailyData.size(), sampledData.size());
 
             return sampledData;
@@ -405,6 +426,36 @@ public class VideoDetailService {
 
     // ==================== Helper Methods ====================
 
+    /**
+     * AI 분석 완료 여부 확인
+     */
+    private boolean isAICompleted(Video video) {
+        return video.getSummation() != null &&
+                video.getLanguageDistribution() != null &&
+                video.getSentimentDistribution() != null &&
+                video.getKeywords() != null;
+    }
+
+    /**
+     * AI 재시도 가능 여부 확인
+     * - AI 처리 중이 아니어야 함
+     * - 마지막 시도 후 쿨타임(5분) 경과해야 함
+     */
+    private boolean shouldRetryAI(Video video) {
+        if (video.isAiProcessing()) {
+            return false;
+        }
+
+        LocalDateTime lastAttempt = video.getLastAiAttemptAt();
+        if (lastAttempt == null) {
+            return true;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cooldownEnd = lastAttempt.plusMinutes(appConfig.getAiRetryCooldownMinutes());
+        return now.isAfter(cooldownEnd);
+    }
+
     private <K, V> Map<K, V> parseJsonToMap(String json, Class<K> keyClass, Class<V> valueClass) {
         if (json == null || json.trim().isEmpty()) {
             return new HashMap<>();
@@ -414,6 +465,19 @@ public class VideoDetailService {
                     objectMapper.getTypeFactory().constructMapType(Map.class, keyClass, valueClass));
         } catch (Exception e) {
             log.warn("JSON 파싱 실패: {}", e.getMessage());
+            throw new BusinessException(CommonError.DATA_PARSING_ERROR);
+        }
+    }
+
+    private <T> List<T> parseJsonToList(String json, Class<T> elementClass) {
+        if (json == null || json.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        try {
+            return objectMapper.readValue(json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, elementClass));
+        } catch (Exception e) {
+            log.warn("JSON List 파싱 실패: {}", e.getMessage());
             throw new BusinessException(CommonError.DATA_PARSING_ERROR);
         }
     }
