@@ -19,7 +19,14 @@ import lombok.Setter;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "comment")
+@Table(
+        name = "comment",
+        indexes = {
+                @Index(name = "idx_comment_video_id", columnList = "video_id"),
+                @Index(name = "idx_comment_video_sentiment", columnList = "video_id, sentiment_type"),
+                @Index(name = "idx_comment_video_like", columnList = "video_id, like_count DESC")
+        }
+)
 @Entity
 public class Comment extends BaseEntity {
 
