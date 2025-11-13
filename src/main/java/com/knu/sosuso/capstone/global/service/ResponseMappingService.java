@@ -53,7 +53,6 @@ public class ResponseMappingService {
     /**
      * DB 데이터를 SearchResultResponse로 변환 (기존 데이터)
      */
-    @Transactional
     public DetailPageResponse mapFromDbToSearchResult(String token, Video video) {
         try {
             DetailVideoDto detailVideoDto = mapDbVideoToVideoResponse(token, video);
@@ -186,7 +185,6 @@ public class ResponseMappingService {
     /**
      * DB Video -> AnalysisResponse 변환
      */
-    @Transactional
     public DetailAnalysisDto mapDbVideoToAnalysisResponse(Video video) {
         try {
             // 백엔드 분석 데이터 (항상 있음)
@@ -448,7 +446,7 @@ public class ResponseMappingService {
      * DB에서 좋아요 TOP 5 댓글 추출
      * TOP 5 댓글은 hasReplies를 무조건 false로 설정
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public List<CommentDto> mapToTopCommentsFromDb(Long videoId) {
         return commentRepository.findByVideoIdOrderByLikeCountDesc(videoId).stream()
                 .limit(5)
