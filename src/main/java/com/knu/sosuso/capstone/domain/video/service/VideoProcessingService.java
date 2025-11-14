@@ -16,7 +16,7 @@ import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
-import com.knu.sosuso.capstone.global.service.ResponseMappingService;
+import com.knu.sosuso.capstone.global.service.mapper.ResponseMappingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;

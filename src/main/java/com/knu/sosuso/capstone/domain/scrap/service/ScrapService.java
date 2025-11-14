@@ -15,7 +15,7 @@ import com.knu.sosuso.capstone.domain.scrap.repository.ScrapRepository;
 import com.knu.sosuso.capstone.domain.auth.UserRepository;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
-import com.knu.sosuso.capstone.global.service.VideoMapper;
+import com.knu.sosuso.capstone.global.service.mapper.VideoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

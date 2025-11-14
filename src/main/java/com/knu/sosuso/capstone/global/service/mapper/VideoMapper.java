@@ -1,4 +1,4 @@
-package com.knu.sosuso.capstone.global.service;
+package com.knu.sosuso.capstone.global.service.mapper;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

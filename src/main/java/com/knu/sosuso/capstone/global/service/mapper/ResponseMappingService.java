@@ -1,9 +1,10 @@
-package com.knu.sosuso.capstone.global.service;
+package com.knu.sosuso.capstone.global.service.mapper;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
+import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
@@ -35,6 +36,7 @@ public class ResponseMappingService {
     private final UserDataService userDataService;
     private final AppConfig appConfig;
     private final VideoMapper videoMapper;
+    private final CommentMapper commentMapper;
 
     /**
      * YouTube API 데이터를 SearchResultResponse로 변환 (새로운 데이터)
@@ -295,15 +297,7 @@ public class ResponseMappingService {
                 commentDataList != null ? commentDataList.size() : 0,
                 analysisResponse != null ? "있음" : "없음");
 
-        List<CommentDto> result = commentDataList.stream()
-                .map(commentData -> {
-                    if (analysisResponse != null) {
-                        return mapToCommentResponseWithAI(commentData, analysisResponse);
-                    } else {
-                        return mapToCommentResponseWithoutAI(commentData);
-                    }
-                })
-                .collect(Collectors.toList());
+        List<CommentDto> result = commentMapper.toDtoList(commentDataList, analysisResponse);
 
         log.info("댓글 매핑 완료: 출력 댓글 수={}", result.size());
         return result;
@@ -313,22 +307,8 @@ public class ResponseMappingService {
      * DB 댓글을 CommentResponse로 변환
      */
     private List<CommentDto> mapDbCommentsToCommentResponses(Long videoId) {
-        return commentRepository.findByVideoIdOrderByIdAsc(videoId).stream()
-                .map(comment -> new CommentDto(
-                        comment.getApiCommentId(),
-                        comment.getWriter(),
-                        comment.getCommentContent(),
-                        comment.getLikeCount(),
-                        comment.getSentimentType() != null ? comment.getSentimentType().name().toUpperCase() : null,
-                        comment.getWrittenAt(),
-                        comment.getHasReplies() != null && comment.getHasReplies(),
-                        comment.getDetailSentiments() != null ?
-                                comment.getDetailSentiments().stream()
-                                        .map(Enum::name)
-                                        .collect(Collectors.toList()) :
-                                new ArrayList<>()
-                ))
-                .collect(Collectors.toList());
+        List<Comment> comments = commentRepository.findByVideoIdOrderByIdAsc(videoId);
+        return commentMapper.toDtoList(comments);
     }
 
     /**
@@ -390,41 +370,7 @@ public class ResponseMappingService {
             List<CommentApiResponse.CommentData> commentDataList,
             AIAnalysisResponse analysisResponse) {
 
-        return commentDataList.stream()
-                .sorted((c1, c2) -> Integer.compare(c2.likeCount(), c1.likeCount()))
-                .limit(appConfig.getTopCommentsCount())
-                .map(commentData -> {
-                    String sentiment = null;
-                    List<String> detailSentiments = new ArrayList<>();
-
-                    if (analysisResponse != null) {
-                        // List에서 해당 댓글의 감정 분석 결과 찾기
-                        CommentSentimentDetail sentimentDetail = analysisResponse.sentimentComments().stream()
-                                .filter(detail -> detail.apiCommentId().equals(commentData.id()))
-                                .findFirst()
-                                .orElse(null);
-
-                        if (sentimentDetail != null) {
-                            sentiment = sentimentDetail.sentimentType().name().toUpperCase();
-                            detailSentiments = sentimentDetail.detailSentimentTypes().stream()
-                                    .map(Enum::name)
-                                    .collect(Collectors.toList());
-                        }
-                    }
-
-                    // TOP 5 댓글은 hasReplies를 무조건 false로 설정
-                    return new CommentDto(
-                            commentData.id(),
-                            commentData.authorName(),
-                            commentData.commentText(),
-                            commentData.likeCount(),
-                            sentiment,
-                            commentData.publishedAt(),
-                            false,  // TOP 5 댓글은 항상 false
-                            detailSentiments
-                    );
-                })
-                .collect(Collectors.toList());
+        return commentMapper.toTopCommentDtoList(commentDataList, analysisResponse, appConfig.getTopCommentsCount());
     }
 
     /**
@@ -433,23 +379,11 @@ public class ResponseMappingService {
      */
     @Transactional(readOnly = true)
     public List<CommentDto> mapToTopCommentsFromDb(Long videoId) {
-        return commentRepository.findByVideoIdOrderByLikeCountDesc(videoId).stream()
+        List<Comment> topComments = commentRepository.findByVideoIdOrderByLikeCountDesc(videoId).stream()
                 .limit(appConfig.getTopCommentsCount())
-                .map(comment -> new CommentDto(
-                        comment.getApiCommentId(),
-                        comment.getWriter(),
-                        comment.getCommentContent(),
-                        comment.getLikeCount(),
-                        comment.getSentimentType() != null ? comment.getSentimentType().name().toUpperCase() : null,
-                        comment.getWrittenAt(),
-                        false,  // TOP 5 댓글은 항상 false
-                        comment.getDetailSentiments() != null ?
-                                comment.getDetailSentiments().stream()
-                                        .map(Enum::name)
-                                        .collect(Collectors.toList()) :
-                                new ArrayList<>()
-                ))
                 .collect(Collectors.toList());
+
+        return commentMapper.toTopCommentDtoList(topComments);
     }
 
     private List<DetailAnalysisDto.PopularTimestamp> mapToPopularTimestamps(Map<String, Integer> popularTimestampsData) {

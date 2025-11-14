@@ -14,8 +14,9 @@ import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
-import com.knu.sosuso.capstone.global.service.ResponseMappingService;
-import com.knu.sosuso.capstone.global.service.VideoMapper;
+import com.knu.sosuso.capstone.global.service.mapper.ResponseMappingService;
+import com.knu.sosuso.capstone.global.service.mapper.VideoMapper;
+import com.knu.sosuso.capstone.global.service.mapper.CommentMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -47,6 +48,7 @@ public class VideoDetailService {
     private final ResponseMappingService responseMappingService;
     private final ObjectMapper objectMapper;
     private final VideoMapper videoMapper;
+    private final CommentMapper commentMapper;
     private final AppConfig appConfig;
 
     /**
@@ -130,25 +132,13 @@ public class VideoDetailService {
                         .collect(Collectors.toList());
 
         // 3. TOP 5 댓글 (세부 감정 포함)
-        List<CommentDto> topComments = commentRepository
+        List<Comment> topCommentsData = commentRepository
                 .findByVideoIdOrderByLikeCountDesc(video.getId())
                 .stream()
                 .limit(appConfig.getTopCommentsCount())
-                .map(c -> new CommentDto(
-                        c.getApiCommentId(),
-                        c.getWriter(),
-                        c.getCommentContent(),
-                        c.getLikeCount(),
-                        c.getSentimentType() != null ? c.getSentimentType().name() : null,
-                        c.getWrittenAt(),
-                        false,  // TOP 댓글은 항상 false
-                        c.getDetailSentiments() != null ?
-                                c.getDetailSentiments().stream()
-                                        .map(Enum::name)
-                                        .collect(Collectors.toList()) :
-                                new ArrayList<>()
-                ))
                 .collect(Collectors.toList());
+
+        List<CommentDto> topComments = commentMapper.toTopCommentDtoList(topCommentsData);
 
         // 4. 감정 흐름 분석
         List<DetailAnalysisDto.SentimentFlow> sentimentFlow = calculateSentimentFlow(video);
@@ -169,26 +159,11 @@ public class VideoDetailService {
         Video video = videoRepository.findByApiVideoId(apiVideoId)
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
-        List<CommentDto> comments = commentRepository.findByVideoIdOrderByIdAsc(video.getId())
-                .stream()
-                .map(c -> new CommentDto(
-                        c.getApiCommentId(),
-                        c.getWriter(),
-                        c.getCommentContent(),
-                        c.getLikeCount(),
-                        c.getSentimentType() != null ? c.getSentimentType().name() : null,
-                        c.getWrittenAt(),
-                        c.getHasReplies() != null && c.getHasReplies(),
-                        c.getDetailSentiments() != null ?
-                                c.getDetailSentiments().stream()
-                                        .map(Enum::name)
-                                        .collect(Collectors.toList()) :
-                                new ArrayList<>()
-                ))
-                .collect(Collectors.toList());
+        List<Comment> comments = commentRepository.findByVideoIdOrderByIdAsc(video.getId());
+        List<CommentDto> commentDtos = commentMapper.toDtoList(comments);
 
-        log.info("전체 댓글 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, comments.size());
-        return comments;
+        log.info("전체 댓글 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, commentDtos.size());
+        return commentDtos;
     }
 
     /**
