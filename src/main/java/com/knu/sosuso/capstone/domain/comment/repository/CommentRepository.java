@@ -2,6 +2,7 @@ package com.knu.sosuso.capstone.domain.comment.repository;
 
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
+import com.knu.sosuso.capstone.domain.video.entity.Video;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -12,6 +13,12 @@ import java.util.List;
 
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, Long> {
+
+    // 특정 비디오의 댓글들 조회 (Video 엔티티로)
+    List<Comment> findByVideo(Video video);
+
+    // 특정 비디오의 댓글들 조회 (Video 엔티티로, 정렬)
+    List<Comment> findByVideoOrderByIdAsc(Video video);
 
     // 특정 비디오의 댓글들 조회 (DB ID로)
     List<Comment> findByVideoIdOrderByIdAsc(Long videoId);
@@ -38,8 +45,10 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     // 감정별 조회
     List<Comment> findByVideoIdAndSentimentTypeOrderById(Long videoId, SentimentType sentimentType);
 
-    List<Comment> findByVideoIdOrderByLikeCountDesc(Long video_id);
+    // 좋아요 수 기준 정렬
+    List<Comment> findByVideoIdOrderByLikeCountDesc(Long videoId);
 
+    // API 댓글 ID로 조회
     Optional<Comment> findByApiCommentId(String apiCommentId);
 
     // 영상의 댓글을 작성 시간 순으로 조회 (오래된 순)
@@ -47,5 +56,16 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     // AI 감정 분석이 완료된 댓글만 조회 (감정 흐름 분석용)
     List<Comment> findByVideoIdAndSentimentTypeIsNotNull(Long videoId);
-}
 
+    // Video 엔티티로 AI 감정 분석이 완료된 댓글 조회
+    List<Comment> findByVideoAndSentimentTypeIsNotNull(Video video);
+
+    // Video 엔티티로 좋아요 수 기준 정렬
+    List<Comment> findByVideoOrderByLikeCountDesc(Video video);
+
+    // Video 엔티티로 작성 시간 순 조회
+    List<Comment> findByVideoOrderByWrittenAtAsc(Video video);
+
+    // Video 엔티티와 감정 타입으로 조회
+    List<Comment> findByVideoAndSentimentTypeOrderById(Video video, SentimentType sentimentType);
+}

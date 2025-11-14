@@ -7,6 +7,8 @@ import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
+import com.knu.sosuso.capstone.domain.video.entity.VideoStatusHelper;
+import com.knu.sosuso.capstone.domain.video.entity.value.AIAnalysisStatus;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.domain.video.service.UserDataService;
 import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
@@ -35,6 +37,7 @@ import java.util.stream.Collectors;
 /**
  * 영상 상세 조회 서비스
  * API 분리로 영상 기본/분석/댓글/AI 정보를 독립적으로 제공
+ * AIAnalysisStatus와 @Retryable 적용
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -50,6 +53,8 @@ public class VideoDetailService {
     private final VideoMapper videoMapper;
     private final CommentMapper commentMapper;
     private final AppConfig appConfig;
+
+    private static final int MAX_AI_RETRY_COUNT = 3;
 
     /**
      * 영상 기본 정보 조회
@@ -73,9 +78,10 @@ public class VideoDetailService {
 
             // 새로 저장된 영상이면 백그라운드 AI 스케줄링
             Video savedVideo = videoRepository.findByApiVideoId(apiVideoId).orElse(null);
-            if (savedVideo != null && !savedVideo.isCommentsDisabled() && !savedVideo.isHasNoComments()) {
+            if (savedVideo != null && VideoStatusHelper.needsAIAnalysis(savedVideo)) {
                 log.info("백그라운드 AI 분석 스케줄: apiVideoId={}", apiVideoId);
-                videoProcessingService.scheduleBackgroundAIProcessing(savedVideo.getId(), apiVideoId);
+                videoProcessingService.scheduleBackgroundAIProcessingWithRetry(
+                        savedVideo.getId(), apiVideoId);
             }
 
             return new VideoBasicResponse(
@@ -85,11 +91,12 @@ public class VideoDetailService {
         }
 
         // 기존 영상인데 AI 미완료면 백그라운드 AI 재시도
-        if (!isAICompleted(video) && !video.isCommentsDisabled() && !video.isHasNoComments()) {
-            if (shouldRetryAI(video)) {
-                log.info("기존 영상 백그라운드 AI 재시도: apiVideoId={}", apiVideoId);
-                videoProcessingService.scheduleBackgroundAIProcessing(video.getId(), apiVideoId);
-            }
+        if (VideoStatusHelper.needsAIAnalysis(video) &&
+                VideoStatusHelper.canRetry(video, MAX_AI_RETRY_COUNT)) {
+            log.info("기존 영상 백그라운드 AI 재시도: apiVideoId={}, status={}, retryCount={}",
+                    apiVideoId, video.getAiAnalysisStatus(), video.getAiRetryCount());
+            videoProcessingService.scheduleBackgroundAIProcessingWithRetry(
+                    video.getId(), apiVideoId);
         }
 
         // DB에서 기본 정보 반환
@@ -99,7 +106,8 @@ public class VideoDetailService {
         DetailVideoDto videoDto = videoMapper.toDetailVideoDto(video, scrapId);
         DetailChannelDto channelDto = videoMapper.toDetailChannelDto(video, favoriteChannelId);
 
-        log.info("영상 기본 정보 조회 완료: apiVideoId={}", apiVideoId);
+        log.info("영상 기본 정보 조회 완료: apiVideoId={}, aiStatus={}",
+                apiVideoId, video.getAiAnalysisStatus());
         return new VideoBasicResponse(videoDto, channelDto);
     }
 
@@ -178,9 +186,19 @@ public class VideoDetailService {
         Video video = videoRepository.findByApiVideoId(apiVideoId)
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
-        // AI 분석 미완료
-        if (!isAICompleted(video)) {
-            log.info("AI 분석 미완료: apiVideoId={}", apiVideoId);
+        // AIAnalysisStatus로 확인
+        if (video.getAiAnalysisStatus() != AIAnalysisStatus.COMPLETED &&
+                video.getAiAnalysisStatus() != AIAnalysisStatus.PARTIAL) {
+            log.info("AI 분석 미완료: apiVideoId={}, status={}",
+                    apiVideoId, video.getAiAnalysisStatus());
+
+            // 재시도 가능한 상태인지 확인하고 백그라운드 처리 스케줄
+            if (VideoStatusHelper.canRetry(video, MAX_AI_RETRY_COUNT)) {
+                log.info("AI 재시도 스케줄링: apiVideoId={}", apiVideoId);
+                videoProcessingService.scheduleBackgroundAIProcessingWithRetry(
+                        video.getId(), apiVideoId);
+            }
+
             return new AIAnalysisResponse(null, null, List.of(), null, List.of());
         }
 
@@ -203,7 +221,8 @@ public class VideoDetailService {
 
         List<String> keywords = parseJsonToList(video.getKeywords(), String.class);
 
-        log.info("AI 분석 결과 조회 완료: apiVideoId={}", apiVideoId);
+        log.info("AI 분석 결과 조회 완료: apiVideoId={}, status={}",
+                apiVideoId, video.getAiAnalysisStatus());
         return new AIAnalysisResponse(
                 video.getSummation(),
                 video.isWarning(),
@@ -262,8 +281,9 @@ public class VideoDetailService {
             // 1. 댓글이 없거나 AI 미완료면 빈 리스트 반환
             if (video.getCommentCount() == null ||
                     Integer.parseInt(video.getCommentCount()) == 0 ||
-                    !isAICompleted(video)) {
-                log.debug("감정 흐름 계산 불가: 댓글 없음 또는 AI 미완료, videoId={}", video.getId());
+                    !isAIAnalysisCompleted(video)) {
+                log.debug("감정 흐름 계산 불가: 댓글 없음 또는 AI 미완료, videoId={}, aiStatus={}",
+                        video.getId(), video.getAiAnalysisStatus());
                 return new ArrayList<>();
             }
 
@@ -410,9 +430,16 @@ public class VideoDetailService {
     // ==================== Helper Methods ====================
 
     /**
-     * AI 분석 완료 여부 확인
+     * AI 분석 완료 여부 확인 (AIAnalysisStatus 기반)
      */
-    private boolean isAICompleted(Video video) {
+    private boolean isAIAnalysisCompleted(Video video) {
+        // AIAnalysisStatus 우선 확인
+        if (video.getAiAnalysisStatus() != null) {
+            return video.getAiAnalysisStatus() == AIAnalysisStatus.COMPLETED ||
+                    video.getAiAnalysisStatus() == AIAnalysisStatus.PARTIAL;
+        }
+
+        // Fallback: 기존 방식 (하위 호환성)
         return video.getSummation() != null &&
                 video.getLanguageDistribution() != null &&
                 video.getSentimentDistribution() != null &&
@@ -420,23 +447,12 @@ public class VideoDetailService {
     }
 
     /**
-     * AI 재시도 가능 여부 확인
-     * - AI 처리 중이 아니어야 함
-     * - 마지막 시도 후 쿨타임 경과해야 함
+     * AI 재시도 가능 여부 확인 (VideoStatusHelper 활용)
+     * @deprecated Use VideoStatusHelper.canRetry() directly
      */
+    @Deprecated
     private boolean shouldRetryAI(Video video) {
-        if (video.isAiProcessing()) {
-            return false;
-        }
-
-        LocalDateTime lastAttempt = video.getLastAiAttemptAt();
-        if (lastAttempt == null) {
-            return true;
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime cooldownEnd = lastAttempt.plusMinutes(appConfig.getAiRetryCooldownMinutes());
-        return now.isAfter(cooldownEnd);
+        return VideoStatusHelper.canRetry(video, MAX_AI_RETRY_COUNT);
     }
 
     private <K, V> Map<K, V> parseJsonToMap(String json, Class<K> keyClass, Class<V> valueClass) {

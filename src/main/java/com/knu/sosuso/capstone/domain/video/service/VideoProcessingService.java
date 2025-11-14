@@ -11,6 +11,8 @@ import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailVideoDto;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
+import com.knu.sosuso.capstone.domain.video.entity.VideoStatusHelper;
+import com.knu.sosuso.capstone.domain.video.entity.value.AIAnalysisStatus;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.AppConfig;
@@ -21,6 +23,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Recover;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +47,9 @@ public class VideoProcessingService {
     private final VideoRepository videoRepository;
     private final CacheManager cacheManager;
     private final AppConfig appConfig;
+
+    private static final int MAX_AI_RETRY_COUNT = 3;
+    private static final long RETRY_DELAY_MS = 2000L;
 
     /**
      * 메인 진입점: 비디오 처리 (Fast Path 적용)
@@ -108,10 +116,8 @@ public class VideoProcessingService {
             return createVideoOnlyResponseFromDb(token, existingVideo);
         }
 
-        // ========== 4. AI 완료 여부 체크 ==========
-        boolean isAICompleted = videoService.isAIAnalysisCompleted(existingVideo);
-
-        if (isAICompleted) {
+        // ========== 4. AI 완료 여부 체크 (AIAnalysisStatus 활용) ==========
+        if (existingVideo.getAiAnalysisStatus() == AIAnalysisStatus.COMPLETED) {
             log.info("Fast Path: AI 완료, DB 조회만 (즉시 응답): apiVideoId={}", apiVideoId);
             return responseMappingService.mapFromDbToSearchResult(token, existingVideo);
         }
@@ -132,27 +138,154 @@ public class VideoProcessingService {
     public DetailPageResponse handleAIIncompleteFastPath(String token, Video existingVideo,
                                                          String apiVideoId) {
 
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime lastAttempt = existingVideo.getLastAiAttemptAt();
+        // AIAnalysisStatus 기반으로 재시도 가능 여부 확인
+        if (!VideoStatusHelper.needsAIAnalysis(existingVideo)) {
+            log.info("AI 분석 불필요 또는 처리 중: apiVideoId={}, status={}",
+                    apiVideoId, existingVideo.getAiAnalysisStatus());
+            return responseMappingService.mapFromDbToSearchResult(token, existingVideo);
+        }
 
-        // 재시도 조건 체크
-        boolean shouldRetry = shouldRetryAI(existingVideo, now, lastAttempt);
-
-        if (shouldRetry) {
-            log.info("AI 재시도 조건 충족, 백그라운드 처리 시작: apiVideoId={}", apiVideoId);
+        // 재시도 가능한지 체크
+        if (VideoStatusHelper.canRetry(existingVideo, MAX_AI_RETRY_COUNT)) {
+            log.info("AI 재시도 시작: apiVideoId={}, retryCount={}/{}",
+                    apiVideoId, existingVideo.getAiRetryCount(), MAX_AI_RETRY_COUNT);
 
             // 즉시 응답 (DB 데이터)
             DetailPageResponse response = responseMappingService.mapFromDbToSearchResult(token, existingVideo);
 
             // 백그라운드에서 AI 재시도
-            scheduleBackgroundAIProcessing(existingVideo.getId(), apiVideoId);
+            scheduleBackgroundAIProcessingWithRetry(existingVideo.getId(), apiVideoId);
 
             return response;
 
         } else {
-            log.info("AI 재시도 쿨타임 중 ({}분 이내), DB 데이터로 응답: apiVideoId={}",
-                    appConfig.getAiRetryCooldownMinutes(), apiVideoId);
+            log.info("AI 재시도 최대 횟수 도달: apiVideoId={}, retryCount={}",
+                    apiVideoId, existingVideo.getAiRetryCount());
             return responseMappingService.mapFromDbToSearchResult(token, existingVideo);
+        }
+    }
+
+    /**
+     * 백그라운드 AI 처리 - 기존 메서드 (호환성 유지)
+     * 새로운 @Retryable 메서드를 호출
+     */
+    @Async("videoProcessingExecutor")
+    public void scheduleBackgroundAIProcessing(Long videoId, String apiVideoId) {
+        log.info("[비동기] 백그라운드 AI 처리 시작 (기존 메서드): videoId={}, apiVideoId={}", videoId, apiVideoId);
+        // @Retryable이 적용된 새 메서드 호출
+        scheduleBackgroundAIProcessingWithRetry(videoId, apiVideoId);
+    }
+
+    /**
+     * 백그라운드 AI 처리 - @Retryable 적용
+     */
+    @Async("videoProcessingExecutor")
+    @Retryable(
+            value = {RuntimeException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = RETRY_DELAY_MS, multiplier = 2)
+    )
+    public void scheduleBackgroundAIProcessingWithRetry(Long videoId, String apiVideoId) {
+        log.info("[비동기] 백그라운드 AI 처리 시작: videoId={}, apiVideoId={}", videoId, apiVideoId);
+
+        try {
+            Video video = videoRepository.findById(videoId)
+                    .orElseThrow(() -> new RuntimeException("Video not found: " + videoId));
+
+            // 동시 실행 방지
+            if (video.getAiAnalysisStatus().isProcessing()) {
+                log.warn("이미 AI 처리 중: apiVideoId={}", apiVideoId);
+                return;
+            }
+
+            // AI 분석 시작 상태로 변경
+            VideoStatusHelper.startAIAnalysis(video);
+            videoRepository.save(video);
+
+            // AI 분석 실행
+            boolean success = performBackgroundAIAnalysis(video, apiVideoId);
+
+            if (success) {
+                VideoStatusHelper.completeAIAnalysis(video);
+            } else {
+                throw new RuntimeException("AI 분석 실패: " + apiVideoId);
+            }
+
+            videoRepository.save(video);
+            evictVideoCache(apiVideoId);
+
+        } catch (Exception e) {
+            log.error("[비동기] 백그라운드 AI 처리 실패: apiVideoId={}, error={}",
+                    apiVideoId, e.getMessage());
+            throw new RuntimeException("AI 처리 실패", e);
+        }
+    }
+
+    /**
+     * @Recover 메서드 - 재시도 모두 실패 시 호출
+     */
+    @Recover
+    public void recoverFromAIFailure(RuntimeException e, Long videoId, String apiVideoId) {
+        log.error("[Recover] AI 처리 최종 실패: videoId={}, apiVideoId={}, error={}",
+                videoId, apiVideoId, e.getMessage());
+
+        try {
+            Video video = videoRepository.findById(videoId).orElse(null);
+            if (video != null) {
+                VideoStatusHelper.failAIAnalysis(video, e.getMessage());
+                videoRepository.save(video);
+            }
+        } catch (Exception ex) {
+            log.error("[Recover] 상태 업데이트 실패: {}", ex.getMessage());
+        }
+    }
+
+    /**
+     * 백그라운드 AI 분석 수행 (실제 로직)
+     */
+    @Transactional
+    public boolean performBackgroundAIAnalysis(Video video, String apiVideoId) {
+        try {
+            // 댓글 조회
+            List<Comment> comments = commentRepository.findByVideo(video);
+
+            if (comments.isEmpty()) {
+                VideoStatusHelper.skipAIAnalysis(video, "No comments found");
+                videoRepository.save(video);
+                return true;  // 댓글이 없는 경우는 성공으로 처리
+            }
+
+            // AI 분석용 댓글 데이터 준비
+            Map<String, String> commentsForAI = comments.stream()
+                    .collect(Collectors.toMap(
+                            Comment::getApiCommentId,
+                            Comment::getCommentContent,
+                            (v1, v2) -> v1,
+                            LinkedHashMap::new
+                    ));
+
+            log.info("AI 분석 요청: apiVideoId={}, 댓글 수={}", apiVideoId, commentsForAI.size());
+
+            // AI 분석 요청
+            AIAnalysisRequest request = new AIAnalysisRequest(apiVideoId, commentsForAI);
+            AIAnalysisResponse response = analysisService.requestAnalysis(request);
+
+            if (response != null) {
+                // DB 업데이트
+                videoService.updateWithAIResults(video.getId(), response);
+                commentService.updateCommentsWithAnalysis(response);
+
+                log.info("AI 분석 성공: apiVideoId={}", apiVideoId);
+                return true;
+            } else {
+                log.error("AI 분석 응답이 null: apiVideoId={}", apiVideoId);
+                return false;
+            }
+
+        } catch (Exception e) {
+            log.error("백그라운드 AI 분석 실패: apiVideoId={}, error={}",
+                    apiVideoId, e.getMessage(), e);
+            return false;
         }
     }
 
@@ -175,147 +308,41 @@ public class VideoProcessingService {
      * 메타데이터 업데이트가 필요한가?
      */
     private boolean shouldUpdateMetadata(Video video, LocalDateTime updateThreshold) {
-        if (video.getLastMetadataUpdatedAt() == null) {
-            return video.getCreatedAt().isBefore(updateThreshold);
-        }
-
-        return video.getLastMetadataUpdatedAt().isBefore(updateThreshold);
+        return video.getLastMetadataUpdatedAt() == null ||
+                video.getLastMetadataUpdatedAt().isBefore(updateThreshold);
     }
 
     /**
-     * AI 재시도 여부 판단
-     */
-    private boolean shouldRetryAI(Video video, LocalDateTime now, LocalDateTime lastAttempt) {
-        if (video.isAiProcessing()) {
-            log.info("AI 처리 중: apiVideoId={}", video.getApiVideoId());
-            return false;
-        }
-
-        if (lastAttempt == null) {
-            log.info("첫 AI 시도: apiVideoId={}", video.getApiVideoId());
-            return true;
-        }
-
-        LocalDateTime cooldownExpiry = lastAttempt
-                .plusMinutes(appConfig.getAiRetryCooldownMinutes());
-
-        boolean canRetry = now.isAfter(cooldownExpiry);
-
-        if (canRetry) {
-            log.info("AI 재시도 가능 (쿨타임 경과): apiVideoId={}, 마지막시도={}, 현재시간={}, 재시도횟수={}",
-                    video.getApiVideoId(), lastAttempt, now, video.getAiRetryCount());
-        } else {
-            log.debug("AI 재시도 쿨타임 중: apiVideoId={}, 남은시간={}분",
-                    video.getApiVideoId(),
-                    java.time.temporal.ChronoUnit.MINUTES.between(now, cooldownExpiry));
-        }
-
-        return canRetry;
-    }
-
-    /**
-     * 백그라운드 메타데이터 업데이트
+     * 메타데이터 업데이트 스케줄링 (비동기)
      */
     @Async("videoProcessingExecutor")
-    @Transactional
     public void scheduleMetadataUpdate(Long videoId, String apiVideoId) {
+        log.info("[비동기] 메타데이터 업데이트 시작: videoId={}", videoId);
+
         try {
-            log.info("백그라운드 메타데이터 업데이트 시작: videoId={}", videoId);
+            VideoApiResponse updatedInfo = videoService.getVideoInfo(apiVideoId);
 
-            videoService.updateMetadataOnly(videoId, apiVideoId);
+            Video video = videoRepository.findById(videoId).orElseThrow();
 
-            log.info("백그라운드 메타데이터 업데이트 완료: videoId={}", videoId);
+            // 메타데이터 업데이트
+            video.setViewCount(updatedInfo.viewCount());
+            video.setLikeCount(updatedInfo.likeCount());
+            video.setCommentCount(updatedInfo.commentCount());
+            video.setSubscriberCount(updatedInfo.subscriberCount());
+            video.setLastMetadataUpdatedAt(LocalDateTime.now());
+            video.setMetadataUpdateCount(video.getMetadataUpdateCount() + 1);
 
-        } catch (Exception e) {
-            log.error("백그라운드 메타데이터 업데이트 실패: videoId={}, error={}",
-                    videoId, e.getMessage(), e);
-        }
-    }
-
-    /**
-     * 백그라운드 AI 처리 스케줄링
-     */
-    @Async("videoProcessingExecutor")
-    @Transactional
-    public void scheduleBackgroundAIProcessing(Long videoId, String apiVideoId) {
-        try {
-            log.info("백그라운드 AI 처리 시작: videoId={}", videoId);
-
-            // 처리 중 플래그 세팅
-            Video video = videoRepository.findById(videoId)
-                    .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
-
-            video.setAiProcessing(true);
-            video.setLastAiAttemptAt(LocalDateTime.now());
             videoRepository.save(video);
 
-            // 댓글 조회 (DB 우선)
-            List<Comment> existingComments = commentRepository.findAllByVideoId(videoId);
+            log.info("[비동기] 메타데이터 업데이트 완료: videoId={}, viewCount={}",
+                    videoId, updatedInfo.viewCount());
 
-            List<CommentApiResponse.CommentData> commentDataList;
-            if (existingComments.isEmpty()) {
-                log.info("DB에 댓글 없음, YouTube API에서 수집: apiVideoId={}", apiVideoId);
-                commentDataList = commentService.fetchAllComments(apiVideoId);
-
-                if (commentDataList.isEmpty()) {
-                    video.setHasNoComments(true);
-                    video.setAiProcessing(false);
-                    videoRepository.save(video);
-                    log.info("댓글 수집 결과 없음, 플래그 업데이트: apiVideoId={}", apiVideoId);
-                    return;
-                }
-
-                commentService.saveCommentsToDb(commentDataList, video);
-            } else {
-                log.info("DB에서 기존 댓글 사용: 댓글 수={}", existingComments.size());
-                commentDataList = existingComments.stream()
-                        .map(c -> new CommentApiResponse.CommentData(
-                                c.getApiCommentId(), c.getWriter(), c.getCommentContent(),
-                                c.getLikeCount(), null, c.getWrittenAt(), c.getHasReplies()
-                        ))
-                        .collect(Collectors.toList());
-            }
-
-            // AI 분석 실행
-            AIAnalysisResponse aiResponse = performAIAnalysis(apiVideoId, commentDataList, videoId);
-
-            if (aiResponse != null) {
-                videoService.updateWithAIResults(videoId, aiResponse);
-                commentService.updateCommentsWithAnalysis(aiResponse);
-
-                video.setAiProcessing(false);
-                video.setAiRetryCount(0);
-                videoRepository.save(video);
-
-                // 캐시 무효화 추가
-                evictVideoCache(apiVideoId);
-
-                log.info("백그라운드 AI 처리 및 캐시 갱신 완료: videoId={}", videoId);
-            } else {
-                // AI 실패 - 재시도 카운트만 증가 (횟수 제한 없음)
-                video.setAiProcessing(false);
-                video.setAiRetryCount(video.getAiRetryCount() + 1);
-                video.setLastAiAttemptAt(LocalDateTime.now()); // 현재 시간 기록
-                videoRepository.save(video);
-
-                log.warn("백그라운드 AI 처리 실패: videoId={}, retryCount={} (5분 후 재시도 가능)",
-                        videoId, video.getAiRetryCount());
-            }
+            // 캐시 무효화
+            evictVideoCache(apiVideoId);
 
         } catch (Exception e) {
-            log.error("백그라운드 AI 처리 중 오류: videoId={}, error={}", videoId, e.getMessage(), e);
-
-            // 오류 시 플래그 해제 및 재시도 준비
-            videoRepository.findById(videoId).ifPresent(v -> {
-                v.setAiProcessing(false);
-                v.setAiRetryCount(v.getAiRetryCount() + 1);
-                v.setLastAiAttemptAt(LocalDateTime.now()); // 현재 시간 기록
-                videoRepository.save(v);
-
-                log.warn("재시도 준비: videoId={}, 재시도 횟수={}, 다음 재시도 가능시간={}",
-                        v.getId(), v.getAiRetryCount(),
-                        v.getLastAiAttemptAt().plusMinutes(5));
-            });
+            log.error("[비동기] 메타데이터 업데이트 실패: videoId={}, error={}",
+                    videoId, e.getMessage());
         }
     }
 
@@ -363,9 +390,14 @@ public class VideoProcessingService {
     }
 
     /**
-     * AI 분석 시도 및 DB 업데이트
+     * AI 분석 시도 및 DB 업데이트 - @Retryable 적용
      */
     @Transactional
+    @Retryable(
+            value = {RuntimeException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 1000, multiplier = 1.5)
+    )
     public AIAnalysisResponse tryAIAnalysisAndUpdate(String apiVideoId,
                                                      List<CommentApiResponse.CommentData> allComments,
                                                      Long videoId, boolean enableAIAnalysis) {
@@ -375,17 +407,53 @@ public class VideoProcessingService {
         }
 
         log.info("AI 분석 시작: apiVideoId={}", apiVideoId);
-        AIAnalysisResponse aiAnalysisResponse = performAIAnalysis(apiVideoId, allComments, videoId);
 
-        if (aiAnalysisResponse != null) {
-            log.info("AI 분석 완료 및 DB 업데이트: apiVideoId={}", apiVideoId);
-            videoService.updateWithAIResults(videoId, aiAnalysisResponse);
-            commentService.updateCommentsWithAnalysis(aiAnalysisResponse);
-        } else {
-            log.warn("AI 분석 실패, 백엔드 분석 데이터만 제공: apiVideoId={}", apiVideoId);
+        Video video = videoRepository.findById(videoId)
+                .orElseThrow(() -> new RuntimeException("Video not found: " + videoId));
+
+        // AI 분석 시작 상태 설정
+        VideoStatusHelper.startAIAnalysis(video);
+        videoRepository.save(video);
+
+        try {
+            AIAnalysisResponse aiAnalysisResponse = performAIAnalysis(apiVideoId, allComments, videoId);
+
+            if (aiAnalysisResponse != null) {
+                log.info("AI 분석 완료 및 DB 업데이트: apiVideoId={}", apiVideoId);
+                videoService.updateWithAIResults(videoId, aiAnalysisResponse);
+                commentService.updateCommentsWithAnalysis(aiAnalysisResponse);
+
+                // AI 분석 완료 상태 설정
+                VideoStatusHelper.completeAIAnalysis(video);
+                videoRepository.save(video);
+
+                return aiAnalysisResponse;
+            } else {
+                throw new RuntimeException("AI 분석 실패: 응답이 null");
+            }
+        } catch (Exception e) {
+            VideoStatusHelper.retryAIAnalysis(video);
+            videoRepository.save(video);
+            throw new RuntimeException("AI 분석 실패", e);
+        }
+    }
+
+    /**
+     * @Recover - tryAIAnalysisAndUpdate 실패 시
+     */
+    @Recover
+    public AIAnalysisResponse recoverFromAIAnalysisFailure(RuntimeException e, String apiVideoId,
+                                                           List<CommentApiResponse.CommentData> allComments,
+                                                           Long videoId, boolean enableAIAnalysis) {
+        log.error("[Recover] AI 분석 최종 실패: apiVideoId={}, videoId={}", apiVideoId, videoId);
+
+        Video video = videoRepository.findById(videoId).orElse(null);
+        if (video != null) {
+            VideoStatusHelper.failAIAnalysis(video, "최대 재시도 횟수 초과");
+            videoRepository.save(video);
         }
 
-        return aiAnalysisResponse;
+        return null;
     }
 
     /**
@@ -417,14 +485,16 @@ public class VideoProcessingService {
             }
         } catch (org.springframework.web.client.ResourceAccessException e) {
             log.error("AI 서버 연결 실패 (네트워크): apiVideoId={}, error={}", apiVideoId, e.getMessage());
+            throw new RuntimeException("AI 서버 연결 실패", e);
         } catch (org.springframework.web.client.HttpClientErrorException e) {
             log.error("AI 서버 클라이언트 오류: apiVideoId={}, status={}", apiVideoId, e.getStatusCode());
+            throw new RuntimeException("AI 서버 클라이언트 오류", e);
         } catch (org.springframework.web.client.HttpServerErrorException e) {
             log.error("AI 서버 내부 오류: apiVideoId={}, status={}", apiVideoId, e.getStatusCode());
-        } catch (RuntimeException e) {
-            log.error("AI 분석 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
+            throw new RuntimeException("AI 서버 내부 오류", e);
         } catch (Exception e) {
             log.error("AI 분석 예상치 못한 오류: apiVideoId={}, error={}", apiVideoId, e.getMessage());
+            throw new RuntimeException("AI 분석 실패", e);
         }
 
         return null;
@@ -432,13 +502,11 @@ public class VideoProcessingService {
 
     /**
      * 비디오 캐시 무효화
-     * VideoDetailService 의존성 없이 CacheManager로 직접 처리
      */
     private void evictVideoCache(String apiVideoId) {
         try {
             Cache cache = cacheManager.getCache("videoDetail");
             if (cache != null) {
-                // basic, analysis, ai 캐시 모두 삭제
                 cache.evict("basic-" + apiVideoId);
                 cache.evict("analysis-" + apiVideoId);
                 cache.evict("ai-" + apiVideoId);
@@ -493,11 +561,12 @@ public class VideoProcessingService {
                 .channelThumbnailUrl(videoInfo.channelThumbnailUrl())
                 .subscriberCount(videoInfo.subscriberCount())
                 .uploadedAt(videoInfo.publishedAt())
-                .hasNoComments(true)  // 댓글 없음 표시
+                .hasNoComments(true)
                 .commentsDisabled(false)
+                .aiAnalysisStatus(AIAnalysisStatus.SKIPPED)  // AI 상태 설정
                 .build();
 
         videoRepository.save(video);
-        log.info("댓글 없는 영상 DB 저장: apiVideoId={}", videoInfo.apiVideoId());
+        log.info("댓글 없는 영상 DB 저장: apiVideoId={}, aiStatus=SKIPPED", videoInfo.apiVideoId());
     }
 }
