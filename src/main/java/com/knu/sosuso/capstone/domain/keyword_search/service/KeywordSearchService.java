@@ -17,15 +17,17 @@ public class KeywordSearchService {
 
     private String buildConversationalPrompt(String keyword) {
         return """
-                Explain the meaning of the following keyword in one concise Korean sentence.
-                The keyword may be in any language (Korean, English, Japanese, French, etc.).
-                Automatically detect its language, but always respond in Korean.
-                The explanation should be short, objective, and end with "이에요."
-                Do not include the keyword itself in the response.
-                If you are not certain about the meaning, consider if it might be a slang or new term,
-                and if still unsure, respond with "해당 단어의 정확한 의미를 알 수 없어요."
-                
-                Keyword: "%s"
-                """.formatted(keyword);
+            Explain the meaning of the following keyword in one concise Korean sentence.
+            The keyword may be in any language (Korean, English, Japanese, French, etc.).
+            Automatically detect its language, but always respond in Korean.
+            The explanation should be short, objective, and end with the appropriate Korean ending:
+            - Use "예요" if the last syllable has no final consonant (받침 없음)
+            - Use "이에요" if the last syllable has a final consonant (받침 있음)
+            Do not include the keyword itself in the response.
+            If you are not certain about the meaning, consider if it might be a slang or new term,
+            and if still unsure, respond with "해당 단어의 정확한 의미를 알 수 없어요."
+            
+            Keyword: "%s"
+            """.formatted(keyword);
     }
 }
