@@ -32,12 +32,6 @@ spring:
 
   cache:
     type: caffeine
-    cache-names:
-      - popularVideos
-      - videoDetail
-      - channelInfo
-    caffeine:
-      spec: maximumSize=1000,expireAfterWrite=30m
 
 jwt:
   secret: ${JWT_SECRET}

@@ -11,6 +11,7 @@ import com.knu.sosuso.capstone.global.exception.error.ChannelError;
 import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
@@ -33,6 +34,14 @@ public class ChannelService {
     private final ObjectMapper objectMapper;
     private final UserDataService userDataService;
 
+    /**
+     * 채널 검색
+     * YouTube API 호출 절감을 위해 캐싱 적용 (1시간 유지)
+     * 토큰별로 다른 결과를 반환하므로 토큰도 키에 포함
+     */
+    @Cacheable(value = "channelInfo",
+            key = "#query + '-' + (#token != null ? #token.hashCode() : 'anonymous')",
+            unless = "#result.results().isEmpty()")
     public ChannelSearchResponse searchChannels(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new BusinessException(ChannelError.CHANNEL_QUERY_REQUIRED);
@@ -129,6 +138,14 @@ public class ChannelService {
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
+    /**
+     * 채널의 최신 비디오 ID 조회
+     * YouTube API 호출 절감을 위해 캐싱 적용 (10분 유지)
+     * 최신 영상은 자주 변경될 수 있으므로 짧은 TTL 적용
+     */
+    @Cacheable(value = "channelInfo",
+            key = "'latest-video-' + #apiChannelId",
+            condition = "#result != null")
     public String getlatestApiVideoId(String apiChannelId) {
         try {
             String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_SEARCH_API_URL)

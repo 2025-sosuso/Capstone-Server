@@ -20,6 +20,8 @@ import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
 import com.knu.sosuso.capstone.global.service.mapper.VideoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +40,12 @@ public class FavoriteChannelService {
     private final VideoProcessingService videoProcessingService;
     private final VideoMapper videoMapper;
 
+    /**
+     * 관심 채널 등록
+     * 등록 후 관심 채널 목록 캐시를 무효화
+     */
+    @CacheEvict(value = "favoriteChannels",
+            key = "'user-' + #token.hashCode()")
     @Transactional
     public RegisterFavoriteChannelResponse registerFavoriteChannel(String token, RegisterFavoriteChannelRequest registerFavoriteChannelRequest) {
         if (!jwtUtil.isValidToken(token)) {
@@ -69,6 +77,14 @@ public class FavoriteChannelService {
         return new RegisterFavoriteChannelResponse(favoriteChannelId, apiChannelId);
     }
 
+    /**
+     * 사용자의 관심 채널 목록 조회
+     * 자주 조회되지만 변경이 적으므로 캐싱 적용 (2시간 유지)
+     * 사용자별로 캐싱
+     */
+    @Cacheable(value = "favoriteChannels",
+            key = "'user-' + #token.hashCode()",
+            condition = "#token != null")
     @Transactional
     public List<FavoriteChannelListResponse> getFavoriteChannelList(String token) {
         if (!jwtUtil.isValidToken(token)) {
@@ -92,6 +108,12 @@ public class FavoriteChannelService {
         return favoriteChannelListResponses;
     }
 
+    /**
+     * 관심 채널 취소
+     * 취소 후 관심 채널 목록 캐시를 무효화
+     */
+    @CacheEvict(value = "favoriteChannels",
+            key = "'user-' + #token.hashCode()")
     @Transactional
     public CancelFavoriteChannelResponse cancelFavoriteChannel(String token, Long favoriteChannelId) {
         if (!jwtUtil.isValidToken(token)) {
@@ -112,6 +134,14 @@ public class FavoriteChannelService {
         return new CancelFavoriteChannelResponse(favoriteChannelId);
     }
 
+    /**
+     * 관심 채널의 최신 비디오 정보 처리
+     * 무거운 작업이므로 캐싱 적용 (30분 유지)
+     * 토큰과 채널ID 조합으로 캐싱
+     */
+    @Cacheable(value = "videoDetail",
+            key = "'favorite-video-' + #apiChannelId + '-' + (#token != null ? #token.hashCode() : 'anonymous')",
+            unless = "#result == null")
     @Transactional
     public FavoriteVideoInfoResponse processLatestVideoFromFavoriteChannel(String token, String apiChannelId) {
         String latestApiVideoId = channelService.getlatestApiVideoId(apiChannelId);
