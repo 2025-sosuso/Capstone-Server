@@ -19,6 +19,8 @@ import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import com.knu.sosuso.capstone.global.service.ResponseMappingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +40,7 @@ public class VideoProcessingService {
     private final ResponseMappingService responseMappingService;
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
+    private final CacheManager cacheManager;
     private final AppConfig appConfig;
 
     /**
@@ -281,10 +284,13 @@ public class VideoProcessingService {
                 commentService.updateCommentsWithAnalysis(aiResponse);
 
                 video.setAiProcessing(false);
-                video.setAiRetryCount(0); // 성공 시 카운트 리셋
+                video.setAiRetryCount(0);
                 videoRepository.save(video);
 
-                log.info("백그라운드 AI 처리 완료: videoId={}", videoId);
+                // 캐시 무효화 추가
+                evictVideoCache(apiVideoId);
+
+                log.info("백그라운드 AI 처리 및 캐시 갱신 완료: videoId={}", videoId);
             } else {
                 // AI 실패 - 재시도 카운트만 증가 (횟수 제한 없음)
                 video.setAiProcessing(false);
@@ -422,6 +428,27 @@ public class VideoProcessingService {
         }
 
         return null;
+    }
+
+    /**
+     * 비디오 캐시 무효화
+     * VideoDetailService 의존성 없이 CacheManager로 직접 처리
+     */
+    private void evictVideoCache(String apiVideoId) {
+        try {
+            Cache cache = cacheManager.getCache("videoDetail");
+            if (cache != null) {
+                // basic, analysis, ai 캐시 모두 삭제
+                cache.evict("basic-" + apiVideoId);
+                cache.evict("analysis-" + apiVideoId);
+                cache.evict("ai-" + apiVideoId);
+                cache.evict(apiVideoId);  // deprecated API용
+
+                log.info("비디오 캐시 무효화 완료: apiVideoId={}", apiVideoId);
+            }
+        } catch (Exception e) {
+            log.warn("캐시 무효화 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
+        }
     }
 
     /**

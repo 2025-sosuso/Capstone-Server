@@ -44,5 +44,8 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
 
     // 영상의 댓글을 작성 시간 순으로 조회 (오래된 순)
     List<Comment> findByVideoIdOrderByWrittenAtAsc(Long videoId);
+
+    // AI 감정 분석이 완료된 댓글만 조회 (감정 흐름 분석용)
+    List<Comment> findByVideoIdAndSentimentTypeIsNotNull(Long videoId);
 }
 

@@ -12,6 +12,7 @@ import com.knu.sosuso.capstone.global.exception.error.TrendingError;
 import com.knu.sosuso.capstone.global.service.ResponseMappingService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -39,12 +40,18 @@ public class PopularVideoService {
 
     /**
      * 인기 영상 TOP N 조회
+     * Caffeine 캐시 적용 (TTL: 60분)
      *
      * @param token 사용자 토큰 (스크랩 여부 확인용)
      * @param maxResults 조회할 영상 개수
      * @return 인기 영상 리스트
      * @throws BusinessException maxResults가 유효하지 않을 때
      */
+    @Cacheable(
+            value = "popularVideos",
+            key = "#maxResults",
+            unless = "#result == null || #result.isEmpty()"
+    )
     @Transactional(readOnly = true)
     public List<VideoSummaryResponse> getPopularVideos(String token, int maxResults) {
         log.info("인기 영상 조회 시작: maxResults={}", maxResults);

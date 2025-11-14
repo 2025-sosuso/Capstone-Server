@@ -17,6 +17,7 @@ import com.knu.sosuso.capstone.domain.channel.repository.FavoriteChannelReposito
 import com.knu.sosuso.capstone.domain.auth.UserRepository;
 import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
 import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
+import com.knu.sosuso.capstone.global.service.VideoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class FavoriteChannelService {
     private final JwtUtil jwtUtil;
     private final ChannelService channelService;
     private final VideoProcessingService videoProcessingService;
+    private final VideoMapper videoMapper;
 
     @Transactional
     public RegisterFavoriteChannelResponse registerFavoriteChannel(String token, RegisterFavoriteChannelRequest registerFavoriteChannelRequest) {

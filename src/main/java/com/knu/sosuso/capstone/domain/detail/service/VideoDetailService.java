@@ -14,8 +14,12 @@ import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
+import com.knu.sosuso.capstone.global.service.ResponseMappingService;
+import com.knu.sosuso.capstone.global.service.VideoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +31,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 영상 상세 조회 서비스
+ * API 분리로 영상 기본/분석/댓글/AI 정보를 독립적으로 제공
+ */
 @Slf4j
 @RequiredArgsConstructor
 @Service
@@ -36,14 +44,18 @@ public class VideoDetailService {
     private final CommentRepository commentRepository;
     private final UserDataService userDataService;
     private final VideoProcessingService videoProcessingService;
+    private final ResponseMappingService responseMappingService;
     private final ObjectMapper objectMapper;
+    private final VideoMapper videoMapper;
     private final AppConfig appConfig;
 
     /**
      * 영상 기본 정보 조회
      * 새 영상이면 YouTube API에서 수집하고 백그라운드 AI 스케줄
      * 기존 영상이면 DB에서 조회하고, AI 미완료 시 재시도
+     * 캐싱: 30분 TTL
      */
+    @Cacheable(value = "videoDetail", key = "'basic-' + #apiVideoId", unless = "#result == null")
     @Transactional
     public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
         log.info("영상 기본 정보 조회: apiVideoId={}", apiVideoId);
@@ -82,25 +94,8 @@ public class VideoDetailService {
         Long scrapId = userDataService.getUserScrapId(token, apiVideoId);
         Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
 
-        DetailVideoDto videoDto = new DetailVideoDto(
-                video.getApiVideoId(),
-                video.getTitle(),
-                video.getDescription(),
-                video.getUploadedAt(),
-                video.getThumbnailUrl(),
-                parseLong(video.getViewCount()),
-                parseLong(video.getLikeCount()),
-                parseInt(video.getCommentCount()),
-                scrapId
-        );
-
-        DetailChannelDto channelDto = new DetailChannelDto(
-                video.getChannelId(),
-                video.getChannelName(),
-                video.getChannelThumbnailUrl(),
-                parseLong(video.getSubscriberCount()),
-                favoriteChannelId
-        );
+        DetailVideoDto videoDto = videoMapper.toDetailVideoDto(video, scrapId);
+        DetailChannelDto channelDto = videoMapper.toDetailChannelDto(video, favoriteChannelId);
 
         log.info("영상 기본 정보 조회 완료: apiVideoId={}", apiVideoId);
         return new VideoBasicResponse(videoDto, channelDto);
@@ -108,8 +103,9 @@ public class VideoDetailService {
 
     /**
      * 영상 분석 정보 조회 (백엔드 분석 + TOP 5 댓글 + 감정 흐름)
-     * TOP 5 댓글은 hasReplies를 무조건 false로 설정
+     * 캐싱: 30분 TTL
      */
+    @Cacheable(value = "videoDetail", key = "'analysis-' + #apiVideoId", unless = "#result == null")
     @Transactional(readOnly = true)
     public VideoAnalysisResponse getVideoAnalysis(String apiVideoId) {
         log.info("영상 분석 정보 조회: apiVideoId={}", apiVideoId);
@@ -137,7 +133,7 @@ public class VideoDetailService {
         List<CommentDto> topComments = commentRepository
                 .findByVideoIdOrderByLikeCountDesc(video.getId())
                 .stream()
-                .limit(5)
+                .limit(appConfig.getTopCommentsCount())
                 .map(c -> new CommentDto(
                         c.getApiCommentId(),
                         c.getWriter(),
@@ -145,8 +141,7 @@ public class VideoDetailService {
                         c.getLikeCount(),
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
                         c.getWrittenAt(),
-                        false,  // TOP 5 댓글은 항상 false
-                        // 세부 감정 추가
+                        false,  // TOP 댓글은 항상 false
                         c.getDetailSentiments() != null ?
                                 c.getDetailSentiments().stream()
                                         .map(Enum::name)
@@ -184,7 +179,6 @@ public class VideoDetailService {
                         c.getSentimentType() != null ? c.getSentimentType().name() : null,
                         c.getWrittenAt(),
                         c.getHasReplies() != null && c.getHasReplies(),
-                        // 세부 감정 추가
                         c.getDetailSentiments() != null ?
                                 c.getDetailSentiments().stream()
                                         .map(Enum::name)
@@ -199,7 +193,9 @@ public class VideoDetailService {
 
     /**
      * AI 분석 결과 조회
+     * 캐싱: 30분 TTL
      */
+    @Cacheable(value = "videoDetail", key = "'ai-' + #apiVideoId", unless = "#result == null")
     @Transactional(readOnly = true)
     public AIAnalysisResponse getAIAnalysis(String apiVideoId) {
         log.info("AI 분석 결과 조회: apiVideoId={}", apiVideoId);
@@ -207,22 +203,13 @@ public class VideoDetailService {
         Video video = videoRepository.findByApiVideoId(apiVideoId)
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
-        // AI 분석 완료 여부 체크
-        boolean hasAIAnalysis = isAICompleted(video);
-
-        if (!hasAIAnalysis) {
-            log.info("AI 분석이 아직 완료되지 않음: apiVideoId={}", apiVideoId);
-            // 빈 응답 반환 (프론트에서 "분석 중" 표시)
-            return new AIAnalysisResponse(
-                    null,
-                    false,
-                    new ArrayList<>(),
-                    new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0),
-                    new ArrayList<>()
-            );
+        // AI 분석 미완료
+        if (!isAICompleted(video)) {
+            log.info("AI 분석 미완료: apiVideoId={}", apiVideoId);
+            return new AIAnalysisResponse(null, null, List.of(), null, List.of());
         }
 
-        // 언어 분포
+        // AI 분석 완료
         Map<String, Double> languageRatio = parseJsonToMap(
                 video.getLanguageDistribution(), String.class, Double.class);
         List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
@@ -230,7 +217,6 @@ public class VideoDetailService {
                         .map(e -> new DetailAnalysisDto.LanguageDistribution(e.getKey(), e.getValue()))
                         .collect(Collectors.toList());
 
-        // 감정 분포
         Map<String, Double> sentimentRatio = parseJsonToMap(
                 video.getSentimentDistribution(), String.class, Double.class);
         DetailAnalysisDto.SentimentDistribution sentimentDistribution =
@@ -240,14 +226,12 @@ public class VideoDetailService {
                         sentimentRatio.getOrDefault("other", 0.0)
                 );
 
-        // 키워드
         List<String> keywords = parseJsonToList(video.getKeywords(), String.class);
 
         log.info("AI 분석 결과 조회 완료: apiVideoId={}", apiVideoId);
-
         return new AIAnalysisResponse(
                 video.getSummation(),
-                Boolean.TRUE.equals(video.isWarning()),
+                video.isWarning(),
                 languageDistribution,
                 sentimentDistribution,
                 keywords
@@ -255,45 +239,69 @@ public class VideoDetailService {
     }
 
     /**
-     * @deprecated 기존 통합 API
+     * Deprecated 통합 API (캐싱 적용)
+     * 프론트엔드 마이그레이션 완료 후 제거 예정
      */
     @Deprecated
-    @Transactional
+    @Cacheable(
+            value = "videoDetail",
+            key = "#apiVideoId",
+            unless = "#result == null"
+    )
+    @Transactional(readOnly = true)
     public DetailPageResponse getVideoDetail(String token, String apiVideoId) {
-        log.warn("Deprecated 메서드 호출: getVideoDetail() - 분리된 메서드 사용 권장");
-        return videoProcessingService.processVideoToSearchResult(token, apiVideoId, true);
+        log.info("영상 상세 조회 (캐시 미스, Deprecated): apiVideoId={}", apiVideoId);
+
+        Video video = videoRepository.findByApiVideoId(apiVideoId).orElse(null);
+
+        if (video != null) {
+            if (video.isDeleted()) {
+                throw new BusinessException(VideoError.VIDEO_DELETED);
+            }
+
+            // DB에서 조회 가능하면 캐시 히트 확률 높음
+            return responseMappingService.mapFromDbToSearchResult(token, video);
+        }
+
+        // 캐시 미스이고 DB에도 없으면 YouTube API 호출
+        return videoProcessingService.processVideoToSearchResult(token, apiVideoId, false);
     }
 
-    // ==================== 감정 흐름 분석 ====================
+    /**
+     * 영상 상세 캐시 무효화
+     * AI 분석 완료 후 VideoProcessingService에서 호출
+     */
+    @CacheEvict(value = "videoDetail", key = "#apiVideoId")
+    public void evictVideoCache(String apiVideoId) {
+        log.info("영상 상세 캐시 무효화: apiVideoId={}", apiVideoId);
+    }
+
+    // ==================== Sentiment Flow Calculation ====================
 
     /**
-     * 감정 흐름 데이터 계산 (최대 N개 데이터 포인트)
-     * 전체 기간을 균등하게 샘플링하여 대표값 추출
+     * 감정 흐름 분석 계산
+     * 시간 순서대로 댓글의 감정 비율 변화 추이
      */
     private List<DetailAnalysisDto.SentimentFlow> calculateSentimentFlow(Video video) {
         try {
-            // 1. 댓글 조회 (작성 시간 순)
-            List<Comment> comments = commentRepository
-                    .findByVideoIdOrderByWrittenAtAsc(video.getId());
-
-            if (comments.isEmpty()) {
-                log.debug("댓글 없음, 빈 감정 흐름 반환: videoId={}", video.getId());
+            // 1. 댓글이 없거나 AI 미완료면 빈 리스트 반환
+            if (video.getCommentCount() == null ||
+                    Integer.parseInt(video.getCommentCount()) == 0 ||
+                    !isAICompleted(video)) {
+                log.debug("감정 흐름 계산 불가: 댓글 없음 또는 AI 미완료, videoId={}", video.getId());
                 return new ArrayList<>();
             }
 
-            // 2. 감정 타입이 있는 댓글 확인 (AI 분석 완료 여부)
-            long commentsWithSentiment = comments.stream()
-                    .filter(c -> c.getSentimentType() != null)
-                    .count();
+            // 2. 감정 분석이 있는 댓글만 조회
+            List<Comment> comments = commentRepository.findByVideoIdAndSentimentTypeIsNotNull(video.getId());
 
-            if (commentsWithSentiment == 0) {
-                log.debug("AI 분석 미완료, 빈 감정 흐름 반환: videoId={}", video.getId());
+            if (comments.isEmpty()) {
+                log.debug("감정 분석된 댓글 없음, 빈 감정 흐름 반환: videoId={}", video.getId());
                 return new ArrayList<>();
             }
 
             // 3. 날짜별로 댓글 그룹화
             Map<LocalDate, List<Comment>> commentsByDate = comments.stream()
-                    .filter(c -> c.getSentimentType() != null)
                     .collect(Collectors.groupingBy(comment ->
                             parseCommentDate(comment.getWrittenAt())));
 
@@ -439,7 +447,7 @@ public class VideoDetailService {
     /**
      * AI 재시도 가능 여부 확인
      * - AI 처리 중이 아니어야 함
-     * - 마지막 시도 후 쿨타임(5분) 경과해야 함
+     * - 마지막 시도 후 쿨타임 경과해야 함
      */
     private boolean shouldRetryAI(Video video) {
         if (video.isAiProcessing()) {
@@ -480,6 +488,38 @@ public class VideoDetailService {
             log.warn("JSON List 파싱 실패: {}", e.getMessage());
             throw new BusinessException(CommonError.DATA_PARSING_ERROR);
         }
+    }
+
+    /**
+     * 비디오 캐시 무효화
+     * 비디오 업데이트 시 호출
+     */
+    @CacheEvict(value = "videoDetail", allEntries = false,
+            key = "'basic-' + #apiVideoId")
+    public void evictVideoBasicCache(String apiVideoId) {
+        log.info("비디오 기본 정보 캐시 삭제: apiVideoId={}", apiVideoId);
+    }
+
+    @CacheEvict(value = "videoDetail", allEntries = false,
+            key = "'analysis-' + #apiVideoId")
+    public void evictVideoAnalysisCache(String apiVideoId) {
+        log.info("비디오 분석 정보 캐시 삭제: apiVideoId={}", apiVideoId);
+    }
+
+    @CacheEvict(value = "videoDetail", allEntries = false,
+            key = "'ai-' + #apiVideoId")
+    public void evictVideoAICache(String apiVideoId) {
+        log.info("비디오 AI 정보 캐시 삭제: apiVideoId={}", apiVideoId);
+    }
+
+    /**
+     * 특정 비디오의 모든 캐시 삭제
+     */
+    public void evictAllVideoCache(String apiVideoId) {
+        evictVideoBasicCache(apiVideoId);
+        evictVideoAnalysisCache(apiVideoId);
+        evictVideoAICache(apiVideoId);
+        log.info("비디오 전체 캐시 삭제 완료: apiVideoId={}", apiVideoId);
     }
 
     private Long parseLong(String value) {

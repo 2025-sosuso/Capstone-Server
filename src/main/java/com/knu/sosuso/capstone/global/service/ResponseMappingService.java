@@ -34,6 +34,7 @@ public class ResponseMappingService {
     private final CommentRepository commentRepository;
     private final UserDataService userDataService;
     private final AppConfig appConfig;
+    private final VideoMapper videoMapper;
 
     /**
      * YouTube API 데이터를 SearchResultResponse로 변환 (새로운 데이터)
@@ -109,18 +110,7 @@ public class ResponseMappingService {
      */
     private DetailVideoDto mapDbVideoToVideoResponse(String token, Video video) {
         Long scrapId = userDataService.getUserScrapId(token, video.getApiVideoId());
-
-        return new DetailVideoDto(
-                video.getApiVideoId(),
-                video.getTitle(),
-                video.getDescription(),
-                video.getUploadedAt(),
-                video.getThumbnailUrl(),
-                parseLong(video.getViewCount()),
-                parseLong(video.getLikeCount()),
-                parseInt(video.getCommentCount()),
-                scrapId
-        );
+        return videoMapper.toDetailVideoDto(video, scrapId);
     }
 
     /**
@@ -128,14 +118,7 @@ public class ResponseMappingService {
      */
     private DetailChannelDto mapDbVideoToChannelResponse(String token, Video video) {
         Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
-
-        return new DetailChannelDto(
-                video.getChannelId(),
-                video.getChannelName(),
-                video.getChannelThumbnailUrl(),
-                parseLong(video.getSubscriberCount()),
-                favoriteChannelId
-        );
+        return videoMapper.toDetailChannelDto(video, favoriteChannelId);
     }
 
     /**
