@@ -9,10 +9,12 @@ public class BusinessException extends RuntimeException {
 
     private final HttpStatus httpStatus;
     private final String message;
+    private final BaseError error;
 
     public BusinessException(BaseError baseError) {
         super(baseError.getMessage());
         this.httpStatus = baseError.getHttpStatus();
         this.message = baseError.getMessage();
+        this.error = baseError;
     }
 }
