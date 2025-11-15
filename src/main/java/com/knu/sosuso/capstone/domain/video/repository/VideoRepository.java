@@ -1,5 +1,6 @@
 package com.knu.sosuso.capstone.domain.video.repository;
 
+import com.knu.sosuso.capstone.domain.video.entity.AIAnalysisStatus;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -33,4 +34,9 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
              OR v.lastMetadataUpdatedAt < :threshold)
         """)
     List<Video> findVideosNeedingMetadataUpdate(@Param("threshold") LocalDateTime threshold);
+
+    /**
+     * 미분석 영상 조회 (최근 업데이트 순, 상위 N개)
+     */
+    List<Video> findTop10ByAiAnalysisStatusOrderByUpdatedAtDesc(AIAnalysisStatus status);
 }

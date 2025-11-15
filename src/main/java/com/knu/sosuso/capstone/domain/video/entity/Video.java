@@ -1,7 +1,6 @@
 package com.knu.sosuso.capstone.domain.video.entity;
 
 import com.knu.sosuso.capstone.global.BaseEntity;
-import com.knu.sosuso.capstone.domain.video.entity.value.AIAnalysisStatus;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
@@ -82,18 +81,6 @@ public class Video extends BaseEntity {
     @Column(name = "has_no_comments", nullable = false)
     private boolean hasNoComments = false;
 
-    // 마지막 AI 분석 시도 시간
-    @Column(name = "last_ai_attempt_at")
-    private LocalDateTime lastAiAttemptAt;
-
-    // AI 재시도 횟수
-    @Column(name = "ai_retry_count", nullable = false)
-    private int aiRetryCount = 0;
-
-    // AI 처리 중 여부 (동시 실행 방지용)
-    @Column(name = "ai_processing", nullable = false)
-    private boolean aiProcessing = false;
-
     // AI 분석 상태 관리
     @Enumerated(EnumType.STRING)
     @Column(name = "ai_analysis_status", nullable = false)
@@ -123,7 +110,6 @@ public class Video extends BaseEntity {
                  boolean isWarning, String languageDistribution, String sentimentDistribution,
                  String keywords, String uploadedAt,
                  boolean commentsDisabled, boolean hasNoComments,
-                 LocalDateTime lastAiAttemptAt, int aiRetryCount, boolean aiProcessing,
                  AIAnalysisStatus aiAnalysisStatus,
                  LocalDateTime lastMetadataUpdatedAt, boolean deleted,
                  LocalDateTime deleteCheckedAt, int metadataUpdateCount) {
@@ -148,9 +134,6 @@ public class Video extends BaseEntity {
         this.uploadedAt = uploadedAt;
         this.commentsDisabled = commentsDisabled;
         this.hasNoComments = hasNoComments;
-        this.lastAiAttemptAt = lastAiAttemptAt;
-        this.aiRetryCount = aiRetryCount;
-        this.aiProcessing = aiProcessing;
         this.aiAnalysisStatus = aiAnalysisStatus != null ? aiAnalysisStatus : AIAnalysisStatus.PENDING;
         this.lastMetadataUpdatedAt = lastMetadataUpdatedAt;
         this.deleted = deleted;
