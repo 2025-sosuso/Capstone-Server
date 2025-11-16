@@ -2,6 +2,8 @@ package com.knu.sosuso.capstone.domain.video.service;
 
 import com.knu.sosuso.capstone.domain.channel.service.ChannelService;
 import com.knu.sosuso.capstone.domain.channel.dto.response.ChannelSearchResponse;
+import com.knu.sosuso.capstone.domain.trending_search.entity.SearchLog;
+import com.knu.sosuso.capstone.domain.trending_search.repository.SearchLogRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.SearchApiResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoIdResponse;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
@@ -21,6 +23,7 @@ public class SearchService {
 
     private final VideoService videoService;
     private final ChannelService channelService;
+    private final SearchLogRepository searchLogRepository;
 
     /**
      * 통합 검색
@@ -35,6 +38,7 @@ public class SearchService {
 
         String trimmedQuery = query.trim();
         log.info("검색 요청: query={}, type={}", trimmedQuery, isVideoUrl(trimmedQuery) ? "URL" : "CHANNEL");
+        searchLogRepository.save(new SearchLog(query));
 
         try {
             if (isVideoUrl(trimmedQuery)) {
