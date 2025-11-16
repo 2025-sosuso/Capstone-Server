@@ -1,533 +1,710 @@
 package com.knu.sosuso.capstone.domain.detail.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
+import com.knu.sosuso.capstone.domain.comment.entity.value.DetailSentimentType;
 import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
+import com.knu.sosuso.capstone.domain.scrap.entity.Scrap;
+import com.knu.sosuso.capstone.domain.scrap.repository.ScrapRepository;
+import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
-import com.knu.sosuso.capstone.domain.video.entity.VideoStatusHelper;
-import com.knu.sosuso.capstone.domain.video.entity.value.AIAnalysisStatus;
+import com.knu.sosuso.capstone.domain.video.entity.VideoType;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
-import com.knu.sosuso.capstone.domain.video.service.UserDataService;
 import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
+import com.knu.sosuso.capstone.domain.video.service.VideoService;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
-import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
-import com.knu.sosuso.capstone.global.service.mapper.ResponseMappingService;
-import com.knu.sosuso.capstone.global.service.mapper.VideoMapper;
-import com.knu.sosuso.capstone.global.service.mapper.CommentMapper;
+import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
 import java.util.stream.Collectors;
 
-/**
- * 영상 상세 조회 서비스
- * API 분리로 영상 기본/분석/댓글/AI 정보를 독립적으로 제공
- * AIAnalysisStatus와 @Retryable 적용
- */
 @Slf4j
 @RequiredArgsConstructor
 @Service
 public class VideoDetailService {
 
+    private final VideoService videoService;
+    private final VideoProcessingService videoProcessingService;
     private final VideoRepository videoRepository;
     private final CommentRepository commentRepository;
-    private final UserDataService userDataService;
-    private final VideoProcessingService videoProcessingService;
-    private final ResponseMappingService responseMappingService;
-    private final ObjectMapper objectMapper;
-    private final VideoMapper videoMapper;
-    private final CommentMapper commentMapper;
+    private final ScrapRepository scrapRepository;
+    private final JwtUtil jwtUtil;
     private final AppConfig appConfig;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private static final int MAX_AI_RETRY_COUNT = 3;
+    // ========================================
+    // 1. 영상 기본 정보 (영상 정보 + 댓글 수집)
+    // ========================================
 
     /**
      * 영상 기본 정보 조회
-     * 새 영상이면 YouTube API에서 수집하고 백그라운드 AI 스케줄
-     * 기존 영상이면 DB에서 조회하고, AI 미완료 시 재시도
-     * 캐싱: 30분 TTL
+     * - 새 영상이면 VideoProcessingService에 위임
      */
-    @Cacheable(value = "videoDetail", key = "'basic-' + #apiVideoId", unless = "#result == null")
+    @Cacheable(value = "videoDetail", key = "'basic-' + #apiVideoId")
     @Transactional
     public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
-        log.info("영상 기본 정보 조회: apiVideoId={}", apiVideoId);
+        log.info("📺 영상 기본 정보 조회: apiVideoId={}", apiVideoId);
 
-        // DB에서 조회 시도
-        Video video = videoRepository.findByApiVideoId(apiVideoId).orElse(null);
+        // 1. DB에서 먼저 찾기
+        Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
 
-        if (video == null) {
-            // DB에 없으면 YouTube API에서 수집 (AI 없이)
-            log.info("DB에 없는 영상, YouTube API에서 수집: apiVideoId={}", apiVideoId);
-            DetailPageResponse fullResponse = videoProcessingService.processVideoToSearchResult(
-                    token, apiVideoId, false);
+        Video video;
+        if (existingVideo.isPresent()) {
+            // ✅ 기존 영상: 자체 처리
+            video = existingVideo.get();
 
-            // 새로 저장된 영상이면 백그라운드 AI 스케줄링
-            Video savedVideo = videoRepository.findByApiVideoId(apiVideoId).orElse(null);
-            if (savedVideo != null && VideoStatusHelper.needsAIAnalysis(savedVideo)) {
-                log.info("백그라운드 AI 분석 스케줄: apiVideoId={}", apiVideoId);
-                videoProcessingService.scheduleBackgroundAIProcessingWithRetry(
-                        savedVideo.getId(), apiVideoId);
+            if (shouldCheckDeletion(video)) {
+                checkAndUpdateDeletionStatus(video);
             }
 
-            return new VideoBasicResponse(
-                    fullResponse.video(),
-                    fullResponse.channel()
+            if (shouldUpdateMetadata(video)) {
+                updateMetadata(video);
+            }
+
+            log.info("✅ 기존 영상 조회: apiVideoId={}", apiVideoId);
+        } else {
+            log.info("🆕 새 영상 처리 시작: apiVideoId={}", apiVideoId);
+            video = videoProcessingService.processNewVideo(apiVideoId, VideoType.VIDEO);
+            log.info("✅ 새 영상 처리 완료: apiVideoId={}", apiVideoId);
+        }
+
+        return createBasicResponse(token, video);
+    }
+
+    /**
+     * 백엔드 분석 정보 조회
+     */
+    @Transactional(readOnly = true)
+    public VideoAnalysisResponse getVideoAnalysis(String apiVideoId) {
+        log.info("📊 백엔드 분석 정보 조회: apiVideoId={}", apiVideoId);
+
+        Video video = videoRepository.findByApiVideoId(apiVideoId)
+                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
+
+        try {
+            List<DetailAnalysisDto.CommentHistogram> commentHistogram =
+                    parseCommentHistogram(video.getCommentHistogram());
+
+            List<DetailAnalysisDto.PopularTimestamp> popularTimestamps =
+                    parsePopularTimestamps(video.getPopularTimestamps());
+
+            List<CommentDto> topComments = getTopComments(video.getId());
+
+            List<DetailAnalysisDto.SentimentFlow> sentimentFlow =
+                    calculateSentimentFlow(video.getId());
+
+            log.info("✅ 백엔드 분석 정보 조회 완료: apiVideoId={}", apiVideoId);
+
+            return new VideoAnalysisResponse(
+                    commentHistogram,
+                    popularTimestamps,
+                    topComments,
+                    sentimentFlow
+            );
+
+        } catch (Exception e) {
+            log.error("❌ 백엔드 분석 정보 파싱 실패: apiVideoId={}", apiVideoId, e);
+            return new VideoAnalysisResponse(
+                    new ArrayList<>(),
+                    new ArrayList<>(),
+                    new ArrayList<>(),
+                    new ArrayList<>()
             );
         }
+    }
 
-        // 기존 영상인데 AI 미완료면 백그라운드 AI 재시도
-        if (VideoStatusHelper.needsAIAnalysis(video) &&
-                VideoStatusHelper.canRetry(video, MAX_AI_RETRY_COUNT)) {
-            log.info("기존 영상 백그라운드 AI 재시도: apiVideoId={}, status={}, retryCount={}",
-                    apiVideoId, video.getAiAnalysisStatus(), video.getAiRetryCount());
-            videoProcessingService.scheduleBackgroundAIProcessingWithRetry(
-                    video.getId(), apiVideoId);
+    /**
+     * 전체 댓글 조회 (단순 DB 조회)
+     */
+    @Transactional(readOnly = true)
+    public List<CommentDto> getVideoComments(String apiVideoId) {
+        log.info("💬 전체 댓글 조회: apiVideoId={}", apiVideoId);
+
+        Video video = videoRepository.findByApiVideoId(apiVideoId)
+                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
+
+        if (video.isCommentsDisabled() || video.isHasNoComments()) {
+            log.info("⚠️ 댓글 없음: apiVideoId={}", apiVideoId);
+            return List.of();
         }
 
-        // DB에서 기본 정보 반환
-        Long scrapId = userDataService.getUserScrapId(token, apiVideoId);
-        Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
+        List<Comment> comments = commentRepository.findByVideoId(video.getId());
 
-        DetailVideoDto videoDto = videoMapper.toDetailVideoDto(video, scrapId);
-        DetailChannelDto channelDto = videoMapper.toDetailChannelDto(video, favoriteChannelId);
+        if (comments.isEmpty()) {
+            log.warn("⏳ 댓글 수집 진행 중: apiVideoId={}", apiVideoId);
+            return List.of();
+        }
 
-        log.info("영상 기본 정보 조회 완료: apiVideoId={}, aiStatus={}",
-                apiVideoId, video.getAiAnalysisStatus());
+        log.info("✅ 댓글 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, comments.size());
+
+        return comments.stream()
+                .map(this::toCommentDto)
+                .collect(Collectors.toList());
+    }
+
+    // ========================================
+    // 4. AI 분석 결과 조회
+    // ========================================
+
+    /**
+     * AI 분석 결과 조회
+     * - AI 요약
+     * - 언어 분포
+     * - 감정 분포
+     * - 키워드
+     */
+    @Transactional(readOnly = true)
+    public AIAnalysisResponse getAIAnalysis(String apiVideoId) {
+        log.info("🤖 AI 분석 결과 조회: apiVideoId={}", apiVideoId);
+
+        Video video = videoRepository.findByApiVideoId(apiVideoId)
+                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
+
+        try {
+            // 1. 언어 분포
+            List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
+                    parseLanguageDistribution(video.getLanguageDistribution());
+
+            // 2. 감정 분포
+            DetailAnalysisDto.SentimentDistribution sentimentDistribution =
+                    parseSentimentDistribution(video.getSentimentDistribution());
+
+            // 3. 키워드
+            List<String> keywords = parseKeywords(video.getKeywords());
+
+            log.info("✅ AI 분석 결과 조회 완료: apiVideoId={}", apiVideoId);
+
+            return new AIAnalysisResponse(
+                    video.getSummation(),
+                    video.isWarning(),
+                    languageDistribution,
+                    sentimentDistribution,
+                    keywords
+            );
+
+        } catch (Exception e) {
+            log.error("❌ AI 분석 결과 파싱 실패: apiVideoId={}, error={}",
+                    apiVideoId, e.getMessage(), e);
+
+            return new AIAnalysisResponse(
+                    null,
+                    false,
+                    new ArrayList<>(),
+                    new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0),
+                    new ArrayList<>()
+            );
+        }
+    }
+
+    // ========================================
+    // 5. Deprecated - 통합 API (하위 호환)
+    // ========================================
+
+    /**
+     * @deprecated 기존 통합 API
+     * 프론트엔드 마이그레이션 후 제거 예정
+     */
+    @Deprecated
+    @Transactional
+    public DetailPageResponse getVideoDetail(String token, String apiVideoId) {
+        log.warn("⚠️ Deprecated API 사용: getVideoDetail - 분리된 API 사용 권장");
+
+        // 기본 정보
+        VideoBasicResponse basic = getVideoBasic(token, apiVideoId);
+
+        // 댓글 조회 (이때 수집됨)
+        List<CommentDto> comments = getVideoComments(apiVideoId);
+
+        // 백엔드 분석
+        VideoAnalysisResponse backendAnalysis = getVideoAnalysis(apiVideoId);
+
+        // AI 분석
+        AIAnalysisResponse aiAnalysis = getAIAnalysis(apiVideoId);
+
+        // DetailAnalysisDto로 통합
+        DetailAnalysisDto analysis = new DetailAnalysisDto(
+                aiAnalysis.summary(),
+                aiAnalysis.isWarning(),
+                backendAnalysis.topComments(),
+                aiAnalysis.languageDistribution(),
+                aiAnalysis.sentimentDistribution(),
+                backendAnalysis.popularTimestamps(),
+                backendAnalysis.commentHistogram(),
+                aiAnalysis.keywords()
+        );
+
+        return new DetailPageResponse(
+                basic.video(),
+                basic.channel(),
+                analysis,
+                comments
+        );
+    }
+
+    // ========================================
+    // 6. 파싱 헬퍼 메서드
+    // ========================================
+
+    /**
+     * 댓글 히스토그램 파싱
+     */
+    private List<DetailAnalysisDto.CommentHistogram> parseCommentHistogram(String json) {
+        try {
+            log.debug("댓글 히스토그램 파싱: json={}", json);
+
+            if (json == null || json.trim().isEmpty() || json.equals("{}")) {
+                log.debug("빈 히스토그램 데이터");
+                return new ArrayList<>();
+            }
+
+            Map<String, Integer> map = objectMapper.readValue(json,
+                    new TypeReference<Map<String, Integer>>() {});
+
+            return map.entrySet().stream()
+                    .map(e -> new DetailAnalysisDto.CommentHistogram(
+                            e.getKey(),
+                            e.getValue()
+                    ))
+                    .sorted(Comparator.comparing(h -> Integer.parseInt(h.hour())))
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("댓글 히스토그램 파싱 실패: json={}, error={}", json, e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 인기 타임스탬프 파싱
+     */
+    private List<DetailAnalysisDto.PopularTimestamp> parsePopularTimestamps(String json) {
+        try {
+            if (json == null || json.trim().isEmpty() || json.equals("{}")) {
+                return new ArrayList<>();
+            }
+
+            Map<String, Integer> map = objectMapper.readValue(json,
+                    new TypeReference<Map<String, Integer>>() {});
+
+            return map.entrySet().stream()
+                    .map(e -> new DetailAnalysisDto.PopularTimestamp(
+                            e.getKey(),
+                            e.getValue()
+                    ))
+                    .sorted(Comparator.comparing(DetailAnalysisDto.PopularTimestamp::mentionCount).reversed())
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("인기 타임스탬프 파싱 실패: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 언어 분포 파싱
+     */
+    private List<DetailAnalysisDto.LanguageDistribution> parseLanguageDistribution(String json) {
+        try {
+            if (json == null || json.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            Map<String, Double> map = objectMapper.readValue(json,
+                    new TypeReference<Map<String, Double>>() {});
+
+            return map.entrySet().stream()
+                    .map(e -> new DetailAnalysisDto.LanguageDistribution(
+                            e.getKey(),
+                            e.getValue()
+                    ))
+                    .sorted(Comparator.comparing(DetailAnalysisDto.LanguageDistribution::ratio).reversed())
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.warn("언어 분포 파싱 실패: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 감정 분포 파싱
+     */
+    private DetailAnalysisDto.SentimentDistribution parseSentimentDistribution(String json) {
+        try {
+            if (json == null || json.trim().isEmpty()) {
+                return new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0);
+            }
+
+            Map<String, Double> map = objectMapper.readValue(json,
+                    new TypeReference<Map<String, Double>>() {});
+
+            return new DetailAnalysisDto.SentimentDistribution(
+                    map.getOrDefault("POSITIVE", 0.0),
+                    map.getOrDefault("NEGATIVE", 0.0),
+                    map.getOrDefault("OTHER", 0.0)
+            );
+        } catch (Exception e) {
+            log.warn("감정 분포 파싱 실패: {}", e.getMessage());
+            return new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0);
+        }
+    }
+
+    /**
+     * 키워드 파싱
+     */
+    private List<String> parseKeywords(String json) {
+        try {
+            if (json == null || json.trim().isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            return objectMapper.readValue(json, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            log.warn("키워드 파싱 실패: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * 좋아요 TOP 5 댓글 조회
+     */
+    private List<CommentDto> getTopComments(Long videoId) {
+        List<Comment> topComments = commentRepository
+                .findTop5ByVideoIdOrderByLikeCountDesc(videoId);
+
+        return topComments.stream()
+                .map(comment -> {
+                    String sentiment = comment.getSentimentType() != null
+                            ? comment.getSentimentType().name()
+                            : null;
+
+                    List<String> detailSentiments = comment.getDetailSentiments() != null
+                            ? comment.getDetailSentiments().stream()
+                            .map(DetailSentimentType::name)
+                            .collect(Collectors.toList())
+                            : new ArrayList<>();
+
+                    return new CommentDto(
+                            comment.getApiCommentId(),
+                            comment.getWriter(),
+                            comment.getCommentContent(),
+                            comment.getLikeCount(),
+                            sentiment,
+                            comment.getWrittenAt(),
+                            false,  // 좋아요 Top 5 대댓글 유무는 항상 false
+                            detailSentiments
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 감정 흐름 시간 구간별 집계
+     * 전체 기간을 N등분하여 각 시간 구간의 감정 비율 계산
+     */
+    private List<DetailAnalysisDto.SentimentFlow> calculateSentimentFlow(Long videoId) {
+        try {
+            // AI 분석된 댓글만 조회
+            List<Comment> comments = commentRepository.findByVideoId(videoId).stream()
+                    .filter(c -> c.getSentimentType() != null)
+                    .filter(c -> c.getWrittenAt() != null)
+                    .sorted(Comparator.comparing(Comment::getWrittenAt))
+                    .collect(Collectors.toList());
+
+            if (comments.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            int maxDataPoints = appConfig.getSentimentFlowMaxDataPoints();
+
+            // 댓글이 적으면 일별 집계
+            if (comments.size() <= maxDataPoints) {
+                return calculateDailySentiment(comments);
+            }
+
+            // 시간 기반 구간 분할
+            LocalDateTime startDate = parseDateTime(comments.get(0).getWrittenAt());
+            LocalDateTime endDate = parseDateTime(comments.get(comments.size() - 1).getWrittenAt());
+
+            long totalDays = ChronoUnit.DAYS.between(startDate, endDate);
+
+            // 기간이 너무 짧으면 일별 집계
+            if (totalDays < maxDataPoints) {
+                return calculateDailySentiment(comments);
+            }
+
+            double daysPerSection = (double) totalDays / maxDataPoints;
+            List<DetailAnalysisDto.SentimentFlow> flows = new ArrayList<>();
+
+            log.info("📊 시간 기반 구간 분할: 전체={}일, 구간당={:.1f}일, {}개 구간",
+                    totalDays, daysPerSection, maxDataPoints);
+
+            for (int i = 0; i < maxDataPoints; i++) {
+                LocalDateTime sectionStart = startDate.plusDays((long) (i * daysPerSection));
+                LocalDateTime sectionEnd = (i == maxDataPoints - 1)
+                        ? endDate.plusDays(1)
+                        : startDate.plusDays((long) ((i + 1) * daysPerSection));
+
+                // 해당 구간의 댓글 필터링
+                List<Comment> sectionComments = comments.stream()
+                        .filter(c -> {
+                            LocalDateTime commentDate = parseDateTime(c.getWrittenAt());
+                            return !commentDate.isBefore(sectionStart) && commentDate.isBefore(sectionEnd);
+                        })
+                        .collect(Collectors.toList());
+
+                // 구간에 댓글이 없으면 스킵
+                if (sectionComments.isEmpty()) {
+                    log.debug("⚠️ 구간 {} 댓글 없음: {} ~ {}",
+                            i + 1,
+                            sectionStart.toLocalDate(),
+                            sectionEnd.toLocalDate());
+                    continue;
+                }
+
+                // 구간 내 감정 집계
+                Map<SentimentType, Long> sentimentCounts = sectionComments.stream()
+                        .collect(Collectors.groupingBy(
+                                Comment::getSentimentType,
+                                Collectors.counting()
+                        ));
+
+                long total = sentimentCounts.values().stream()
+                        .mapToLong(Long::longValue)
+                        .sum();
+
+                double positive = sentimentCounts.getOrDefault(SentimentType.POSITIVE, 0L) * 100.0 / total;
+                double negative = sentimentCounts.getOrDefault(SentimentType.NEGATIVE, 0L) * 100.0 / total;
+                double other = 100.0 - positive - negative;
+
+                // 구간의 중간 날짜를 대표 날짜로 사용
+                LocalDateTime middleDate = sectionStart.plusDays((long) (daysPerSection / 2));
+                String representativeDate = middleDate.toLocalDate().toString();
+
+                flows.add(new DetailAnalysisDto.SentimentFlow(
+                        representativeDate,
+                        Math.round(positive * 100.0) / 100.0,
+                        Math.round(negative * 100.0) / 100.0,
+                        Math.round(other * 100.0) / 100.0
+                ));
+
+                log.debug("✅ 구간 {}: {} ~ {}, 댓글={}개, positive={:.1f}%, negative={:.1f}%, other={:.1f}%",
+                        i + 1,
+                        sectionStart.toLocalDate(),
+                        sectionEnd.toLocalDate(),
+                        sectionComments.size(),
+                        positive,
+                        negative,
+                        other);
+            }
+
+            log.info("✅ 감정 흐름 시간 구간별 집계 완료: 전체={}개 댓글, {}개 구간",
+                    comments.size(), flows.size());
+
+            return flows;
+
+        } catch (Exception e) {
+            log.error("❌ 감정 흐름 계산 실패: {}", e.getMessage(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    /**
+     * ISO 8601 형식 날짜 파싱 (Z 타임존 처리)
+     */
+    private LocalDateTime parseDateTime(String dateTimeStr) {
+        try {
+            // ISO_DATE_TIME 포맷터 사용 (Z 처리 가능)
+            if (dateTimeStr.endsWith("Z")) {
+                // UTC 시간을 LocalDateTime으로 변환
+                return java.time.Instant.parse(dateTimeStr)
+                        .atZone(java.time.ZoneId.systemDefault())
+                        .toLocalDateTime();
+            } else {
+                return LocalDateTime.parse(dateTimeStr);
+            }
+        } catch (Exception e) {
+            log.error("날짜 파싱 실패: {}", dateTimeStr, e);
+            throw e;
+        }
+    }
+
+    /**
+     * 일별 감정 집계 (댓글이 적을 때)
+     */
+    private List<DetailAnalysisDto.SentimentFlow> calculateDailySentiment(List<Comment> comments) {
+        Map<String, Map<SentimentType, Long>> dailySentiments = comments.stream()
+                .collect(Collectors.groupingBy(
+                        c -> extractDate(c.getWrittenAt()),
+                        Collectors.groupingBy(
+                                Comment::getSentimentType,
+                                Collectors.counting()
+                        )
+                ));
+
+        return dailySentiments.entrySet().stream()
+                .map(entry -> {
+                    String date = entry.getKey();
+                    Map<SentimentType, Long> sentiments = entry.getValue();
+
+                    long total = sentiments.values().stream()
+                            .mapToLong(Long::longValue)
+                            .sum();
+
+                    double positive = sentiments.getOrDefault(SentimentType.POSITIVE, 0L) * 100.0 / total;
+                    double negative = sentiments.getOrDefault(SentimentType.NEGATIVE, 0L) * 100.0 / total;
+                    double other = 100.0 - positive - negative;
+
+                    return new DetailAnalysisDto.SentimentFlow(
+                            date,
+                            Math.round(positive * 100.0) / 100.0,
+                            Math.round(negative * 100.0) / 100.0,
+                            Math.round(other * 100.0) / 100.0
+                    );
+                })
+                .sorted(Comparator.comparing(DetailAnalysisDto.SentimentFlow::date))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * ISO 8601 날짜에서 yyyy-MM-dd 추출
+     */
+    private String extractDate(String isoDateTime) {
+        try {
+            return isoDateTime.substring(0, 10);
+        } catch (Exception e) {
+            return isoDateTime;
+        }
+    }
+
+    // ========================================
+    // 7. 공통 헬퍼 메서드
+    // ========================================
+
+    /**
+     * VideoBasicResponse 생성
+     */
+    private VideoBasicResponse createBasicResponse(String token, Video video) {
+        Long scrapId = null;
+        Long favoriteChannelId = null;
+
+        if (token != null && jwtUtil.isValidToken(token)) {
+            Long userId = jwtUtil.getUserId(token);
+
+            Optional<Scrap> scrap = scrapRepository.findByUserIdAndVideoId(userId, video.getId());
+            scrapId = scrap.map(Scrap::getId).orElse(null);
+        }
+
+        DetailVideoDto videoDto = new DetailVideoDto(
+                video.getApiVideoId(),
+                video.getTitle(),
+                video.getDescription(),
+                video.getUploadedAt(),
+                video.getThumbnailUrl(),
+                Long.parseLong(video.getViewCount()),
+                Long.parseLong(video.getLikeCount()),
+                Integer.parseInt(video.getCommentCount()),
+                scrapId
+        );
+
+        DetailChannelDto channelDto = new DetailChannelDto(
+                video.getChannelId(),
+                video.getChannelName(),
+                video.getChannelThumbnailUrl(),
+                Long.parseLong(video.getSubscriberCount()),
+                favoriteChannelId
+        );
+
         return new VideoBasicResponse(videoDto, channelDto);
     }
 
     /**
-     * 영상 분석 정보 조회 (백엔드 분석 + TOP 5 댓글 + 감정 흐름)
-     * 캐싱: 30분 TTL
+     * Comment → CommentDto 변환
      */
-    @Cacheable(value = "videoDetail", key = "'analysis-' + #apiVideoId", unless = "#result == null")
-    @Transactional(readOnly = true)
-    public VideoAnalysisResponse getVideoAnalysis(String apiVideoId) {
-        log.info("영상 분석 정보 조회: apiVideoId={}", apiVideoId);
+    private CommentDto toCommentDto(Comment comment) {
+        String sentiment = comment.getSentimentType() != null
+                ? comment.getSentimentType().name()
+                : null;
 
-        Video video = videoRepository.findByApiVideoId(apiVideoId)
-                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
+        List<String> detailSentiments = comment.getDetailSentiments() != null
+                ? comment.getDetailSentiments().stream()
+                .map(DetailSentimentType::name)
+                .collect(Collectors.toList())
+                : new ArrayList<>();
 
-        // 1. 댓글 히스토그램
-        Map<Integer, Integer> commentHistogramData = parseJsonToMap(
-                video.getCommentHistogram(), Integer.class, Integer.class);
-        List<DetailAnalysisDto.CommentHistogram> commentHistogram =
-                commentHistogramData.entrySet().stream()
-                        .map(e -> new DetailAnalysisDto.CommentHistogram(String.valueOf(e.getKey()), e.getValue()))
-                        .collect(Collectors.toList());
-
-        // 2. 인기 타임스탬프
-        Map<String, Integer> popularTimestampsData = parseJsonToMap(
-                video.getPopularTimestamps(), String.class, Integer.class);
-        List<DetailAnalysisDto.PopularTimestamp> popularTimestamps =
-                popularTimestampsData.entrySet().stream()
-                        .map(e -> new DetailAnalysisDto.PopularTimestamp(e.getKey(), e.getValue()))
-                        .collect(Collectors.toList());
-
-        // 3. TOP 5 댓글 (세부 감정 포함)
-        List<Comment> topCommentsData = commentRepository
-                .findByVideoIdOrderByLikeCountDesc(video.getId())
-                .stream()
-                .limit(appConfig.getTopCommentsCount())
-                .collect(Collectors.toList());
-
-        List<CommentDto> topComments = commentMapper.toTopCommentDtoList(topCommentsData);
-
-        // 4. 감정 흐름 분석
-        List<DetailAnalysisDto.SentimentFlow> sentimentFlow = calculateSentimentFlow(video);
-
-        log.info("영상 분석 정보 조회 완료: apiVideoId={}, TOP 댓글 수={}, 감정 흐름 데이터={}개",
-                apiVideoId, topComments.size(), sentimentFlow.size());
-
-        return new VideoAnalysisResponse(commentHistogram, popularTimestamps, topComments, sentimentFlow);
-    }
-
-    /**
-     * 전체 댓글 조회 (세부 감정 포함)
-     */
-    @Transactional(readOnly = true)
-    public List<CommentDto> getVideoComments(String apiVideoId) {
-        log.info("전체 댓글 조회: apiVideoId={}", apiVideoId);
-
-        Video video = videoRepository.findByApiVideoId(apiVideoId)
-                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
-
-        List<Comment> comments = commentRepository.findByVideoIdOrderByIdAsc(video.getId());
-        List<CommentDto> commentDtos = commentMapper.toDtoList(comments);
-
-        log.info("전체 댓글 조회 완료: apiVideoId={}, 댓글 수={}", apiVideoId, commentDtos.size());
-        return commentDtos;
-    }
-
-    /**
-     * AI 분석 결과 조회
-     * 캐싱: 30분 TTL
-     */
-    @Cacheable(value = "videoDetail", key = "'ai-' + #apiVideoId", unless = "#result == null")
-    @Transactional(readOnly = true)
-    public AIAnalysisResponse getAIAnalysis(String apiVideoId) {
-        log.info("AI 분석 결과 조회: apiVideoId={}", apiVideoId);
-
-        Video video = videoRepository.findByApiVideoId(apiVideoId)
-                .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
-
-        // AIAnalysisStatus로 확인
-        if (video.getAiAnalysisStatus() != AIAnalysisStatus.COMPLETED &&
-                video.getAiAnalysisStatus() != AIAnalysisStatus.PARTIAL) {
-            log.info("AI 분석 미완료: apiVideoId={}, status={}",
-                    apiVideoId, video.getAiAnalysisStatus());
-
-            // 재시도 가능한 상태인지 확인하고 백그라운드 처리 스케줄
-            if (VideoStatusHelper.canRetry(video, MAX_AI_RETRY_COUNT)) {
-                log.info("AI 재시도 스케줄링: apiVideoId={}", apiVideoId);
-                videoProcessingService.scheduleBackgroundAIProcessingWithRetry(
-                        video.getId(), apiVideoId);
-            }
-
-            return new AIAnalysisResponse(null, null, List.of(), null, List.of());
-        }
-
-        // AI 분석 완료
-        Map<String, Double> languageRatio = parseJsonToMap(
-                video.getLanguageDistribution(), String.class, Double.class);
-        List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
-                languageRatio.entrySet().stream()
-                        .map(e -> new DetailAnalysisDto.LanguageDistribution(e.getKey(), e.getValue()))
-                        .collect(Collectors.toList());
-
-        Map<String, Double> sentimentRatio = parseJsonToMap(
-                video.getSentimentDistribution(), String.class, Double.class);
-        DetailAnalysisDto.SentimentDistribution sentimentDistribution =
-                new DetailAnalysisDto.SentimentDistribution(
-                        sentimentRatio.getOrDefault("positive", 0.0),
-                        sentimentRatio.getOrDefault("negative", 0.0),
-                        sentimentRatio.getOrDefault("other", 0.0)
+        return new CommentDto(
+                comment.getApiCommentId(),
+                comment.getWriter(),
+                comment.getCommentContent(),
+                comment.getLikeCount(),
+                sentiment,
+                comment.getWrittenAt(),
+                comment.getHasReplies(),
+                detailSentiments
                 );
-
-        List<String> keywords = parseJsonToList(video.getKeywords(), String.class);
-
-        log.info("AI 분석 결과 조회 완료: apiVideoId={}, status={}",
-                apiVideoId, video.getAiAnalysisStatus());
-        return new AIAnalysisResponse(
-                video.getSummation(),
-                video.isWarning(),
-                languageDistribution,
-                sentimentDistribution,
-                keywords
-        );
     }
 
-    /**
-     * Deprecated 통합 API (캐싱 적용)
-     * 프론트엔드 마이그레이션 완료 후 제거 예정
-     */
-    @Deprecated
-    @Cacheable(
-            value = "videoDetail",
-            key = "#apiVideoId",
-            unless = "#result == null"
-    )
-    @Transactional(readOnly = true)
-    public DetailPageResponse getVideoDetail(String token, String apiVideoId) {
-        log.info("영상 상세 조회 (캐시 미스, Deprecated): apiVideoId={}", apiVideoId);
-
-        Video video = videoRepository.findByApiVideoId(apiVideoId).orElse(null);
-
-        if (video != null) {
-            if (video.isDeleted()) {
-                throw new BusinessException(VideoError.VIDEO_DELETED);
-            }
-
-            // DB에서 조회 가능하면 캐시 히트 확률 높음
-            return responseMappingService.mapFromDbToSearchResult(token, video);
+    private boolean shouldCheckDeletion(Video video) {
+        if (video.isDeleted()) {
+            return false;
         }
-
-        // 캐시 미스이고 DB에도 없으면 YouTube API 호출
-        return videoProcessingService.processVideoToSearchResult(token, apiVideoId, false);
+        if (video.getDeleteCheckedAt() == null) {
+            return true;
+        }
+        LocalDateTime checkThreshold = LocalDateTime.now()
+                .minusDays(appConfig.getDeletionCheckDays());
+        return video.getDeleteCheckedAt().isBefore(checkThreshold);
     }
 
-    /**
-     * 영상 상세 캐시 무효화
-     * AI 분석 완료 후 VideoProcessingService에서 호출
-     */
-    @CacheEvict(value = "videoDetail", key = "#apiVideoId")
-    public void evictVideoCache(String apiVideoId) {
-        log.info("영상 상세 캐시 무효화: apiVideoId={}", apiVideoId);
+    private boolean shouldUpdateMetadata(Video video) {
+        if (video.getLastMetadataUpdatedAt() == null) {
+            return true;
+        }
+        LocalDateTime updateThreshold = LocalDateTime.now()
+                .minusDays(appConfig.getMetadataUpdateDays());
+        return video.getLastMetadataUpdatedAt().isBefore(updateThreshold);
     }
 
-    // ==================== Sentiment Flow Calculation ====================
+    private void checkAndUpdateDeletionStatus(Video video) {
+        boolean isDeleted = videoService.checkIfVideoDeleted(video.getApiVideoId());
+        if (isDeleted) {
+            video.setDeleted(true);
+            video.setDeleteCheckedAt(LocalDateTime.now());
+            videoRepository.save(video);
+            throw new BusinessException(VideoError.VIDEO_DELETED);
+        }
+        video.setDeleteCheckedAt(LocalDateTime.now());
+        videoRepository.save(video);
+    }
 
-    /**
-     * 감정 흐름 분석 계산
-     * 시간 순서대로 댓글의 감정 비율 변화 추이
-     */
-    private List<DetailAnalysisDto.SentimentFlow> calculateSentimentFlow(Video video) {
+    private void updateMetadata(Video video) {
         try {
-            // 1. 댓글이 없거나 AI 미완료면 빈 리스트 반환
-            if (video.getCommentCount() == null ||
-                    Integer.parseInt(video.getCommentCount()) == 0 ||
-                    !isAIAnalysisCompleted(video)) {
-                log.debug("감정 흐름 계산 불가: 댓글 없음 또는 AI 미완료, videoId={}, aiStatus={}",
-                        video.getId(), video.getAiAnalysisStatus());
-                return new ArrayList<>();
-            }
+            VideoApiResponse videoInfo = videoService.getVideoInfo(video.getApiVideoId());
 
-            // 2. 감정 분석이 있는 댓글만 조회
-            List<Comment> comments = commentRepository.findByVideoIdAndSentimentTypeIsNotNull(video.getId());
+            video.setViewCount(videoInfo.viewCount());
+            video.setLikeCount(videoInfo.likeCount());
+            video.setCommentCount(videoInfo.commentCount());
+            video.setLastMetadataUpdatedAt(LocalDateTime.now());
+            video.setMetadataUpdateCount(video.getMetadataUpdateCount() + 1);
 
-            if (comments.isEmpty()) {
-                log.debug("감정 분석된 댓글 없음, 빈 감정 흐름 반환: videoId={}", video.getId());
-                return new ArrayList<>();
-            }
+            videoRepository.save(video);
 
-            // 3. 날짜별로 댓글 그룹화
-            Map<LocalDate, List<Comment>> commentsByDate = comments.stream()
-                    .collect(Collectors.groupingBy(comment ->
-                            parseCommentDate(comment.getWrittenAt())));
-
-            if (commentsByDate.isEmpty()) {
-                log.debug("날짜별 그룹화 실패, 빈 감정 흐름 반환: videoId={}", video.getId());
-                return new ArrayList<>();
-            }
-
-            // 4. 날짜 순으로 정렬
-            List<LocalDate> sortedDates = commentsByDate.keySet().stream()
-                    .sorted()
-                    .collect(Collectors.toList());
-
-            // 5. 각 날짜의 감정 분포 계산
-            List<DailySentimentData> allDailyData = sortedDates.stream()
-                    .map(date -> calculateDailySentiment(date, commentsByDate.get(date)))
-                    .collect(Collectors.toList());
-
-            // 6. 최대 N개로 샘플링
-            List<DetailAnalysisDto.SentimentFlow> sampledData =
-                    sampleSentimentData(allDailyData);
-
-            log.info("감정 흐름 계산 완료: videoId={}, 전체 {}일 -> 샘플링 {}개",
-                    video.getId(), allDailyData.size(), sampledData.size());
-
-            return sampledData;
+            log.info("✅ 메타데이터 갱신 완료: apiVideoId={}, updateCount={}",
+                    video.getApiVideoId(), video.getMetadataUpdateCount());
 
         } catch (Exception e) {
-            log.warn("감정 흐름 계산 중 오류 발생, 빈 리스트 반환: videoId={}, error={}",
-                    video.getId(), e.getMessage());
-            return new ArrayList<>();
-        }
-    }
-
-    /**
-     * 하루치 감정 데이터 계산
-     */
-    private DailySentimentData calculateDailySentiment(LocalDate date, List<Comment> dayComments) {
-        long total = dayComments.size();
-        long positive = dayComments.stream()
-                .filter(c -> c.getSentimentType() == SentimentType.POSITIVE)
-                .count();
-        long negative = dayComments.stream()
-                .filter(c -> c.getSentimentType() == SentimentType.NEGATIVE)
-                .count();
-        long other = total - positive - negative;
-
-        return new DailySentimentData(
-                date,
-                total > 0 ? positive / (double) total : 0.0,
-                total > 0 ? negative / (double) total : 0.0,
-                total > 0 ? other / (double) total : 0.0
-        );
-    }
-
-    /**
-     * 감정 데이터를 최대 N개로 샘플링
-     * 전체 기간을 균등하게 나누어 대표값 선택
-     */
-    private List<DetailAnalysisDto.SentimentFlow> sampleSentimentData(
-            List<DailySentimentData> allData) {
-
-        int totalDays = allData.size();
-        int maxPoints = appConfig.getSentimentFlowMaxDataPoints();
-
-        // maxPoints 이하면 전체 반환
-        if (totalDays <= maxPoints) {
-            return allData.stream()
-                    .map(this::convertToSentimentFlow)
-                    .collect(Collectors.toList());
-        }
-
-        // maxPoints를 초과하면 균등 간격으로 샘플링
-        List<DetailAnalysisDto.SentimentFlow> result = new ArrayList<>();
-
-        // 첫 번째는 항상 포함
-        result.add(convertToSentimentFlow(allData.get(0)));
-
-        // 중간 포인트들을 균등 간격으로 선택
-        double step = (totalDays - 1) / (double) (maxPoints - 1);
-
-        for (int i = 1; i < maxPoints - 1; i++) {
-            int index = (int) Math.round(step * i);
-            result.add(convertToSentimentFlow(allData.get(index)));
-        }
-
-        // 마지막은 항상 포함
-        result.add(convertToSentimentFlow(allData.get(totalDays - 1)));
-
-        return result;
-    }
-
-    /**
-     * 내부 데이터를 응답 DTO로 변환
-     */
-    private DetailAnalysisDto.SentimentFlow convertToSentimentFlow(DailySentimentData data) {
-        return new DetailAnalysisDto.SentimentFlow(
-                data.date().toString(),
-                data.positive(),
-                data.negative(),
-                data.other()
-        );
-    }
-
-    /**
-     * 날짜 파싱 헬퍼 메서드
-     */
-    private LocalDate parseCommentDate(String writtenAt) {
-        try {
-            if (writtenAt == null || writtenAt.length() < 10) {
-                return LocalDate.now();
-            }
-            return LocalDate.parse(writtenAt.substring(0, 10));
-        } catch (Exception e) {
-            log.warn("댓글 날짜 파싱 실패: {}", writtenAt);
-            return LocalDate.now();
-        }
-    }
-
-    /**
-     * 내부 계산용 데이터 클래스
-     */
-    private record DailySentimentData(
-            LocalDate date,
-            Double positive,
-            Double negative,
-            Double other
-    ) {
-    }
-
-    // ==================== Helper Methods ====================
-
-    /**
-     * AI 분석 완료 여부 확인 (AIAnalysisStatus 기반)
-     */
-    private boolean isAIAnalysisCompleted(Video video) {
-        // AIAnalysisStatus 우선 확인
-        if (video.getAiAnalysisStatus() != null) {
-            return video.getAiAnalysisStatus() == AIAnalysisStatus.COMPLETED ||
-                    video.getAiAnalysisStatus() == AIAnalysisStatus.PARTIAL;
-        }
-
-        // Fallback: 기존 방식 (하위 호환성)
-        return video.getSummation() != null &&
-                video.getLanguageDistribution() != null &&
-                video.getSentimentDistribution() != null &&
-                video.getKeywords() != null;
-    }
-
-    /**
-     * AI 재시도 가능 여부 확인 (VideoStatusHelper 활용)
-     * @deprecated Use VideoStatusHelper.canRetry() directly
-     */
-    @Deprecated
-    private boolean shouldRetryAI(Video video) {
-        return VideoStatusHelper.canRetry(video, MAX_AI_RETRY_COUNT);
-    }
-
-    private <K, V> Map<K, V> parseJsonToMap(String json, Class<K> keyClass, Class<V> valueClass) {
-        if (json == null || json.trim().isEmpty()) {
-            return new HashMap<>();
-        }
-        try {
-            return objectMapper.readValue(json,
-                    objectMapper.getTypeFactory().constructMapType(Map.class, keyClass, valueClass));
-        } catch (Exception e) {
-            log.warn("JSON 파싱 실패: {}", e.getMessage());
-            throw new BusinessException(CommonError.DATA_PARSING_ERROR);
-        }
-    }
-
-    private <T> List<T> parseJsonToList(String json, Class<T> elementClass) {
-        if (json == null || json.trim().isEmpty()) {
-            return new ArrayList<>();
-        }
-        try {
-            return objectMapper.readValue(json,
-                    objectMapper.getTypeFactory().constructCollectionType(List.class, elementClass));
-        } catch (Exception e) {
-            log.warn("JSON List 파싱 실패: {}", e.getMessage());
-            throw new BusinessException(CommonError.DATA_PARSING_ERROR);
-        }
-    }
-
-    /**
-     * 비디오 캐시 무효화
-     * 비디오 업데이트 시 호출
-     */
-    @CacheEvict(value = "videoDetail", allEntries = false,
-            key = "'basic-' + #apiVideoId")
-    public void evictVideoBasicCache(String apiVideoId) {
-        log.info("비디오 기본 정보 캐시 삭제: apiVideoId={}", apiVideoId);
-    }
-
-    @CacheEvict(value = "videoDetail", allEntries = false,
-            key = "'analysis-' + #apiVideoId")
-    public void evictVideoAnalysisCache(String apiVideoId) {
-        log.info("비디오 분석 정보 캐시 삭제: apiVideoId={}", apiVideoId);
-    }
-
-    @CacheEvict(value = "videoDetail", allEntries = false,
-            key = "'ai-' + #apiVideoId")
-    public void evictVideoAICache(String apiVideoId) {
-        log.info("비디오 AI 정보 캐시 삭제: apiVideoId={}", apiVideoId);
-    }
-
-    /**
-     * 특정 비디오의 모든 캐시 삭제
-     */
-    public void evictAllVideoCache(String apiVideoId) {
-        evictVideoBasicCache(apiVideoId);
-        evictVideoAnalysisCache(apiVideoId);
-        evictVideoAICache(apiVideoId);
-        log.info("비디오 전체 캐시 삭제 완료: apiVideoId={}", apiVideoId);
-    }
-
-    private Long parseLong(String value) {
-        try {
-            return value != null && !value.isEmpty() ? Long.parseLong(value) : 0L;
-        } catch (NumberFormatException e) {
-            log.warn("Long 변환 실패: {}", value);
-            return 0L;
-        }
-    }
-
-    private Integer parseInt(String value) {
-        try {
-            return value != null && !value.isEmpty() ? Integer.parseInt(value) : 0;
-        } catch (NumberFormatException e) {
-            log.warn("Integer 변환 실패: {}", value);
-            return 0;
+            log.error("❌ 메타데이터 갱신 실패: apiVideoId={}, error={}",
+                    video.getApiVideoId(), e.getMessage());
         }
     }
 }

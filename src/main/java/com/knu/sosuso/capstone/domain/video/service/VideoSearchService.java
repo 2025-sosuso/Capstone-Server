@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.video.dto.response.SearchResultPageResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
+import com.knu.sosuso.capstone.domain.video.entity.AIAnalysisStatus;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
+import com.knu.sosuso.capstone.domain.video.entity.VideoType;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.global.config.AppConfig;
@@ -19,15 +21,16 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
- * YouTube 검색 API 호출 및 Fast Path 처리 서비스
- * - 검색 결과를 DB에 즉시 저장 (AI 없이)
- * - 백그라운드에서 AI 분석 비동기 처리
+ * YouTube 검색 서비스 (단순화 버전)
+ * - 검색 시 AI 요청 없음
+ * - 즉시 응답만 반환
+ * - AI 분석은 스케줄러가 자동 처리
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -45,7 +48,6 @@ public class VideoSearchService {
 
     /**
      * 동영상 검색 (쇼츠 제외)
-     * Fast Path: DB 저장 → 즉시 응답 → 백그라운드 AI 분석
      */
     @Transactional
     public SearchResultPageResponse searchVideos(String token, String query, String pageToken) {
@@ -56,38 +58,16 @@ public class VideoSearchService {
         }
 
         try {
-            // 1. YouTube API 호출 (쇼츠 제외)
+            // YouTube API 호출
             String searchResponse = callYouTubeSearchApi(
-                    query.trim(),
-                    pageToken,
-                    "video",
-                    "any" // 모든 길이 (쇼츠 포함 안함)
+                    query.trim(), pageToken, "video", "any"
             );
 
-            // 2. 검색 결과 파싱 및 DB 저장 (Fast Path)
-            return processSearchResults(token, searchResponse, query, "VIDEO");
+            // 검색 결과 처리
+            return processSearchResults(token, searchResponse, query, VideoType.VIDEO);
 
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode().value() == 403) {
-                String responseBody = e.getResponseBodyAsString();
-
-                if (responseBody.contains("quotaExceeded")) {
-                    log.error("YouTube API quota 초과: query={}", query);
-                    throw new BusinessException(SearchError.YOUTUBE_API_QUOTA_EXCEEDED);
-                }
-
-                if (responseBody.contains("IP address restriction")) {
-                    log.error("YouTube API IP 제한: query={}", query);
-                    throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
-                }
-
-                log.error("YouTube API 403 에러: query={}, error={}", query, responseBody);
-                throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
-            }
-
-            log.error("YouTube API 클라이언트 에러: query={}, status={}", query, e.getStatusCode());
-            throw new BusinessException(SearchError.YOUTUBE_API_ERROR);
-
+            return handleHttpError(e, query);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -98,7 +78,6 @@ public class VideoSearchService {
 
     /**
      * 쇼츠 검색
-     * Fast Path: DB 저장 → 즉시 응답 → 백그라운드 AI 분석
      */
     @Transactional
     public SearchResultPageResponse searchShorts(String token, String query, String pageToken) {
@@ -109,38 +88,16 @@ public class VideoSearchService {
         }
 
         try {
-            // 1. YouTube API 호출 (쇼츠만)
+            // YouTube API 호출 (짧은 영상만)
             String searchResponse = callYouTubeSearchApi(
-                    query.trim(),
-                    pageToken,
-                    "video",
-                    "short" // 쇼츠만 (4분 미만)
+                    query.trim(), pageToken, "video", "short"
             );
 
-            // 2. 검색 결과 파싱 및 DB 저장 (Fast Path)
-            return processSearchResults(token, searchResponse, query, "SHORT");
+            // 검색 결과 처리
+            return processSearchResults(token, searchResponse, query, VideoType.SHORTS);
 
         } catch (HttpClientErrorException e) {
-            if (e.getStatusCode().value() == 403) {
-                String responseBody = e.getResponseBodyAsString();
-
-                if (responseBody.contains("quotaExceeded")) {
-                    log.error("YouTube API quota 초과: query={}", query);
-                    throw new BusinessException(SearchError.YOUTUBE_API_QUOTA_EXCEEDED);
-                }
-
-                if (responseBody.contains("IP address restriction")) {
-                    log.error("YouTube API IP 제한: query={}", query);
-                    throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
-                }
-
-                log.error("YouTube API 403 에러: query={}, error={}", query, responseBody);
-                throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
-            }
-
-            log.error("YouTube API 클라이언트 에러: query={}, status={}", query, e.getStatusCode());
-            throw new BusinessException(SearchError.YOUTUBE_API_ERROR);
-
+            return handleHttpError(e, query);
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
@@ -154,7 +111,8 @@ public class VideoSearchService {
      */
     private String callYouTubeSearchApi(String query, String pageToken,
                                         String type, String videoDuration) {
-        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(YOUTUBE_SEARCH_API_URL)
+        UriComponentsBuilder builder = UriComponentsBuilder
+                .fromUriString(YOUTUBE_SEARCH_API_URL)
                 .queryParam("part", "snippet")
                 .queryParam("type", type)
                 .queryParam("q", query)
@@ -162,30 +120,29 @@ public class VideoSearchService {
                 .queryParam("relevanceLanguage", "ko")
                 .queryParam("key", apiConfig.getKey());
 
-        // videoDuration 파라미터 추가 (쇼츠 구분용)
+        // 쇼츠 필터
         if (videoDuration != null && !videoDuration.isEmpty()) {
             builder.queryParam("videoDuration", videoDuration);
         }
 
-        // pageToken이 있으면 추가
+        // 페이지 토큰
         if (pageToken != null && !pageToken.isEmpty()) {
             builder.queryParam("pageToken", pageToken);
         }
 
         String apiUrl = builder.build(false).toUriString();
+        log.debug("YouTube API 호출: maxResults={}", appConfig.getSearchResultsPerPage());
 
-        log.debug("YouTube Search API 호출: {}", apiUrl);
         return restTemplate.getForObject(apiUrl, String.class);
     }
 
     /**
-     * 검색 결과 처리 (Fast Path)
-     * 1. DB에 메타데이터만 즉시 저장 (AI 없이)
-     * 2. VideoSummaryResponse 생성하여 즉시 응답
-     * 3. 백그라운드에서 AI 분석 시작
+     * 검색 결과 처리
+     * - DB 저장 (AI 없이)
+     * - 즉시 응답 생성
      */
     private SearchResultPageResponse processSearchResults(String token, String searchResponse,
-                                                          String query, String searchType) {
+                                                          String query, VideoType videoType) {
         try {
             JsonNode rootNode = objectMapper.readTree(searchResponse);
             JsonNode itemsNode = rootNode.path("items");
@@ -196,46 +153,35 @@ public class VideoSearchService {
 
             if (itemsNode.isArray()) {
                 for (JsonNode item : itemsNode) {
+                    // 비디오만 처리
                     String kind = item.path("id").path("kind").asText();
-
                     if (!"youtube#video".equals(kind)) {
                         skippedCount++;
-                        log.debug("비디오가 아닌 항목 스킵: kind={}", kind);
                         continue;
                     }
 
                     String apiVideoId = item.path("id").path("videoId").asText();
-
                     if (apiVideoId == null || apiVideoId.isEmpty()) {
                         continue;
                     }
 
                     try {
                         // Fast Path: DB 저장 및 응답 생성
-                        VideoSummaryResponse videoResponse =
-                                processSingleVideo(token, apiVideoId);
-
+                        VideoSummaryResponse videoResponse = processSingleVideo(token, apiVideoId, videoType);
                         results.add(videoResponse);
 
                     } catch (Exception e) {
                         log.warn("개별 영상 처리 실패: apiVideoId={}, error={}",
                                 apiVideoId, e.getMessage());
-                        // 개별 실패는 무시하고 계속 진행
                     }
                 }
             }
 
             boolean hasMore = nextPageToken != null && !nextPageToken.isEmpty();
 
-            log.info("{} 검색 완료: query={}, 전체={}, 비디오={}, 스킵={}, hasMore={}",
-                    searchType, query, itemsNode.size(), results.size(), skippedCount, hasMore);
+            log.info("검색 완료: query={}, 결과={}개, hasMore={}", query, results.size(), hasMore);
 
-            return new SearchResultPageResponse(
-                    results,
-                    nextPageToken,
-                    results.size(),
-                    hasMore
-            );
+            return new SearchResultPageResponse(results, nextPageToken, results.size(), hasMore);
 
         } catch (Exception e) {
             log.error("검색 결과 파싱 실패: {}", e.getMessage(), e);
@@ -244,57 +190,38 @@ public class VideoSearchService {
     }
 
     /**
-     * 단일 영상 처리 (Fast Path)
-     * 1. DB에 있는지 확인
-     * 2. 없으면 YouTube API로 조회 → DB 저장 (AI 없이)
-     * 3. VideoSummaryResponse 생성
-     * 4. 백그라운드 AI 분석 시작
+     * 단일 영상 처리
      */
-    private VideoSummaryResponse processSingleVideo(String token, String apiVideoId) {
-        // 1. DB에서 먼저 확인
+    private VideoSummaryResponse processSingleVideo(String token, String apiVideoId,
+                                                    VideoType videoType) {
         Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
 
         if (existingVideo.isPresent()) {
-            log.debug("DB에 이미 존재하는 영상: apiVideoId={}", apiVideoId);
-
             Video video = existingVideo.get();
 
-            // AI 분석이 완료되지 않았으면 백그라운드 처리 (재시도 조건 확인)
-            if (!isAICompleted(video) && !video.isCommentsDisabled() && !video.isHasNoComments()) {
-                if (shouldRetryAI(video)) {
-                    scheduleBackgroundAI(video.getId(), apiVideoId);
-                } else {
-                    log.debug("AI 재시도 쿨타임 중: videoId={}, lastAttempt={}",
-                            video.getId(), video.getLastAiAttemptAt());
-                }
+            // DB에 타입 없으면 업데이트
+            if (video.getVideoType() == null) {
+                video.setVideoType(videoType);
+                videoRepository.save(video);
             }
 
             return mapVideoToSummaryResponse(video);
         }
 
-        // 2. DB에 없으면 새로 처리 (Fast Path)
-        log.debug("새로운 영상, 처리 시작: apiVideoId={}", apiVideoId);
+        log.info("새 영상 처리: apiVideoId={}, type={}", apiVideoId, videoType);
 
-        // Fast Path: AI 분석 없이 메타데이터만 저장
-        videoProcessingService.processVideoToSearchResult(token, apiVideoId, false);
+        Video newVideo = videoProcessingService.processNewVideo(apiVideoId, videoType);
 
-        // 다시 DB에서 조회하여 응답 생성
-        Video newVideo = videoRepository.findByApiVideoId(apiVideoId)
-                .orElseThrow(() -> new BusinessException(CommonError.VIDEO_PROCESSING_ERROR));
-
-        // 백그라운드에서 AI 분석 시작 (비동기)
-        if (!newVideo.isCommentsDisabled() && !newVideo.isHasNoComments()) {
-            scheduleBackgroundAI(newVideo.getId(), apiVideoId);
-        }
+        log.info("새 영상 저장 완료: videoId={}, status={}",
+                newVideo.getId(), newVideo.getAiAnalysisStatus());
 
         return mapVideoToSummaryResponse(newVideo);
     }
 
     /**
-     * Video 엔티티를 VideoSummaryResponse로 변환
+     * Video → VideoSummaryResponse 변환
      */
     private VideoSummaryResponse mapVideoToSummaryResponse(Video video) {
-        // Video 정보
         VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
                 video.getApiVideoId(),
                 video.getTitle(),
@@ -306,7 +233,6 @@ public class VideoSearchService {
                 parseInt(video.getCommentCount())
         );
 
-        // Channel 정보
         VideoSummaryResponse.Channel channelDto = new VideoSummaryResponse.Channel(
                 video.getChannelId(),
                 video.getChannelName(),
@@ -314,115 +240,92 @@ public class VideoSearchService {
                 parseLong(video.getSubscriberCount())
         );
 
-        // Analysis 정보 (AI 분석 완료 시에만)
-        VideoSummaryResponse.Analysis analysisDto = null;
-        if (isAICompleted(video)) {
+        VideoSummaryResponse.SentimentDistribution sentimentDist = null;
+        List<String> keywords = null;
+        String summary = null;
+
+        // AI 완료된 경우에만 데이터 파싱
+        if (video.getAiAnalysisStatus() == AIAnalysisStatus.COMPLETED) {
+            summary = video.getSummation();
+
+            // 감정 분포 파싱
             try {
-                // 감정 분포 파싱
-                JsonNode sentimentNode = objectMapper.readTree(video.getSentimentDistribution());
-                VideoSummaryResponse.SentimentDistribution sentiment =
-                        new VideoSummaryResponse.SentimentDistribution(
-                                sentimentNode.path("positive").asDouble(0.0),
-                                sentimentNode.path("negative").asDouble(0.0),
-                                sentimentNode.path("other").asDouble(0.0)
-                        );
-
-                // 키워드 파싱
-                JsonNode keywordsNode = objectMapper.readTree(video.getKeywords());
-                List<String> keywords = new ArrayList<>();
-                if (keywordsNode.isArray()) {
-                    keywordsNode.forEach(node -> keywords.add(node.asText()));
+                if (video.getSentimentDistribution() != null && !video.getSentimentDistribution().isEmpty()) {
+                    Map<String, Double> sentimentMap = objectMapper.readValue(
+                            video.getSentimentDistribution(),
+                            objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Double.class)
+                    );
+                    sentimentDist = new VideoSummaryResponse.SentimentDistribution(
+                            sentimentMap.getOrDefault("POSITIVE", 0.0),
+                            sentimentMap.getOrDefault("NEGATIVE", 0.0),
+                            sentimentMap.getOrDefault("OTHER", 0.0)
+                    );
                 }
-
-                analysisDto = new VideoSummaryResponse.Analysis(
-                        video.getSummation(),
-                        sentiment,
-                        keywords
-                );
-
             } catch (Exception e) {
-                log.warn("AI 분석 데이터 파싱 실패: videoId={}, error={}",
-                        video.getId(), e.getMessage());
-                analysisDto = null;
+                log.warn("감정 분포 파싱 실패: apiVideoId={}", video.getApiVideoId());
+            }
+
+            // 키워드 파싱
+            try {
+                if (video.getKeywords() != null && !video.getKeywords().isEmpty()) {
+                    keywords = objectMapper.readValue(
+                            video.getKeywords(),
+                            objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
+                    );
+                }
+            } catch (Exception e) {
+                log.warn("키워드 파싱 실패: apiVideoId={}", video.getApiVideoId());
             }
         }
+
+        VideoSummaryResponse.Analysis analysisDto = new VideoSummaryResponse.Analysis(
+                summary,
+                sentimentDist,
+                keywords != null ? keywords : List.of()
+        );
 
         return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
     }
 
     /**
-     * String을 Long으로 안전하게 변환
+     * HTTP 에러 처리
      */
-    private Long parseLong(String value) {
+    private SearchResultPageResponse handleHttpError(HttpClientErrorException e, String query) {
+        if (e.getStatusCode().value() == 403) {
+            String responseBody = e.getResponseBodyAsString();
+
+            if (responseBody.contains("quotaExceeded")) {
+                log.error("YouTube API quota 초과: query={}", query);
+                throw new BusinessException(SearchError.YOUTUBE_API_QUOTA_EXCEEDED);
+            }
+
+            if (responseBody.contains("IP address restriction")) {
+                log.error("YouTube API IP 제한: query={}", query);
+                throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
+            }
+
+            log.error("YouTube API 403 에러: query={}, error={}", query, responseBody);
+            throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
+        }
+
+        log.error("YouTube API 클라이언트 에러: query={}, status={}", query, e.getStatusCode());
+        throw new BusinessException(SearchError.YOUTUBE_API_ERROR);
+    }
+
+    // 유틸리티 메서드
+    private long parseLong(String value) {
         try {
-            return value != null && !value.isEmpty() ? Long.parseLong(value) : 0L;
+            return value != null ? Long.parseLong(value) : 0L;
         } catch (NumberFormatException e) {
-            log.warn("Long 변환 실패: {}", value);
             return 0L;
         }
     }
 
-    /**
-     * String을 Integer로 안전하게 변환
-     */
-    private Integer parseInt(String value) {
+    private int parseInt(String value) {
         try {
-            return value != null && !value.isEmpty() ? Integer.parseInt(value) : 0;
+            return value != null ? Integer.parseInt(value) : 0;
         } catch (NumberFormatException e) {
-            log.warn("Integer 변환 실패: {}", value);
             return 0;
-        }
-    }
-
-    /**
-     * AI 분석 완료 여부 체크
-     */
-    private boolean isAICompleted(Video video) {
-        return video.getSummation() != null &&
-                video.getLanguageDistribution() != null &&
-                video.getSentimentDistribution() != null &&
-                video.getKeywords() != null;
-    }
-
-    /**
-     * AI 재시도 가능 여부 체크
-     * - AI 처리 중이 아니어야 함
-     * - 마지막 시도 후 쿨타임(5분) 경과해야 함
-     */
-    private boolean shouldRetryAI(Video video) {
-        // 이미 AI 처리 중이면 재시도 안 함
-        if (video.isAiProcessing()) {
-            return false;
-        }
-
-        // 마지막 시도 시간 확인
-        LocalDateTime lastAttempt = video.getLastAiAttemptAt();
-        if (lastAttempt == null) {
-            return true; // 한 번도 시도 안 했으면 시도 가능
-        }
-
-        // 쿨타임 확인 (5분)
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime cooldownEnd = lastAttempt.plusMinutes(appConfig.getAiRetryCooldownMinutes());
-
-        return now.isAfter(cooldownEnd);
-    }
-
-    /**
-     * 백그라운드 AI 분석 스케줄링
-     * VideoProcessingService의 @Async 메서드를 호출하여 비동기 처리
-     */
-    private void scheduleBackgroundAI(Long videoId, String apiVideoId) {
-        try {
-            log.info("백그라운드 AI 분석 스케줄: videoId={}, apiVideoId={}", videoId, apiVideoId);
-
-            // VideoProcessingService의 비동기 백그라운드 AI 처리 메서드 호출
-            videoProcessingService.scheduleBackgroundAIProcessing(videoId, apiVideoId);
-
-            log.info("백그라운드 AI 처리 요청 완료: videoId={}", videoId);
-
-        } catch (Exception e) {
-            log.warn("백그라운드 AI 스케줄링 실패: videoId={}, error={}", videoId, e.getMessage());
         }
     }
 }
