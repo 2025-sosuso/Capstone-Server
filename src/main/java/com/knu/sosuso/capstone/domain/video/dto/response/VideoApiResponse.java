@@ -1,6 +1,7 @@
 package com.knu.sosuso.capstone.domain.video.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record VideoApiResponse(
@@ -11,6 +12,7 @@ public record VideoApiResponse(
         String likeCount,
         String commentCount,
         String thumbnailUrl,
+        JsonNode thumbnails,
         String channelId,
         String channelTitle,
         String channelThumbnailUrl,

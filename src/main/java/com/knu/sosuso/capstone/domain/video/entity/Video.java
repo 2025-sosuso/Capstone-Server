@@ -19,6 +19,10 @@ public class Video extends BaseEntity {
     @Column(name = "api_video_id")
     private String apiVideoId;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "video_type")
+    private VideoType videoType;
+
     @Column(name = "title")
     private String title;
 
@@ -103,7 +107,7 @@ public class Video extends BaseEntity {
     private int metadataUpdateCount = 0;
 
     @Builder
-    public Video(String apiVideoId, String title, String description, String viewCount,
+    public Video(String apiVideoId, VideoType videoType, String title, String description, String viewCount,
                  String likeCount, String commentCount, String thumbnailUrl, String channelId,
                  String channelName, String channelThumbnailUrl, String subscriberCount,
                  String commentHistogram, String popularTimestamps, String summation,
@@ -114,6 +118,7 @@ public class Video extends BaseEntity {
                  LocalDateTime lastMetadataUpdatedAt, boolean deleted,
                  LocalDateTime deleteCheckedAt, int metadataUpdateCount) {
         this.apiVideoId = apiVideoId;
+        this.videoType = videoType;
         this.title = title;
         this.description = description;
         this.viewCount = viewCount;
