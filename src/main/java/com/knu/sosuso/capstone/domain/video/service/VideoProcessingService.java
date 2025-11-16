@@ -187,6 +187,44 @@ public class VideoProcessingService {
         return video;
     }
 
+    /**
+     * ✅ 배치 검색용 간단 처리 (타입 확정 버전)
+     * - VideoSearchService에서 이미 타입을 확정한 경우 사용
+     * - 타입 재판별 없이 expectedType을 그대로 사용
+     */
+    @Transactional
+    public VideoSummaryResponse processAndGetSummaryWithConfirmedType(
+            String token, String apiVideoId, JsonNode thumbnails, VideoType confirmedType) {
+
+        // 1. DB 확인
+        Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
+
+        if (existingVideo.isPresent()) {
+            Video video = existingVideo.get();
+
+            // 타입 확인 및 업데이트
+            if (video.getVideoType() == null) {
+                video.setVideoType(confirmedType);
+                videoRepository.save(video);
+            } else if (video.getVideoType() != confirmedType) {
+                // 타입 불일치 로그 (정보용)
+                log.info("⚠️ DB 타입 불일치: apiVideoId={}, db={}, confirmed={}",
+                        apiVideoId, video.getVideoType(), confirmedType);
+                return null; // 필터링
+            }
+
+            Long scrapId = getScrapIdSafely(token, apiVideoId);
+            return videoMapper.toSummaryResponse(video, scrapId);
+        }
+
+        // 2. 신규 영상 - confirmedType 그대로 사용 (재판별 X)
+        log.info("🆕 신규 영상 처리: apiVideoId={}, confirmedType={}", apiVideoId, confirmedType);
+
+        Video newVideo = createOrRetrieveVideo(apiVideoId, confirmedType);
+        Long scrapId = getScrapIdSafely(token, apiVideoId);
+        return videoMapper.toSummaryResponse(newVideo, scrapId);
+    }
+
     // ========================================
     // 2. 스케줄러: 주기적 AI 분석
     // ========================================
@@ -491,51 +529,7 @@ public class VideoProcessingService {
     @Transactional
     public VideoSummaryResponse processAndGetSummary(String token, String apiVideoId,
                                                      JsonNode thumbnails, VideoType expectedType) {
-        // 1. DB 확인
-        Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
-
-        if (existingVideo.isPresent()) {
-            Video video = existingVideo.get();
-
-            // expectedType이 null이면 필터링하지 않음 (전체 검색용)
-            if (expectedType != null) {
-                // 타입 확인
-                if (video.getVideoType() != null && video.getVideoType() != expectedType) {
-                    log.debug("타입 불일치: apiVideoId={}, expected={}, actual={}",
-                            apiVideoId, expectedType, video.getVideoType());
-                    return null; // 필터링
-                }
-
-                if (video.getVideoType() == null) {
-                    video.setVideoType(expectedType);
-                    videoRepository.save(video);
-                }
-            }
-
-            Long scrapId = getScrapIdSafely(token, apiVideoId);
-            return videoMapper.toSummaryResponse(video, scrapId);
-        }
-
-        // 2. 신규 영상 - 타입 판별
-        VideoType actualType = videoTypeDetector.detectVideoType(apiVideoId, thumbnails);
-
-        log.info("🎯 타입 판별: apiVideoId={}, actualType={}, expectedType={}",
-                apiVideoId, actualType, expectedType);
-
-        // expectedType이 null이면 타입 무관하게 처리
-        if (expectedType != null && actualType != expectedType) {
-            log.info("새 영상 타입 불일치: apiVideoId={}, expected={}, actual={}",
-                    apiVideoId, expectedType, actualType);
-
-            // DB에는 저장 (올바른 타입으로) - 하지만 결과에서는 제외
-            createOrRetrieveVideo(apiVideoId, actualType);
-            return null;
-        }
-
-        // 3. 타입 일치 또는 expectedType이 null → 처리 후 반환
-        Video finalVideo = createOrRetrieveVideo(apiVideoId, actualType);
-        Long scrapId = getScrapIdSafely(token, apiVideoId);
-        return videoMapper.toSummaryResponse(finalVideo, scrapId);
+        return processAndGetSummary(token, apiVideoId, thumbnails, expectedType, true);
     }
 
     /**
@@ -555,6 +549,67 @@ public class VideoProcessingService {
                         return new BusinessException(VideoError.VIDEO_NOT_FOUND);
                     });
         }
+    }
+
+    /**
+     * ✅ processAndGetSummary 오버로드 (재판별 옵션)
+     */
+    @Transactional
+    public VideoSummaryResponse processAndGetSummary(
+            String token, String apiVideoId, JsonNode thumbnails,
+            VideoType expectedType, boolean redetectType) {
+
+        // 1. DB 확인
+        Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
+
+        if (existingVideo.isPresent()) {
+            Video video = existingVideo.get();
+
+            if (expectedType != null) {
+                if (video.getVideoType() != null && video.getVideoType() != expectedType) {
+                    log.debug("타입 불일치: apiVideoId={}, expected={}, actual={}",
+                            apiVideoId, expectedType, video.getVideoType());
+                    return null;
+                }
+
+                if (video.getVideoType() == null) {
+                    video.setVideoType(expectedType);
+                    videoRepository.save(video);
+                }
+            }
+
+            Long scrapId = getScrapIdSafely(token, apiVideoId);
+            return videoMapper.toSummaryResponse(video, scrapId);
+        }
+
+        // 2. 신규 영상 - 타입 판별
+        VideoType actualType;
+
+        if (!redetectType && expectedType != null) {
+            // ✅ 재판별 안 함 - expectedType 그대로 사용
+            actualType = expectedType;
+            log.info("🎯 타입 확정: apiVideoId={}, confirmedType={}", apiVideoId, actualType);
+        } else {
+            // 기존 로직: VideoTypeDetector로 판별
+            actualType = videoTypeDetector.detectVideoType(apiVideoId, thumbnails);
+            log.info("🎯 타입 판별: apiVideoId={}, actualType={}, expectedType={}",
+                    apiVideoId, actualType, expectedType);
+        }
+
+        // expectedType이 null이면 타입 무관하게 처리
+        if (expectedType != null && actualType != expectedType) {
+            log.info("새 영상 타입 불일치: apiVideoId={}, expected={}, actual={}",
+                    apiVideoId, expectedType, actualType);
+
+            // DB에는 저장 (올바른 타입으로) - 하지만 결과에서는 제외
+            createOrRetrieveVideo(apiVideoId, actualType);
+            return null;
+        }
+
+        // 3. 타입 일치 또는 expectedType이 null → 처리 후 반환
+        Video finalVideo = createOrRetrieveVideo(apiVideoId, actualType);
+        Long scrapId = getScrapIdSafely(token, apiVideoId);
+        return videoMapper.toSummaryResponse(finalVideo, scrapId);
     }
 
     /**
