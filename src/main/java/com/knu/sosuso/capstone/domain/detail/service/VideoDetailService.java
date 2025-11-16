@@ -349,9 +349,9 @@ public class VideoDetailService {
                     new TypeReference<Map<String, Double>>() {});
 
             return new DetailAnalysisDto.SentimentDistribution(
-                    map.getOrDefault("POSITIVE", 0.0),
-                    map.getOrDefault("NEGATIVE", 0.0),
-                    map.getOrDefault("OTHER", 0.0)
+                    map.getOrDefault("positive", 0.0),
+                    map.getOrDefault("negative", 0.0),
+                    map.getOrDefault("other", 0.0)
             );
         } catch (Exception e) {
             log.warn("감정 분포 파싱 실패: {}", e.getMessage());
@@ -653,7 +653,7 @@ public class VideoDetailService {
                 comment.getWrittenAt(),
                 hasReplies,
                 detailSentiments
-                );
+        );
     }
 
     private boolean shouldCheckDeletion(Video video) {
