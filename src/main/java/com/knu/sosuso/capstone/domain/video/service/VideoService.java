@@ -2,12 +2,11 @@ package com.knu.sosuso.capstone.domain.video.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.service.CommentService;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
-import com.knu.sosuso.capstone.domain.video.entity.VideoStatusHelper;
-import com.knu.sosuso.capstone.domain.video.entity.value.AIAnalysisStatus;
+import com.knu.sosuso.capstone.domain.video.entity.AIAnalysisStatus;
+import com.knu.sosuso.capstone.domain.video.entity.VideoType;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
@@ -23,7 +22,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.Optional;
+import java.time.LocalDateTime;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -47,18 +46,13 @@ public class VideoService {
 
     /**
      * 비디오 ID 추출
-     *
-     * @param url YouTube URL
-     * @return 추출된 비디오 ID 또는 null
      */
     public String extractVideoId(String url) {
         if (url == null || url.isEmpty()) {
             return null;
         }
 
-        // URL에 youtube.com이나 youtu.be가 포함되지 않으면 비디오 ID로 간주
         if (!url.contains("youtube.com") && !url.contains("youtu.be") && !url.contains("m.youtube.com")) {
-            // 11자리 영문자/숫자/-/_ 패턴 검증
             if (url.matches("[\\w-]{11}")) {
                 return url;
             }
@@ -73,21 +67,7 @@ public class VideoService {
     }
 
     /**
-     * 비디오 ID로 DB에서 비디오 조회
-     *
-     * @param apiVideoId YouTube 비디오 ID
-     * @return Optional<Video> 객체
-     */
-    public Optional<Video> findByApiVideoId(String apiVideoId) {
-        return videoRepository.findByApiVideoId(apiVideoId);
-    }
-
-    /**
      * YouTube API로 비디오 정보 조회
-     *
-     * @param apiVideoId YouTube 비디오 ID
-     * @return VideoApiResponse 객체
-     * @throws BusinessException 비디오를 찾을 수 없는 경우
      */
     @Transactional(readOnly = true)
     public VideoApiResponse getVideoInfo(String apiVideoId) {
@@ -132,27 +112,97 @@ public class VideoService {
     }
 
     /**
-     * AI 분석 완료 여부 확인 (AIAnalysisStatus 기반)
-     *
-     * @param video 비디오 엔티티
-     * @return AI 분석 완료 여부
+     * 메타데이터만 저장 (댓글 없는 경우)
      */
-    public boolean isAIAnalysisCompleted(Video video) {
-        // AIAnalysisStatus로 확인
-        if (video.getAiAnalysisStatus() != null) {
-            return video.getAiAnalysisStatus() == AIAnalysisStatus.COMPLETED;
-        }
+    @Transactional
+    public Video saveVideoMetadataOnly(VideoApiResponse videoApiResponse, VideoType videoType) {
+        try {
+            log.info("💾 비디오 메타데이터 저장: apiVideoId={}, type={}",
+                    videoApiResponse.apiVideoId(), videoType);
 
-        // Fallback: 기존 필드 확인 (하위 호환성)
-        return video.getSummation() != null &&
-                video.getLanguageDistribution() != null &&
-                video.getSentimentDistribution() != null &&
-                video.getKeywords() != null;
+            String thumbnailUrl = extractThumbnailByType(
+                    videoApiResponse.thumbnails(),
+                    videoType
+            );
+
+            Video video = Video.builder()
+                    .apiVideoId(videoApiResponse.apiVideoId())
+                    .title(videoApiResponse.title())
+                    .description(videoApiResponse.description())
+                    .viewCount(videoApiResponse.viewCount())
+                    .likeCount(videoApiResponse.likeCount())
+                    .commentCount(videoApiResponse.commentCount())
+                    .thumbnailUrl(thumbnailUrl)
+                    .videoType(videoType)
+                    .channelId(videoApiResponse.channelId())
+                    .channelName(videoApiResponse.channelTitle())
+                    .channelThumbnailUrl(videoApiResponse.channelThumbnailUrl())
+                    .subscriberCount(videoApiResponse.subscriberCount())
+                    .uploadedAt(videoApiResponse.publishedAt())
+                    .commentHistogram("{}")
+                    .popularTimestamps("{}")
+                    .commentsDisabled(false)
+                    .hasNoComments(false)
+                    .aiAnalysisStatus(AIAnalysisStatus.PENDING)
+                    .lastMetadataUpdatedAt(LocalDateTime.now())
+                    .build();
+
+            return videoRepository.save(video);
+
+        } catch (Exception e) {
+            log.error("❌ 비디오 저장 실패: {}", e.getMessage());
+            throw new BusinessException(VideoError.VIDEO_PROCESSING_ERROR);
+        }
+    }
+
+    /**
+     * 메타데이터 + 백엔드 분석 저장
+     */
+    @Transactional
+    public Video saveVideoWithAnalysis(VideoApiResponse videoApiResponse,
+                                       CommentApiResponse commentResponse,
+                                       VideoType videoType) {
+        try {
+            log.info("💾 비디오 + 분석 저장: apiVideoId={}, type={}",
+                    videoApiResponse.apiVideoId(), videoType);
+
+            String thumbnailUrl = extractThumbnailByType(
+                    videoApiResponse.thumbnails(),
+                    videoType
+            );
+
+            Video video = Video.builder()
+                    .apiVideoId(videoApiResponse.apiVideoId())
+                    .title(videoApiResponse.title())
+                    .description(videoApiResponse.description())
+                    .viewCount(videoApiResponse.viewCount())
+                    .likeCount(videoApiResponse.likeCount())
+                    .commentCount(videoApiResponse.commentCount())
+                    .thumbnailUrl(thumbnailUrl)
+                    .videoType(videoType)
+                    .channelId(videoApiResponse.channelId())
+                    .channelName(videoApiResponse.channelTitle())
+                    .channelThumbnailUrl(videoApiResponse.channelThumbnailUrl())
+                    .subscriberCount(videoApiResponse.subscriberCount())
+                    .uploadedAt(videoApiResponse.publishedAt())
+                    .commentHistogram(objectMapper.writeValueAsString(commentResponse.commentHistogram()))
+                    .popularTimestamps(objectMapper.writeValueAsString(commentResponse.popularTimestamps()))
+                    .commentsDisabled(false)
+                    .hasNoComments(false)
+                    .aiAnalysisStatus(AIAnalysisStatus.PENDING)
+                    .lastMetadataUpdatedAt(LocalDateTime.now())
+                    .build();
+
+            return videoRepository.save(video);
+
+        } catch (Exception e) {
+            log.error("❌ 비디오 저장 실패: {}", e.getMessage());
+            throw new BusinessException(VideoError.VIDEO_PROCESSING_ERROR);
+        }
     }
 
     /**
      * YouTube API로 영상 삭제 여부 확인
-     * @return true: 삭제됨/비공개, false: 정상
      */
     public boolean checkIfVideoDeleted(String apiVideoId) {
         try {
@@ -178,140 +228,17 @@ public class VideoService {
 
         } catch (HttpClientErrorException e) {
             if (e.getStatusCode().is4xxClientError()) {
-                // API 키 문제 등
                 log.error("YouTube API 에러: {}", e.getMessage());
-                return false; // 삭제로 판단하지 않음
+                return false;
             }
             throw e;
         } catch (Exception e) {
             log.error("영상 삭제 여부 확인 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
-            return false; // 기본적으로 삭제되지 않은 것으로 처리
+            return false;
         }
     }
 
-    /**
-     * 영상 및 댓글 정보를 DB에 저장 (AI 분석 없이)
-     *
-     * @param videoApiResponse YouTube API로부터 받은 비디오 정보
-     * @param commentInfo      백엔드에서 분석한 댓글 정보
-     * @return 저장된 비디오의 데이터베이스 ID
-     */
-    @Transactional
-    public Long saveVideoAndCommentsWithoutAI(VideoApiResponse videoApiResponse, CommentApiResponse commentInfo) {
-        try {
-            // 1. 비디오 엔티티 생성 및 저장
-            Video video = Video.builder()
-                    .apiVideoId(videoApiResponse.apiVideoId())
-                    .title(videoApiResponse.title())
-                    .description(videoApiResponse.description())
-                    .viewCount(videoApiResponse.viewCount())
-                    .likeCount(videoApiResponse.likeCount())
-                    .commentCount(videoApiResponse.commentCount())
-                    .thumbnailUrl(videoApiResponse.thumbnailUrl())
-                    .channelId(videoApiResponse.channelId())
-                    .channelName(videoApiResponse.channelTitle())
-                    .channelThumbnailUrl(videoApiResponse.channelThumbnailUrl())
-                    .subscriberCount(videoApiResponse.subscriberCount())
-                    .uploadedAt(videoApiResponse.publishedAt())
-                    // 백엔드 분석 정보 저장
-                    .commentHistogram(objectMapper.writeValueAsString(commentInfo.commentHistogram()))
-                    .popularTimestamps(objectMapper.writeValueAsString(commentInfo.popularTimestamps()))
-                    // 댓글 상태
-                    .commentsDisabled(false)
-                    .hasNoComments(commentInfo.allComments().isEmpty())
-                    // AI 상태 초기화
-                    .aiAnalysisStatus(AIAnalysisStatus.PENDING)
-                    .aiProcessing(false)
-                    .aiRetryCount(0)
-                    .build();
-
-            Video savedVideo = videoRepository.save(video);
-
-            // 2. 댓글이 있을 때만 저장
-            if (!commentInfo.allComments().isEmpty()) {
-                commentService.saveCommentsToDb(commentInfo.allComments(), savedVideo);
-            } else {
-                // 댓글이 없는 경우 AI 상태를 SKIPPED로 변경
-                VideoStatusHelper.skipAIAnalysis(savedVideo, "No comments available");
-                videoRepository.save(savedVideo);
-            }
-
-            log.info("비디오와 댓글 저장 완료 (AI 분석 없이): apiVideoId={}, videoId={}, 댓글수={}, aiStatus={}",
-                    videoApiResponse.apiVideoId(), savedVideo.getId(), commentInfo.allComments().size(),
-                    savedVideo.getAiAnalysisStatus());
-
-            return savedVideo.getId();
-
-        } catch (Exception e) {
-            log.error("비디오 저장 실패: apiVideoId={}, error={}",
-                    videoApiResponse.apiVideoId(), e.getMessage());
-            throw new BusinessException(CommonError.VIDEO_PROCESSING_ERROR);
-        }
-    }
-
-    /**
-     * AI 분석 결과로 비디오 업데이트 (AIAnalysisStatus 포함)
-     *
-     * @param videoId          업데이트할 비디오의 데이터베이스 ID
-     * @param analysisResponse AI 분석 결과
-     */
-    @Transactional
-    public void updateWithAIResults(Long videoId, AIAnalysisResponse analysisResponse) {
-        try {
-            Video video = videoRepository.findById(videoId)
-                    .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
-
-            // AI 분석 결과 업데이트
-            if (analysisResponse.summation() != null) {
-                video.setSummation(analysisResponse.summation());
-            }
-
-            video.setWarning(analysisResponse.isWarning());
-
-            if (analysisResponse.languageRatio() != null) {
-                video.setLanguageDistribution(objectMapper.writeValueAsString(analysisResponse.languageRatio()));
-            }
-
-            if (analysisResponse.sentimentRatio() != null) {
-                video.setSentimentDistribution(objectMapper.writeValueAsString(analysisResponse.sentimentRatio()));
-            }
-
-            if (analysisResponse.keywords() != null) {
-                video.setKeywords(objectMapper.writeValueAsString(analysisResponse.keywords()));
-            }
-
-            // AI 상태 업데이트 - 모든 필드가 성공적으로 업데이트되었는지 확인
-            if (video.getSummation() != null &&
-                    video.getLanguageDistribution() != null &&
-                    video.getSentimentDistribution() != null &&
-                    video.getKeywords() != null) {
-                VideoStatusHelper.completeAIAnalysis(video);
-            } else {
-                VideoStatusHelper.partialCompleteAIAnalysis(video);
-            }
-
-            videoRepository.save(video);
-
-            log.info("AI 분석 결과 업데이트 완료: videoId={}, aiStatus={}",
-                    videoId, video.getAiAnalysisStatus());
-
-        } catch (Exception e) {
-            log.error("AI 분석 결과 업데이트 실패: videoId={}, error={}", videoId, e.getMessage());
-
-            // 실패 시 상태 업데이트 시도
-            try {
-                Video video = videoRepository.findById(videoId).orElse(null);
-                if (video != null) {
-                    VideoStatusHelper.failAIAnalysis(video, e.getMessage());
-                    videoRepository.save(video);
-                }
-            } catch (Exception ex) {
-                log.error("AI 상태 업데이트 실패: {}", ex.getMessage());
-            }
-
-            throw new BusinessException(CommonError.VIDEO_PROCESSING_ERROR);
-        }
-    }
+    // ==================== Private 헬퍼 메서드 ====================
 
     /**
      * 유튜브에 해당 영상 데이터를 요청
@@ -361,9 +288,7 @@ public class VideoService {
         JsonNode channelSnippet = channelItem.get("snippet");
         JsonNode channelStatistics = channelItem.get("statistics");
 
-        // 썸네일 URL 추출 (standard 우선, 없으면 high, 없으면 medium, 없으면 default)
         String thumbnailUrl = extractThumbnailUrl(snippet.get("thumbnails"));
-        log.info("썸네일 url: {}", thumbnailUrl);
         String channelThumbnailUrl = extractThumbnailUrl(channelSnippet.get("thumbnails"));
 
         return new VideoApiResponse(
@@ -374,6 +299,7 @@ public class VideoService {
                 statistics.has("likeCount") ? statistics.get("likeCount").asText() : "0",
                 statistics.has("commentCount") ? statistics.get("commentCount").asText() : "0",
                 thumbnailUrl,
+                snippet.get("thumbnails"),
                 snippet.get("channelId").asText(),
                 snippet.get("channelTitle").asText(),
                 channelThumbnailUrl,
@@ -382,16 +308,9 @@ public class VideoService {
         );
     }
 
-    /**
-     * 썸네일 URL 추출 (우선순위: standard > high > medium > default)
-     *
-     * @param thumbnails YouTube API의 thumbnails JSON 객체
-     * @return 추출된 썸네일 URL (없으면 빈 문자열)
-     */
     private String extractThumbnailUrl(JsonNode thumbnails) {
         if (thumbnails == null) return "";
 
-        // standard -> high -> medium -> default 순서로 우선순위
         if (thumbnails.has("standard")) {
             return thumbnails.get("standard").get("url").asText();
         }
@@ -404,6 +323,41 @@ public class VideoService {
         if (thumbnails.has("default")) {
             return thumbnails.get("default").get("url").asText();
         }
+        return "";
+    }
+
+    /**
+     * 타입별 썸네일 선택
+     */
+    private String extractThumbnailByType(JsonNode thumbnails, VideoType videoType) {
+        if (thumbnails == null) return "";
+
+        if (videoType == VideoType.SHORTS) {
+            // 쇼츠: 작은 크기 우선 (세로 비율)
+            if (thumbnails.has("medium")) {
+                return thumbnails.get("medium").get("url").asText();
+            }
+            if (thumbnails.has("default")) {
+                return thumbnails.get("default").get("url").asText();
+            }
+        } else {
+            // 일반 영상: 큰 크기 우선 (가로 비율)
+            if (thumbnails.has("standard")) {
+                return thumbnails.get("standard").get("url").asText();
+            }
+            if (thumbnails.has("high")) {
+                return thumbnails.get("high").get("url").asText();
+            }
+        }
+
+        // 기본값
+        if (thumbnails.has("medium")) {
+            return thumbnails.get("medium").get("url").asText();
+        }
+        if (thumbnails.has("default")) {
+            return thumbnails.get("default").get("url").asText();
+        }
+
         return "";
     }
 }
