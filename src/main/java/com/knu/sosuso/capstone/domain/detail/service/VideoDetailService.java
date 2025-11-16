@@ -483,9 +483,9 @@ public class VideoDetailService {
                         .mapToLong(Long::longValue)
                         .sum();
 
-                double positive = sentimentCounts.getOrDefault(SentimentType.POSITIVE, 0L) * 100.0 / total;
-                double negative = sentimentCounts.getOrDefault(SentimentType.NEGATIVE, 0L) * 100.0 / total;
-                double other = 100.0 - positive - negative;
+                double positive = (double) sentimentCounts.getOrDefault(SentimentType.POSITIVE, 0L) / total;
+                double negative = (double) sentimentCounts.getOrDefault(SentimentType.NEGATIVE, 0L) / total;
+                double other = 1.0 - positive - negative;
 
                 // 구간의 중간 날짜를 대표 날짜로 사용
                 LocalDateTime middleDate = sectionStart.plusDays((long) (daysPerSection / 2));
@@ -561,9 +561,9 @@ public class VideoDetailService {
                             .mapToLong(Long::longValue)
                             .sum();
 
-                    double positive = sentiments.getOrDefault(SentimentType.POSITIVE, 0L) * 100.0 / total;
-                    double negative = sentiments.getOrDefault(SentimentType.NEGATIVE, 0L) * 100.0 / total;
-                    double other = 100.0 - positive - negative;
+                    double positive = (double) sentiments.getOrDefault(SentimentType.POSITIVE, 0L) / total;
+                    double negative = (double) sentiments.getOrDefault(SentimentType.NEGATIVE, 0L) / total;
+                    double other = 1.0 - positive - negative;
 
                     return new DetailAnalysisDto.SentimentFlow(
                             date,
