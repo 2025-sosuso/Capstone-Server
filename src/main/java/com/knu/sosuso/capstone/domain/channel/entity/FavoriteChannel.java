@@ -3,11 +3,16 @@ package com.knu.sosuso.capstone.domain.channel.entity;
 import com.knu.sosuso.capstone.global.BaseEntity;
 import com.knu.sosuso.capstone.domain.auth.User;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
 @Table(name = "favorite_channel")
 public class FavoriteChannel extends BaseEntity {
 
@@ -23,15 +28,4 @@ public class FavoriteChannel extends BaseEntity {
 
     @Column(name = "api_channel_thumbnail")
     private String apiChannelThumbnail;
-
-    protected FavoriteChannel() {
-    }
-
-    @Builder
-    public FavoriteChannel(User user, String apiChannelId, String apiChannelName, String apiChannelThumbnail) {
-        this.user = user;
-        this.apiChannelId = apiChannelId;
-        this.apiChannelName = apiChannelName;
-        this.apiChannelThumbnail = apiChannelThumbnail;
-    }
 }

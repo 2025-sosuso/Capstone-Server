@@ -45,7 +45,7 @@ public class Comment extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "sentiment_type")
-    private SentimentType sentimentType;
+    private SentimentType sentimentType = SentimentType.OTHER;
 
     // JSON 컬럼으로 세부 감정 저장
     @Convert(converter = DetailSentimentListConverter.class)
@@ -60,5 +60,6 @@ public class Comment extends BaseEntity {
     private String writtenAt;
 
     @Column(name = "has_replies")
-    private Boolean hasReplies;
+    @Builder.Default
+    private Boolean hasReplies = false;
 }
