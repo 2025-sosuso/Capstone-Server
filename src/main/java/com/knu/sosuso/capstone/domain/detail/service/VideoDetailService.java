@@ -642,6 +642,8 @@ public class VideoDetailService {
                 .collect(Collectors.toList())
                 : new ArrayList<>();
 
+        boolean hasReplies = (comment.getHasReplies() != null) ? comment.getHasReplies() : false;
+
         return new CommentDto(
                 comment.getApiCommentId(),
                 comment.getWriter(),
@@ -649,7 +651,7 @@ public class VideoDetailService {
                 comment.getLikeCount(),
                 sentiment,
                 comment.getWrittenAt(),
-                comment.getHasReplies(),
+                hasReplies,
                 detailSentiments
                 );
     }
