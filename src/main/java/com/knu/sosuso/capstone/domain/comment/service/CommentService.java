@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
+import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
@@ -42,6 +43,32 @@ public class CommentService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final CommentRepository commentRepository;
+
+    /**
+     * YouTube API 댓글 수집 + 백엔드 분석
+     * VideoProcessingService에서 호출하는 메인 메서드
+     */
+    public CommentApiResponse getComments(String apiVideoId) {
+        log.info("💬 YouTube API 댓글 수집 시작: apiVideoId={}", apiVideoId);
+
+        // 1. YouTube API에서 댓글 가져오기
+        List<CommentData> allComments = fetchAllComments(apiVideoId);
+
+        if (allComments == null || allComments.isEmpty()) {
+            log.info("⚠️ 댓글 없음: apiVideoId={}", apiVideoId);
+            return new CommentApiResponse(
+                    new HashMap<>(),  // commentHistogram
+                    new HashMap<>(),  // popularTimestamps
+                    new ArrayList<>() // allComments
+            );
+        }
+
+        // 2. 백엔드 분석 (히스토그램 + 타임스탬프)
+        CommentApiResponse response = processCommentsForClient(allComments);
+
+        log.info("✅ 댓글 수집 완료: apiVideoId={}, 댓글 수={}", apiVideoId, allComments.size());
+        return response;
+    }
 
     /**
      * 관련도순으로 댓글 가져오기 (YouTube API 호출)
@@ -123,21 +150,33 @@ public class CommentService {
     }
 
     /**
-     * AI 분석용 댓글 추출
+     * Comment 엔티티만 생성 (저장 X, Video 참조 X)
+     * VideoProcessingService에서 Video 먼저 저장 후 사용
      */
-    public Map<String, String> extractCommentsForAI(List<CommentData> allComments) {
-        if (allComments == null || allComments.isEmpty()) {
-            return new HashMap<>();
+    public List<Comment> createCommentsWithoutAnalysis(List<CommentData> commentDataList) {
+        if (commentDataList == null || commentDataList.isEmpty()) {
+            log.info("💬 생성할 댓글 없음");
+            return new ArrayList<>();
         }
 
-        Map<String, String> commentsForAI = new HashMap<>();
+        log.info("💬 Comment 엔티티 생성 시작: 댓글 수={}", commentDataList.size());
 
-        for (CommentData commentData : allComments) {
-            commentsForAI.put(commentData.id(), commentData.commentText());
-        }
+        List<Comment> comments = commentDataList.stream()
+                .map(data -> Comment.builder()
+                        .apiCommentId(data.id())
+                        .commentContent(data.commentText())
+                        .likeCount(data.likeCount())
+                        .sentimentType(null)  // AI 분석 전
+                        .detailSentiments(new ArrayList<>())  // AI 분석 전
+                        .writer(data.authorName())
+                        .writtenAt(data.publishedAt())
+                        .hasReplies(data.hasReplies())
+                        // ⚠️ video는 나중에 설정
+                        .build())
+                .collect(Collectors.toList());
 
-        log.info("AI 분석용 댓글 추출: 전체={}, 추출={}", allComments.size(), commentsForAI.size());
-        return commentsForAI;
+        log.info("✅ Comment 엔티티 생성 완료: {}개", comments.size());
+        return comments;
     }
 
     /**
@@ -147,74 +186,75 @@ public class CommentService {
     public void saveCommentsToDb(List<CommentData> comments, Video video) {
         if (comments == null || comments.isEmpty()) {
             log.info("저장할 댓글이 없습니다: apiVideoId={}", video.getApiVideoId());
+            return;
         }
 
-        log.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", video.getApiVideoId(), Objects.requireNonNull(comments).size());
+        log.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", video.getApiVideoId(), comments.size());
 
         try {
             List<Comment> commentsToSave = comments.stream()
-                    .map(commentData -> Comment.builder()
+                    .map(data -> Comment.builder()
                             .video(video)
-                            .apiCommentId(commentData.id())
-                            .commentContent(commentData.commentText())
-                            .likeCount(commentData.likeCount())
-                            .sentimentType(null) // AI 분석 전이므로 null
-                            .writer(commentData.authorName())
-                            .writtenAt(commentData.publishedAt())
-                            .hasReplies(commentData.hasReplies())
+                            .apiCommentId(data.id())
+                            .commentContent(data.commentText())
+                            .likeCount(data.likeCount())
+                            .writer(data.authorName())
+                            .writtenAt(data.publishedAt())
+                            .hasReplies(data.hasReplies())
+                            .sentimentType(null)
+                            .detailSentiments(new ArrayList<>())
                             .build())
                     .filter(comment -> !commentRepository.existsByApiCommentId(comment.getApiCommentId()))
                     .collect(Collectors.toList());
 
-            List<Comment> savedComments = commentRepository.saveAll(commentsToSave);
-
-            log.info("댓글 DB 저장 완료: apiVideoId={}, 저장={}, 중복 제외={}",
-                    video.getApiVideoId(), savedComments.size(), comments.size() - savedComments.size());
+            commentRepository.saveAll(commentsToSave);
+            log.info("댓글 저장 완료: apiVideoId={}, 저장 개수={}", video.getApiVideoId(), commentsToSave.size());
 
         } catch (Exception e) {
-            log.error("댓글 DB 저장 실패: apiVideoId={}, error={}", video.getApiVideoId(), e.getMessage(), e);
+            log.error("댓글 저장 실패: {}", e.getMessage(), e);
             throw new BusinessException(CommentError.COMMENT_SAVE_ERROR);
         }
     }
 
     /**
-     * AI 분석 결과로 댓글 업데이트 (sentiment + detail sentiments)
+     * AI 분석 결과로 댓글 업데이트
      */
     @Transactional
     public void updateCommentsWithAnalysis(AIAnalysisResponse analysisResponse) {
+        log.info("🤖 AI 분석 결과로 댓글 업데이트 시작");
+
         try {
-            // AI 분석 결과 순회
+            int updatedCount = 0;
+            int notFoundCount = 0;
+
             for (CommentSentimentDetail sentimentDetail : analysisResponse.sentimentComments()) {
-                // apiCommentId로 댓글 찾기
                 Comment comment = commentRepository.findByApiCommentId(sentimentDetail.apiCommentId())
                         .orElse(null);
 
                 if (comment == null) {
-                    log.warn("댓글을 찾을 수 없음: apiCommentId={}", sentimentDetail.apiCommentId());
+                    log.warn("⚠️ 댓글을 찾을 수 없음: apiCommentId={}", sentimentDetail.apiCommentId());
+                    notFoundCount++;
                     continue;
                 }
 
-                // 1. 전체 감정 타입 업데이트
                 comment.setSentimentType(sentimentDetail.sentimentType());
-
-                // 2. 세부 감정 리스트로 저장 (JSON 컬럼에 자동 저장)
                 comment.setDetailSentiments(sentimentDetail.detailSentimentTypes());
 
                 commentRepository.save(comment);
+                updatedCount++;
             }
 
-            log.info("댓글 감정 분석 결과 업데이트 완료: videoId={}, 업데이트된 댓글 수={}",
-                    analysisResponse.videoId(), analysisResponse.sentimentComments().size());
+            log.info("✅ AI 분석 결과로 댓글 업데이트 완료: 성공={}, 실패={}",
+                    updatedCount, notFoundCount);
 
         } catch (Exception e) {
-            log.error("댓글 감정 분석 업데이트 실패: videoId={}, error={}",
-                    analysisResponse.videoId(), e.getMessage());
-            throw e;
+            log.error("❌ 댓글 AI 업데이트 실패: {}", e.getMessage(), e);
+            throw new BusinessException(CommentError.COMMENT_UPDATE_ERROR);
         }
     }
 
     /**
-     * 시간대별 댓글 분포 분석
+     * 시간대별 댓글 분포 분석 (한국 시간)
      */
     public Map<Integer, Integer> analyzeCommentHistogram(List<CommentData> comments) {
         Map<Integer, Integer> hourlyCount = new HashMap<>();

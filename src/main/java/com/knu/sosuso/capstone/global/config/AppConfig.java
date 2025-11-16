@@ -8,7 +8,7 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * 애플리케이션 전역 설정
- * - 모든 기간/개수 관련 설정을 한 곳에서 관리
+ * 모든 기간/개수 관련 설정을 한 곳에서 관리
  */
 @Getter
 @Configuration
@@ -33,11 +33,6 @@ public class AppConfig {
      * 삭제된 영상을 이 기간 동안 보관 후 하드 삭제
      */
     private final int dataRetentionDays = 30;
-
-    /**
-     * AI 재시도 쿨타임 (분)
-     */
-    private final int aiRetryCooldownMinutes = 0;
 
     /**
      * 감정 흐름 분석 최대 데이터 포인트 수
@@ -75,6 +70,11 @@ public class AppConfig {
      */
     private final int maxResultsPerRequest = 100;
 
+    /**
+     * 댓글 TOP N 개수
+     */
+    private final int topCommentsCount = 5;
+
     // ========== 검색 관련 설정 ==========
 
     /**
@@ -87,7 +87,54 @@ public class AppConfig {
      * 검색 결과 최대 페이지 수
      * 무한 스크롤 제한 (총 searchResultsPerPage * maxSearchPages 개)
      */
-    private final int maxSearchPages = 10;
+    private final int maxSearchPages = 5;
+
+    // ========== 메인 페이지 설정 ==========
+
+    /**
+     * 메인 페이지 인기 영상 섹션 표시 개수
+     */
+    private final int mainPageTrendingCount = 3;
+
+    /**
+     * 메인 페이지 스크랩 섹션 표시 개수
+     */
+    private final int mainPageScrapCount = 3;
+
+    /**
+     * 메인 페이지 관심 채널 영상 개수
+     */
+    private final int mainPageFavoriteChannelVideoCount = 1;
+
+    // ========== 캐시 설정 ==========
+
+    /**
+     * 영상 상세 캐시 TTL (분)
+     */
+    private final int cacheVideoDetailTtlMinutes = 30;
+
+    /**
+     * 인기 영상 캐시 TTL (분)
+     */
+    private final int cachePopularVideosTtlMinutes = 60;
+
+    /**
+     * 채널 정보 캐시 TTL (분)
+     */
+    private final int cacheChannelInfoTtlMinutes = 60;
+
+    // ========== AI 배치 처리 설정 ==========
+
+    /**
+     * AI 배치 처리 주기 (밀리초)
+     * 60000 = 1분
+     */
+    private final long aiBatchIntervalMs = 60000L;
+
+    /**
+     * 배치당 처리할 영상 수
+     */
+    private final int aiBatchSize = 2;
 
     // ========== 스레드풀 관련 설정 ==========
 
@@ -108,12 +155,11 @@ public class AppConfig {
 
 
     /**
-     * 인기도 계산 전략 Bean 등록 (추가된 부분)
+     * 인기도 계산 전략 Bean 등록
      * @return "basicStrategy"라는 이름의 Bean
      */
     @Bean("basicStrategy")
     public PopularityScoreStrategy basicPopularityStrategy() {
-        // AppConfig가 가진 설정값을 생성자로 주입
         return new BasicPopularityStrategy(
                 popularityViewWeight,
                 popularityScrapWeight

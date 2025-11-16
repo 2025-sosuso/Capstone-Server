@@ -39,4 +39,8 @@ public interface ScrapRepository extends JpaRepository<Scrap, Long> {
         """)
     List<Object[]> countScrapsByVideo();
 
+    /**
+     * 사용자 ID와 비디오 ID로 스크랩 조회
+     */
+    Optional<Scrap> findByUserIdAndVideoId(Long userId, Long videoId);
 }

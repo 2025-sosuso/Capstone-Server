@@ -1,7 +1,5 @@
 package com.knu.sosuso.capstone.domain.scrap.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.scrap.entity.Scrap;
 import com.knu.sosuso.capstone.domain.auth.User;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
@@ -17,6 +15,7 @@ import com.knu.sosuso.capstone.domain.scrap.repository.ScrapRepository;
 import com.knu.sosuso.capstone.domain.auth.UserRepository;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.security.jwt.JwtUtil;
+import com.knu.sosuso.capstone.global.service.mapper.VideoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,8 +23,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
+/**
+ * 스크랩 관련 비즈니스 로직
+ * VideoMapper를 사용하여 중복 변환 로직 제거
+ */
 @RequiredArgsConstructor
 @Slf4j
 @Service
@@ -35,7 +37,7 @@ public class ScrapService {
     private final UserRepository userRepository;
     private final VideoRepository videoRepository;
     private final JwtUtil jwtUtil;
-    private final ObjectMapper objectMapper;
+    private final VideoMapper videoMapper;
 
     /**
      * 스크랩 생성
@@ -102,6 +104,7 @@ public class ScrapService {
 
     /**
      * 스크랩한 영상 목록 조회 (삭제된 영상 처리 포함)
+     * VideoMapper를 사용하여 변환
      */
     @Transactional(readOnly = true)
     public List<VideoSummaryResponse> getScrappedVideos(String token) {
@@ -130,17 +133,14 @@ public class ScrapService {
                 try {
                     Video video = scrap.getVideo();
 
-                    // 삭제된 영상 처리
+                    // VideoMapper 사용으로 중복 코드 제거
                     if (video.isDeleted()) {
                         log.info("삭제된 영상 발견: videoId={}, apiVideoId={}, scrapId={}",
                                 video.getId(), video.getApiVideoId(), scrap.getId());
-                        results.add(createDeletedVideoResponse(video, scrap.getId()));
-                        continue;
+                        results.add(videoMapper.toDeletedVideoResponse(video, scrap.getId()));
+                    } else {
+                        results.add(videoMapper.toSummaryResponse(video, scrap.getId()));
                     }
-
-                    // 정상 영상 처리
-                    VideoSummaryResponse summaryResponse = convertVideoToSummaryResponse(video, scrap.getId());
-                    results.add(summaryResponse);
 
                     log.debug("스크랩 영상 변환 완료: apiVideoId={}, title={}, scrapId={}",
                             video.getApiVideoId(), video.getTitle(), scrap.getId());
@@ -161,131 +161,6 @@ public class ScrapService {
         } catch (Exception e) {
             log.error("스크랩 영상 조회 실패: error={}", e.getMessage(), e);
             throw new BusinessException(CommonError.INTERNAL_SERVER_ERROR);
-        }
-    }
-
-    /**
-     * 삭제된 영상용 응답 생성
-     * 사용자에게 [삭제된 영상]으로 표시하되, 스크랩 히스토리는 보존
-     */
-    private VideoSummaryResponse createDeletedVideoResponse(Video video, Long scrapId) {
-        VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
-                video.getApiVideoId(),
-                "[삭제된 영상] " + video.getTitle(),  // 제목 앞에 표시
-                "이 영상은 삭제되었거나 비공개 처리되었습니다.",
-                video.getUploadedAt(),
-                video.getThumbnailUrl(),  // 썸네일은 유지 (캐시된 것)
-                0L, 0L, 0  // 조회수, 좋아요, 댓글 수는 0으로
-        );
-
-        VideoSummaryResponse.Channel channelDto = new VideoSummaryResponse.Channel(
-                video.getChannelId(),
-                video.getChannelName(),
-                video.getChannelThumbnailUrl(),
-                0L  // 구독자 수도 0으로
-        );
-
-        VideoSummaryResponse.Analysis analysisDto = new VideoSummaryResponse.Analysis(
-                "이 영상은 삭제되었습니다.",
-                null,  // 감정 분포 없음
-                List.of()  // 키워드 없음
-        );
-
-        return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
-    }
-
-    /**
-     * Video 엔티티를 VideoSummaryResponse로 변환
-     */
-    private VideoSummaryResponse convertVideoToSummaryResponse(Video video, Long scrapId) {
-        try {
-            // SentimentDistribution 변환
-            VideoSummaryResponse.SentimentDistribution sentimentDistribution = null;
-            if (video.getSentimentDistribution() != null && !video.getSentimentDistribution().trim().isEmpty()) {
-                try {
-                    Map<String, Double> sentimentMap = objectMapper.readValue(
-                            video.getSentimentDistribution(),
-                            new TypeReference<>() {}
-                    );
-
-                    sentimentDistribution = new VideoSummaryResponse.SentimentDistribution(
-                            sentimentMap.getOrDefault("positive", 0.0),
-                            sentimentMap.getOrDefault("negative", 0.0),
-                            sentimentMap.getOrDefault("other", 0.0)
-                    );
-                } catch (Exception e) {
-                    log.warn("SentimentDistribution 파싱 실패: videoId={}, error={}",
-                            video.getId(), e.getMessage());
-                }
-            }
-
-            // Keywords 변환
-            List<String> keywords = new ArrayList<>();
-            if (video.getKeywords() != null && !video.getKeywords().trim().isEmpty()) {
-                try {
-                    keywords = objectMapper.readValue(
-                            video.getKeywords(),
-                            new TypeReference<>() {}
-                    );
-                } catch (Exception e) {
-                    log.warn("Keywords 파싱 실패: videoId={}, error={}", video.getId(), e.getMessage());
-                }
-            }
-
-            var videoDto = new VideoSummaryResponse.Video(
-                    video.getApiVideoId(),
-                    video.getTitle(),
-                    video.getDescription(),
-                    video.getUploadedAt(),
-                    video.getThumbnailUrl(),
-                    parseLong(video.getViewCount()),
-                    parseLong(video.getLikeCount()),
-                    parseInt(video.getCommentCount())
-            );
-
-            var channelDto = new VideoSummaryResponse.Channel(
-                    video.getChannelId(),
-                    video.getChannelName(),
-                    video.getChannelThumbnailUrl(),
-                    parseLong(video.getSubscriberCount())
-            );
-
-            var analysisDto = new VideoSummaryResponse.Analysis(
-                    video.getSummation(),
-                    sentimentDistribution,
-                    keywords
-            );
-
-            return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
-
-        } catch (Exception e) {
-            log.error("VideoSummaryResponse 변환 실패: videoId={}, error={}",
-                    video.getId(), e.getMessage(), e);
-            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
-        }
-    }
-
-    /**
-     * 문자열을 Long으로 안전하게 변환
-     */
-    private Long parseLong(String value) {
-        try {
-            return value != null && !value.trim().isEmpty() ? Long.parseLong(value) : 0L;
-        } catch (NumberFormatException e) {
-            log.warn("Long 변환 실패: value={}", value);
-            return 0L;
-        }
-    }
-
-    /**
-     * 문자열을 Integer로 안전하게 변환
-     */
-    private Integer parseInt(String value) {
-        try {
-            return value != null && !value.trim().isEmpty() ? Integer.parseInt(value) : 0;
-        } catch (NumberFormatException e) {
-            log.warn("Integer 변환 실패: value={}", value);
-            return 0;
         }
     }
 }

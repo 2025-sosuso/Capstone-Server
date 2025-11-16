@@ -10,6 +10,7 @@ import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommentError;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
+import com.knu.sosuso.capstone.global.service.mapper.CommentMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

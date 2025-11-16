@@ -1,9 +1,7 @@
 package com.knu.sosuso.capstone.domain.video.entity;
 
 import com.knu.sosuso.capstone.global.BaseEntity;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,6 +18,10 @@ public class Video extends BaseEntity {
 
     @Column(name = "api_video_id")
     private String apiVideoId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "video_type")
+    private VideoType videoType;
 
     @Column(name = "title")
     private String title;
@@ -83,17 +85,10 @@ public class Video extends BaseEntity {
     @Column(name = "has_no_comments", nullable = false)
     private boolean hasNoComments = false;
 
-    // 마지막 AI 분석 시도 시간
-    @Column(name = "last_ai_attempt_at")
-    private LocalDateTime lastAiAttemptAt;
-
-    // AI 재시도 횟수
-    @Column(name = "ai_retry_count", nullable = false)
-    private int aiRetryCount = 0;
-
-    // AI 처리 중 여부 (동시 실행 방지용)
-    @Column(name = "ai_processing", nullable = false)
-    private boolean aiProcessing = false;
+    // AI 분석 상태 관리
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_analysis_status", nullable = false)
+    private AIAnalysisStatus aiAnalysisStatus = AIAnalysisStatus.PENDING;
 
     // 메타데이터(조회수, 좋아요 등) 마지막으로 갱신된 시간
     @Column(name = "last_metadata_updated_at")
@@ -112,17 +107,18 @@ public class Video extends BaseEntity {
     private int metadataUpdateCount = 0;
 
     @Builder
-    public Video(String apiVideoId, String title, String description, String viewCount,
+    public Video(String apiVideoId, VideoType videoType, String title, String description, String viewCount,
                  String likeCount, String commentCount, String thumbnailUrl, String channelId,
                  String channelName, String channelThumbnailUrl, String subscriberCount,
                  String commentHistogram, String popularTimestamps, String summation,
                  boolean isWarning, String languageDistribution, String sentimentDistribution,
                  String keywords, String uploadedAt,
                  boolean commentsDisabled, boolean hasNoComments,
-                 LocalDateTime lastAiAttemptAt, int aiRetryCount, boolean aiProcessing,
+                 AIAnalysisStatus aiAnalysisStatus,
                  LocalDateTime lastMetadataUpdatedAt, boolean deleted,
                  LocalDateTime deleteCheckedAt, int metadataUpdateCount) {
         this.apiVideoId = apiVideoId;
+        this.videoType = videoType;
         this.title = title;
         this.description = description;
         this.viewCount = viewCount;
@@ -143,9 +139,7 @@ public class Video extends BaseEntity {
         this.uploadedAt = uploadedAt;
         this.commentsDisabled = commentsDisabled;
         this.hasNoComments = hasNoComments;
-        this.lastAiAttemptAt = lastAiAttemptAt;
-        this.aiRetryCount = aiRetryCount;
-        this.aiProcessing = aiProcessing;
+        this.aiAnalysisStatus = aiAnalysisStatus != null ? aiAnalysisStatus : AIAnalysisStatus.PENDING;
         this.lastMetadataUpdatedAt = lastMetadataUpdatedAt;
         this.deleted = deleted;
         this.deleteCheckedAt = deleteCheckedAt;

@@ -34,15 +34,6 @@ public class VideoCleanupService {
     /**
      * 오래된 삭제 영상 하드 삭제
      * 매달 1일 새벽 3시에 실행
-     *
-     * 삭제 기준:
-     * - is_deleted = true
-     * - delete_checked_at이 보관 기간(30일) 이전
-     * - 스크랩되지 않은 영상만 삭제 (스크랩된 영상은 유지)
-     *
-     * 주의사항:
-     * - 스크랩은 사용자가 직접 취소할 때만 삭제됨
-     * - 삭제된 영상도 스크랩 히스토리 보존을 위해 유지
      */
     @Scheduled(cron = "0 0 3 1 * *")  // 매달 1일 03:00
     @Transactional
@@ -81,7 +72,7 @@ public class VideoCleanupService {
                 log.info("영상 하드 삭제 시작: videoId={}, apiVideoId={}, 삭제확인일={}",
                         video.getId(), video.getApiVideoId(), video.getDeleteCheckedAt());
 
-                // 1. 관련 댓글 삭제 (스크랩은 삭제하지 않음)
+                // 1. 관련 댓글 삭제
                 commentRepository.deleteByVideoId(video.getId());
                 log.info("댓글 삭제 완료: videoId={}", video.getId());
 
@@ -108,10 +99,6 @@ public class VideoCleanupService {
     /**
      * 스크랩된 영상의 메타데이터 정기 갱신
      * 매일 새벽 2시에 실행
-     * 갱신 대상:
-     * - 삭제되지 않았고
-     * - 스크랩된 영상 중
-     * - 마지막 갱신이 30일 이전
      */
     @Scheduled(cron = "0 0 2 * * *")  // 매일 02:00
     @Transactional
@@ -135,11 +122,11 @@ public class VideoCleanupService {
 
         for (Video video : videosToUpdate) {
             try {
-                log.info("메타데이터 갱신 스케줄: videoId={}, apiVideoId={}",
+                log.info("📊 메타데이터 갱신 스케줄: videoId={}, apiVideoId={}",
                         video.getId(), video.getApiVideoId());
 
-                // 비동기로 갱신 (즉시 완료 안 됨)
-                videoProcessingService.scheduleMetadataUpdate(
+                // updateMetadata 호출
+                videoProcessingService.updateMetadata(
                         video.getId(),
                         video.getApiVideoId()
                 );
@@ -147,12 +134,12 @@ public class VideoCleanupService {
                 scheduledCount++;
 
             } catch (Exception e) {
-                log.error("메타데이터 갱신 스케줄 실패: videoId={}, error={}",
+                log.error("❌ 메타데이터 갱신 실패: videoId={}, error={}",
                         video.getId(), e.getMessage());
             }
         }
 
-        log.info("=== 스크랩된 영상 메타데이터 갱신 스케줄 완료 ===");
-        log.info("스케줄된 영상 수: {}개 / 전체: {}개", scheduledCount, videosToUpdate.size());
+        log.info("=== 스크랩된 영상 메타데이터 갱신 완료 ===");
+        log.info("성공: {}개 / 전체: {}개", scheduledCount, videosToUpdate.size());
     }
 }

@@ -30,8 +30,11 @@ spring:
               - email
               - profile
 
-  jwt:
-    secret: ${JWT_SECRET}
+  cache:
+    type: caffeine
+
+jwt:
+  secret: ${JWT_SECRET}
 
 youtube:
   api:
@@ -42,3 +45,6 @@ openai:
   api:
     key: ${OPENAI_API_KEY}
     url: ${OPENAI_API_URL}
+
+fastapi:
+  url: ${FASTAPI_URL}
