@@ -78,16 +78,27 @@ public class AppConfig {
     // ========== 검색 관련 설정 ==========
 
     /**
-     * 검색 결과 페이지 당 개수
-     * YouTube API 한 번 호출 시 가져올 결과 수
+     * 검색 결과 배치 크기 (YouTube API 한 번에 가져올 개수)
+     * Search API + Videos API 배치 호출에 사용
      */
-    private final int searchResultsPerPage = 4;
+    private final int searchBatchSize = 20;
+
+    /**
+     * 프론트엔드 페이지 크기 (한 번에 보낼 결과 개수)
+     * 사용자가 스크롤할 때마다 4개씩 추가 표시
+     */
+    private final int searchPageSize = 4;
 
     /**
      * 검색 결과 최대 페이지 수
      * 무한 스크롤 제한 (총 searchResultsPerPage * maxSearchPages 개)
      */
     private final int maxSearchPages = 5;
+
+    /**
+     * 검색 결과 최대 재시도 횟수
+     */
+    private final int maxRetryPages = 3;
 
     // ========== 메인 페이지 설정 ==========
 
@@ -100,11 +111,6 @@ public class AppConfig {
      * 메인 페이지 스크랩 섹션 표시 개수
      */
     private final int mainPageScrapCount = 3;
-
-    /**
-     * 메인 페이지 관심 채널 영상 개수
-     */
-    private final int mainPageFavoriteChannelVideoCount = 1;
 
     // ========== 캐시 설정 ==========
 

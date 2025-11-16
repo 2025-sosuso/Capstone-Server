@@ -38,7 +38,10 @@ public class CacheConfig {
                 buildCache("channelInfo", 60),
 
                 // 관심 채널 캐시 (2시간 유지)
-                buildCache("favoriteChannels", 120)
+                buildCache("favoriteChannels", 120),
+
+                // 검색 결과 캐시 (10분 유지)
+                buildCache("searchResults", 10)
         ));
 
         log.info("Caffeine 캐시 매니저 초기화 완료 - 캐시별 TTL 적용");
