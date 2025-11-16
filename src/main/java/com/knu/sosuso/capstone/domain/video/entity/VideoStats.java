@@ -1,10 +1,7 @@
 package com.knu.sosuso.capstone.domain.video.entity;
 
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
@@ -13,6 +10,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "video_stats")
 @NoArgsConstructor
+@AllArgsConstructor
 public class VideoStats {
 
     @Id
@@ -30,14 +28,4 @@ public class VideoStats {
 
     @Column(name = "last_calculated_at")
     private LocalDateTime lastCalculatedAt;
-
-    @Builder
-    public VideoStats(String apiVideoId, Integer viewCountRecent, Integer scrapCount,
-                      Double popularityScore, LocalDateTime lastCalculatedAt) {
-        this.apiVideoId = apiVideoId;
-        this.viewCountRecent = viewCountRecent;
-        this.scrapCount = scrapCount;
-        this.popularityScore = popularityScore;
-        this.lastCalculatedAt = lastCalculatedAt;
-    }
 }

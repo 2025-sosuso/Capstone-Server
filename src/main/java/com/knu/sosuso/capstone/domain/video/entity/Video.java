@@ -2,16 +2,15 @@ package com.knu.sosuso.capstone.domain.video.entity;
 
 import com.knu.sosuso.capstone.global.BaseEntity;
 import jakarta.persistence.*;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 
 @NoArgsConstructor
 @Getter
 @Setter
+@Builder
+@AllArgsConstructor
 @Entity
 @Table(name = "video")
 public class Video extends BaseEntity {
@@ -63,7 +62,8 @@ public class Video extends BaseEntity {
     private String summation;
 
     @Column(name = "warning")
-    private boolean isWarning;
+    @Builder.Default
+    private boolean isWarning = false;
 
     @Column(name = "language_distribution", columnDefinition = "JSON")
     private String languageDistribution;
@@ -79,15 +79,18 @@ public class Video extends BaseEntity {
 
     // 댓글 비활성화 여부 (YouTube에서 댓글 기능 꺼진 영상)
     @Column(name = "comments_disabled", nullable = false)
+    @Builder.Default
     private boolean commentsDisabled = false;
 
     // 댓글이 실제로 0개인지 여부 (비활성화는 아니지만 댓글 없음)
     @Column(name = "has_no_comments", nullable = false)
+    @Builder.Default
     private boolean hasNoComments = false;
 
     // AI 분석 상태 관리
     @Enumerated(EnumType.STRING)
     @Column(name = "ai_analysis_status", nullable = false)
+    @Builder.Default
     private AIAnalysisStatus aiAnalysisStatus = AIAnalysisStatus.PENDING;
 
     // 메타데이터(조회수, 좋아요 등) 마지막으로 갱신된 시간
@@ -96,6 +99,7 @@ public class Video extends BaseEntity {
 
     // YouTube에서 영상이 삭제되었는지 여부 (true: 삭제됨 또는 비공개 처리됨)
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private boolean deleted = false;
 
     // YouTube API로 삭제 여부를 마지막으로 확인한 시간
@@ -104,45 +108,6 @@ public class Video extends BaseEntity {
 
     // 메타데이터 업데이트 횟수 (통계용)
     @Column(name = "metadata_update_count", nullable = false)
+    @Builder.Default
     private int metadataUpdateCount = 0;
-
-    @Builder
-    public Video(String apiVideoId, VideoType videoType, String title, String description, String viewCount,
-                 String likeCount, String commentCount, String thumbnailUrl, String channelId,
-                 String channelName, String channelThumbnailUrl, String subscriberCount,
-                 String commentHistogram, String popularTimestamps, String summation,
-                 boolean isWarning, String languageDistribution, String sentimentDistribution,
-                 String keywords, String uploadedAt,
-                 boolean commentsDisabled, boolean hasNoComments,
-                 AIAnalysisStatus aiAnalysisStatus,
-                 LocalDateTime lastMetadataUpdatedAt, boolean deleted,
-                 LocalDateTime deleteCheckedAt, int metadataUpdateCount) {
-        this.apiVideoId = apiVideoId;
-        this.videoType = videoType;
-        this.title = title;
-        this.description = description;
-        this.viewCount = viewCount;
-        this.likeCount = likeCount;
-        this.commentCount = commentCount;
-        this.thumbnailUrl = thumbnailUrl;
-        this.channelId = channelId;
-        this.channelName = channelName;
-        this.channelThumbnailUrl = channelThumbnailUrl;
-        this.subscriberCount = subscriberCount;
-        this.commentHistogram = commentHistogram;
-        this.popularTimestamps = popularTimestamps;
-        this.summation = summation;
-        this.isWarning = isWarning;
-        this.languageDistribution = languageDistribution;
-        this.sentimentDistribution = sentimentDistribution;
-        this.keywords = keywords;
-        this.uploadedAt = uploadedAt;
-        this.commentsDisabled = commentsDisabled;
-        this.hasNoComments = hasNoComments;
-        this.aiAnalysisStatus = aiAnalysisStatus != null ? aiAnalysisStatus : AIAnalysisStatus.PENDING;
-        this.lastMetadataUpdatedAt = lastMetadataUpdatedAt;
-        this.deleted = deleted;
-        this.deleteCheckedAt = deleteCheckedAt;
-        this.metadataUpdateCount = metadataUpdateCount;
-    }
 }
