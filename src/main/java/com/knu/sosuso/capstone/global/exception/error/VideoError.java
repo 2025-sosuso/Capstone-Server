@@ -9,7 +9,8 @@ public enum VideoError implements BaseError {
     VIDEO_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 영상입니다."),
     VIDEO_DELETED(HttpStatus.GONE, "삭제된 영상입니다."),
     VIDEO_ID_REQUIRED(HttpStatus.BAD_REQUEST, "비디오 ID는 필수입니다."),
-    INVALID_YOUTUBE_URL(HttpStatus.BAD_REQUEST, "유효하지 않은 YouTube URL입니다.");
+    INVALID_YOUTUBE_URL(HttpStatus.BAD_REQUEST, "유효하지 않은 YouTube URL입니다."),
+    VIDEO_PROCESSING_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "영상 처리 중 오류가 발생했습니다.");
 
     private final HttpStatus httpStatus;
     private final String message;

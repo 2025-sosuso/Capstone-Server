@@ -2,16 +2,12 @@ package com.knu.sosuso.capstone.global.service.mapper;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
-import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
-import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
-import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.service.UserDataService;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
@@ -21,7 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,23 +32,6 @@ public class ResponseMappingService {
     private final AppConfig appConfig;
     private final VideoMapper videoMapper;
     private final CommentMapper commentMapper;
-
-    /**
-     * YouTube API 데이터를 SearchResultResponse로 변환 (새로운 데이터)
-     */
-    public DetailPageResponse mapToSearchResult(
-            String token,
-            VideoApiResponse videoInfo,
-            CommentApiResponse commentInfo,
-            AIAnalysisResponse analysisResponse) {
-
-        DetailVideoDto video = mapToVideoResponse(token, videoInfo);
-        DetailChannelDto channel = mapToChannelResponse(token, videoInfo);
-        DetailAnalysisDto analysis = mapToAnalysisResponse(commentInfo, analysisResponse);
-        List<CommentDto> comments = mapToCommentResponses(commentInfo.allComments(), analysisResponse);
-
-        return new DetailPageResponse(video, channel, analysis, comments);
-    }
 
     /**
      * DB 데이터를 SearchResultResponse로 변환 (기존 데이터)
@@ -74,40 +52,6 @@ public class ResponseMappingService {
     }
 
     /**
-     * VideoApiResponse -> VideoResponse 변환
-     */
-    public DetailVideoDto mapToVideoResponse(String token, VideoApiResponse videoInfo) {
-        Long scrapId = userDataService.getUserScrapId(token, videoInfo.apiVideoId());
-
-        return new DetailVideoDto(
-                videoInfo.apiVideoId(),
-                videoInfo.title(),
-                videoInfo.description(),
-                videoInfo.publishedAt(),
-                videoInfo.thumbnailUrl(),
-                parseLong(videoInfo.viewCount()),
-                parseLong(videoInfo.likeCount()),
-                parseInt(videoInfo.commentCount()),
-                scrapId
-        );
-    }
-
-    /**
-     * VideoApiResponse -> ChannelResponse 변환
-     */
-    public DetailChannelDto mapToChannelResponse(String token, VideoApiResponse videoInfo) {
-        Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, videoInfo.channelId());
-
-        return new DetailChannelDto(
-                videoInfo.channelId(),
-                videoInfo.channelTitle(),
-                videoInfo.channelThumbnailUrl(),
-                parseLong(videoInfo.subscriberCount()),
-                favoriteChannelId
-        );
-    }
-
-    /**
      * DB Video -> VideoResponse 변환
      */
     private DetailVideoDto mapDbVideoToVideoResponse(String token, Video video) {
@@ -121,52 +65,6 @@ public class ResponseMappingService {
     private DetailChannelDto mapDbVideoToChannelResponse(String token, Video video) {
         Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
         return videoMapper.toDetailChannelDto(video, favoriteChannelId);
-    }
-
-    /**
-     * CommentApiResponse + AIAnalysisResponse -> AnalysisResponse 변환
-     */
-    private DetailAnalysisDto mapToAnalysisResponse(
-            CommentApiResponse commentInfo,
-            AIAnalysisResponse analysisResponse) {
-
-        if (analysisResponse == null) {
-            // AI 분석이 없는 경우 - 백엔드 처리 데이터는 채우고, AI 데이터는 빈 값
-            return new DetailAnalysisDto(
-                    null,  // summary = null
-                    false, // isWarning = false
-                    mapToTopCommentsFromCommentData(commentInfo.allComments(), null), // 좋아요 TOP5 백엔드 처리 데이터
-                    List.of(), // languageDistribution = 빈 리스트
-                    new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0), // sentimentDistribution = 빈 값
-                    mapToPopularTimestamps(commentInfo.popularTimestamps()), // 백엔드 처리 데이터
-                    mapToCommentHistogram(commentInfo.commentHistogram()),   // 백엔드 처리 데이터
-                    List.of() // keywords = 빈 리스트
-            );
-        }
-
-        // AI 분석 성공한 경우
-        List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
-                analysisResponse.languageRatio().entrySet().stream()
-                        .map(entry -> new DetailAnalysisDto.LanguageDistribution(entry.getKey(), entry.getValue()))
-                        .collect(Collectors.toList());
-
-        DetailAnalysisDto.SentimentDistribution sentimentDistribution =
-                new DetailAnalysisDto.SentimentDistribution(
-                        analysisResponse.sentimentRatio().getOrDefault("positive", 0.0),
-                        analysisResponse.sentimentRatio().getOrDefault("negative", 0.0),
-                        analysisResponse.sentimentRatio().getOrDefault("other", 0.0)
-                );
-
-        return new DetailAnalysisDto(
-                analysisResponse.summation(),
-                analysisResponse.isWarning(),
-                mapToTopCommentsFromCommentData(commentInfo.allComments(), analysisResponse),
-                languageDistribution,
-                sentimentDistribution,
-                mapToPopularTimestamps(commentInfo.popularTimestamps()),
-                mapToCommentHistogram(commentInfo.commentHistogram()),
-                analysisResponse.keywords()
-        );
     }
 
     /**
@@ -287,90 +185,11 @@ public class ResponseMappingService {
     }
 
     /**
-     * 댓글 리스트 변환 (관련도 순서 유지)
-     */
-    private List<CommentDto> mapToCommentResponses(
-            List<CommentApiResponse.CommentData> commentDataList,
-            AIAnalysisResponse analysisResponse) {
-
-        log.info("댓글 매핑 시작: 입력 댓글 수={}, AI분석 결과={}",
-                commentDataList != null ? commentDataList.size() : 0,
-                analysisResponse != null ? "있음" : "없음");
-
-        List<CommentDto> result = commentMapper.toDtoList(commentDataList, analysisResponse);
-
-        log.info("댓글 매핑 완료: 출력 댓글 수={}", result.size());
-        return result;
-    }
-
-    /**
      * DB 댓글을 CommentResponse로 변환
      */
     private List<CommentDto> mapDbCommentsToCommentResponses(Long videoId) {
         List<Comment> comments = commentRepository.findByVideoIdOrderByIdAsc(videoId);
         return commentMapper.toDtoList(comments);
-    }
-
-    /**
-     * AI 분석 결과가 있는 경우 댓글 변환
-     */
-    private CommentDto mapToCommentResponseWithAI(
-            CommentApiResponse.CommentData commentData,
-            AIAnalysisResponse analysisResponse) {
-
-        // List에서 해당 댓글의 감정 분석 결과 찾기
-        CommentSentimentDetail sentimentDetail = analysisResponse.sentimentComments().stream()
-                .filter(detail -> detail.apiCommentId().equals(commentData.id()))
-                .findFirst()
-                .orElse(null);
-
-        String sentiment = null;
-        List<String> detailSentiments = new ArrayList<>();
-
-        if (sentimentDetail != null) {
-            sentiment = sentimentDetail.sentimentType().name().toUpperCase();
-            detailSentiments = sentimentDetail.detailSentimentTypes().stream()
-                    .map(Enum::name)
-                    .collect(Collectors.toList());
-        }
-
-        return new CommentDto(
-                commentData.id(),
-                commentData.authorName(),
-                commentData.commentText(),
-                commentData.likeCount(),
-                sentiment,
-                commentData.publishedAt(),
-                commentData.hasReplies(),
-                detailSentiments
-        );
-    }
-
-    /**
-     * AI 분석 결과가 없는 경우 댓글 변환
-     */
-    private CommentDto mapToCommentResponseWithoutAI(CommentApiResponse.CommentData commentData) {
-        return new CommentDto(
-                commentData.id(),
-                commentData.authorName(),
-                commentData.commentText(),
-                commentData.likeCount(),
-                null,
-                commentData.publishedAt(),
-                commentData.hasReplies(),
-                new ArrayList<>()
-        );
-    }
-
-    /**
-     * CommentData에서 좋아요 TOP 5 댓글 추출
-     * TOP 5 댓글은 hasReplies를 무조건 false로 설정
-     */
-    private List<CommentDto> mapToTopCommentsFromCommentData(
-            List<CommentApiResponse.CommentData> commentDataList,
-            AIAnalysisResponse analysisResponse) {
-
-        return commentMapper.toTopCommentDtoList(commentDataList, analysisResponse, appConfig.getTopCommentsCount());
     }
 
     /**
@@ -403,23 +222,5 @@ public class ResponseMappingService {
             return new HashMap<>();
         }
         return objectMapper.readValue(json, objectMapper.getTypeFactory().constructMapType(Map.class, keyClass, valueClass));
-    }
-
-    private Long parseLong(String value) {
-        try {
-            return value != null && !value.isEmpty() ? Long.parseLong(value) : 0L;
-        } catch (NumberFormatException e) {
-            log.warn("Long 변환 실패: {}", value);
-            return 0L;
-        }
-    }
-
-    private Integer parseInt(String value) {
-        try {
-            return value != null && !value.isEmpty() ? Integer.parseInt(value) : 0;
-        } catch (NumberFormatException e) {
-            log.warn("Integer 변환 실패: {}", value);
-            return 0;
-        }
     }
 }

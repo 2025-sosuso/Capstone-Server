@@ -35,11 +35,6 @@ public class AppConfig {
     private final int dataRetentionDays = 30;
 
     /**
-     * AI 재시도 쿨타임 (분)
-     */
-    private final int aiRetryCooldownMinutes = 0;
-
-    /**
      * 감정 흐름 분석 최대 데이터 포인트 수
      * 전체 기간을 이 개수로 샘플링
      */
@@ -92,7 +87,7 @@ public class AppConfig {
      * 검색 결과 최대 페이지 수
      * 무한 스크롤 제한 (총 searchResultsPerPage * maxSearchPages 개)
      */
-    private final int maxSearchPages = 10;
+    private final int maxSearchPages = 5;
 
     // ========== 메인 페이지 설정 ==========
 
@@ -127,6 +122,19 @@ public class AppConfig {
      * 채널 정보 캐시 TTL (분)
      */
     private final int cacheChannelInfoTtlMinutes = 60;
+
+    // ========== AI 배치 처리 설정 ==========
+
+    /**
+     * AI 배치 처리 주기 (밀리초)
+     * 60000 = 1분
+     */
+    private final long aiBatchIntervalMs = 60000L;
+
+    /**
+     * 배치당 처리할 영상 수
+     */
+    private final int aiBatchSize = 2;
 
     // ========== 스레드풀 관련 설정 ==========
 
