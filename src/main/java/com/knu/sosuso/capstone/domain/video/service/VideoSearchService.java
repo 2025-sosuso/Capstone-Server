@@ -4,10 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.video.dto.response.SearchResultPageResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
-import com.knu.sosuso.capstone.domain.video.entity.AIAnalysisStatus;
-import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.entity.VideoType;
-import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
@@ -15,22 +12,25 @@ import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.SearchError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.*;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
- * YouTube 검색 서비스 (단순화 버전)
- * - 검색 시 AI 요청 없음
- * - 즉시 응답만 반환
- * - AI 분석은 스케줄러가 자동 처리
+ * YouTube 검색 서비스 (Shorts URL 체크 기반 - 가장 정확!)
+ *
+ * ✅ 핵심 전략:
+ * 1. Search API로 videoId 수집 (빠름)
+ * 2. Shorts URL 병렬 체크로 타입 판별 (정확 + 빠름)
+ * 3. 타입별로 분류 후 필요한 것만 처리
  */
 @Slf4j
 @RequiredArgsConstructor
@@ -38,12 +38,12 @@ import java.util.Optional;
 public class VideoSearchService {
 
     private static final String YOUTUBE_SEARCH_API_URL = "https://www.googleapis.com/youtube/v3/search";
+    private static final String YOUTUBE_VIDEOS_API_URL = "https://www.googleapis.com/youtube/v3/videos";
 
     private final ApiConfig apiConfig;
     private final AppConfig appConfig;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
-    private final VideoRepository videoRepository;
     private final VideoProcessingService videoProcessingService;
 
     /**
@@ -51,29 +51,8 @@ public class VideoSearchService {
      */
     @Transactional
     public SearchResultPageResponse searchVideos(String token, String query, String pageToken) {
-        log.info("동영상 검색 시작: query={}, pageToken={}", query, pageToken);
-
-        if (query == null || query.trim().isEmpty()) {
-            throw new BusinessException(SearchError.SEARCH_QUERY_REQUIRED);
-        }
-
-        try {
-            // YouTube API 호출
-            String searchResponse = callYouTubeSearchApi(
-                    query.trim(), pageToken, "video", "any"
-            );
-
-            // 검색 결과 처리
-            return processSearchResults(token, searchResponse, query, VideoType.VIDEO);
-
-        } catch (HttpClientErrorException e) {
-            return handleHttpError(e, query);
-        } catch (BusinessException e) {
-            throw e;
-        } catch (Exception e) {
-            log.error("동영상 검색 실패: query={}, error={}", query, e.getMessage(), e);
-            throw new BusinessException(SearchError.SEARCH_ERROR);
-        }
+        log.info("🔍 동영상 검색: query={}, pageToken={}", query, pageToken);
+        return searchWithUrlCheck(token, query, pageToken, VideoType.VIDEO);
     }
 
     /**
@@ -81,251 +60,411 @@ public class VideoSearchService {
      */
     @Transactional
     public SearchResultPageResponse searchShorts(String token, String query, String pageToken) {
-        log.info("쇼츠 검색 시작: query={}, pageToken={}", query, pageToken);
+        log.info("🔍 쇼츠 검색: query={}, pageToken={}", query, pageToken);
+        return searchWithUrlCheck(token, query, pageToken, VideoType.SHORTS);
+    }
 
-        if (query == null || query.trim().isEmpty()) {
-            throw new BusinessException(SearchError.SEARCH_QUERY_REQUIRED);
-        }
+    /**
+     * ✅ Shorts URL 체크 기반 검색 로직
+     *
+     * 전략:
+     * 1. Search API로 videoId 대량 수집 (50개)
+     * 2. Shorts URL 병렬 체크로 타입 판별
+     * 3. 타입별로 분류 후 필요한 것만 처리
+     * 4. 4개 채울 때까지 반복
+     */
+    private SearchResultPageResponse searchWithUrlCheck(
+            String token, String query, String pageToken, VideoType targetType) {
 
-        try {
-            // YouTube API 호출 (짧은 영상만)
-            String searchResponse = callYouTubeSearchApi(
-                    query.trim(), pageToken, "video", "short"
+        List<VideoSummaryResponse> results = new ArrayList<>();
+        String currentPageToken = pageToken;
+        int retryCount = 0;
+        int maxRetries = appConfig.getMaxRetryPages(); // 3
+
+        while (results.size() < 4 && retryCount < maxRetries) {
+            log.info("🔄 검색 시도 {}/{}: targetType={}, 현재 결과={}/4",
+                    retryCount + 1, maxRetries, targetType, results.size());
+
+            // 1. Search API 호출 (50개 대량 수집)
+            SearchBatchResult searchResult = callSearchAPI(query, currentPageToken);
+
+            if (searchResult.videoIds.isEmpty()) {
+                log.info("❌ Search API 결과 없음 - 검색 종료");
+                break;
+            }
+
+            log.info("📋 Search API 결과: {}개 videoId 받음", searchResult.videoIds.size());
+
+            // 2. Shorts URL 병렬 체크로 타입 분류
+            TypedResult typedResult = classifyByParallelUrlCheck(searchResult.videoIds);
+
+            log.info("🎯 URL 체크 완료: 영상={}개, 쇼츠={}개",
+                    typedResult.videoIds.size(), typedResult.shortsIds.size());
+
+            // 3. 원하는 타입만 추출
+            List<String> targetIds = targetType == VideoType.VIDEO
+                    ? typedResult.videoIds
+                    : typedResult.shortsIds;
+
+            if (targetIds.isEmpty()) {
+                log.info("⚠️ 원하는 타입({}) 없음 - 다음 페이지 시도", targetType);
+                currentPageToken = searchResult.nextPageToken;
+                retryCount++;
+                continue;
+            }
+
+            // 4. 필요한 만큼만 처리 (최대 4개)
+            int needed = 4 - results.size();
+            List<String> idsToProcess = targetIds.subList(
+                    0, Math.min(needed, targetIds.size())
             );
 
-            // 검색 결과 처리
-            return processSearchResults(token, searchResponse, query, VideoType.SHORTS);
+            // 5. Videos API로 배치 처리
+            List<VideoSummaryResponse> batch = processVideosBatch(token, idsToProcess, targetType);
+            results.addAll(batch);
+
+            log.info("✅ 배치 처리 완료: {}개 추가, 현재 총 {}/4",
+                    batch.size(), results.size());
+
+            // 6. 4개 채웠으면 백그라운드로 나머지 처리
+            if (results.size() >= 4) {
+                if (targetIds.size() > needed) {
+                    List<String> remaining = targetIds.subList(needed, targetIds.size());
+                    processVideosAsync(token, remaining, targetType);
+                }
+                break;
+            }
+
+            // 7. 다음 페이지로
+            currentPageToken = searchResult.nextPageToken;
+            retryCount++;
+
+            if (currentPageToken == null) {
+                log.info("🏁 더 이상 검색 결과 없음");
+                break;
+            }
+        }
+
+        // 8. 응답 생성
+        boolean hasMore = currentPageToken != null && results.size() >= 4;
+
+        log.info("🎯 검색 완료: query={}, targetType={}, 결과={}개, hasMore={}",
+                query, targetType, results.size(), hasMore);
+
+        return new SearchResultPageResponse(
+                results,
+                hasMore ? currentPageToken : null,
+                results.size(),
+                hasMore
+        );
+    }
+
+    /**
+     * ✅ Shorts URL 병렬 체크로 타입 분류 (핵심!)
+     *
+     * CompletableFuture로 병렬 처리 → 빠름!
+     */
+    private TypedResult classifyByParallelUrlCheck(List<String> videoIds) {
+        long startTime = System.currentTimeMillis();
+
+        log.info("🚀 Shorts URL 병렬 체크 시작: {}개 영상", videoIds.size());
+
+        // CompletableFuture로 병렬 처리
+        List<CompletableFuture<VideoTypeResult>> futures = videoIds.stream()
+                .map(videoId -> CompletableFuture.supplyAsync(() ->
+                        new VideoTypeResult(videoId, checkIfShorts(videoId))
+                ))
+                .collect(Collectors.toList());
+
+        // 모든 작업 완료 대기
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+        // 결과 수집 및 분류
+        List<String> regularVideoIds = new ArrayList<>();
+        List<String> shortsIds = new ArrayList<>();
+
+        for (CompletableFuture<VideoTypeResult> future : futures) {
+            try {
+                VideoTypeResult result = future.get();
+                if (result.isShorts) {
+                    shortsIds.add(result.videoId);
+                } else {
+                    regularVideoIds.add(result.videoId);
+                }
+            } catch (Exception e) {
+                log.warn("타입 체크 실패, 기본값 VIDEO로 처리: {}", e.getMessage());
+            }
+        }
+
+        long elapsedTime = System.currentTimeMillis() - startTime;
+        log.info("✅ Shorts URL 병렬 체크 완료: {}ms, 영상={}개, 쇼츠={}개",
+                elapsedTime, regularVideoIds.size(), shortsIds.size());
+
+        return new TypedResult(regularVideoIds, shortsIds);
+    }
+
+    /**
+     * ✅ Shorts URL 체크 (단일 영상)
+     *
+     * https://www.youtube.com/shorts/{videoId}
+     * → 200 OK: true (쇼츠)
+     * → 404/301: false (일반 영상)
+     */
+    private boolean checkIfShorts(String videoId) {
+        try {
+            String shortsUrl = "https://www.youtube.com/shorts/" + videoId;
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            ResponseEntity<String> response = restTemplate.exchange(
+                    shortsUrl,
+                    HttpMethod.HEAD,  // HEAD만 사용 (빠름)
+                    entity,
+                    String.class
+            );
+
+            boolean isShorts = response.getStatusCode() == HttpStatus.OK;
+
+            log.debug("URL 체크: {} → {}", videoId, isShorts ? "SHORTS" : "VIDEO");
+
+            return isShorts;
 
         } catch (HttpClientErrorException e) {
-            return handleHttpError(e, query);
-        } catch (BusinessException e) {
-            throw e;
+            // 404, 301 등 → 일반 영상
+            log.debug("URL 체크: {} → VIDEO (status={})", videoId, e.getStatusCode());
+            return false;
+
         } catch (Exception e) {
-            log.error("쇼츠 검색 실패: query={}, error={}", query, e.getMessage(), e);
-            throw new BusinessException(SearchError.SEARCH_ERROR);
+            log.warn("URL 체크 실패: {}, 기본값 VIDEO로 처리", videoId);
+            return false;
         }
     }
 
     /**
-     * YouTube Search API 호출
+     * ✅ videoId 배치 처리 (타입 재판별 방지)
      */
-    private String callYouTubeSearchApi(String query, String pageToken,
-                                        String type, String videoDuration) {
-        UriComponentsBuilder builder = UriComponentsBuilder
-                .fromUriString(YOUTUBE_SEARCH_API_URL)
-                .queryParam("part", "snippet")
-                .queryParam("type", type)
-                .queryParam("q", query)
-                .queryParam("maxResults", appConfig.getSearchResultsPerPage())
-                .queryParam("relevanceLanguage", "ko")
-                .queryParam("key", apiConfig.getKey());
-
-        // 쇼츠 필터
-        if (videoDuration != null && !videoDuration.isEmpty()) {
-            builder.queryParam("videoDuration", videoDuration);
-        }
-
-        // 페이지 토큰
-        if (pageToken != null && !pageToken.isEmpty()) {
-            builder.queryParam("pageToken", pageToken);
-        }
-
-        String apiUrl = builder.build(false).toUriString();
-        log.debug("YouTube API 호출: maxResults={}", appConfig.getSearchResultsPerPage());
-
-        return restTemplate.getForObject(apiUrl, String.class);
-    }
-
     /**
-     * 검색 결과 처리
-     * - DB 저장 (AI 없이)
-     * - 즉시 응답 생성
+     * ✅ videoId 배치 처리 (대안: 오버로드 메서드 사용)
      */
-    private SearchResultPageResponse processSearchResults(String token, String searchResponse,
-                                                          String query, VideoType videoType) {
+    private List<VideoSummaryResponse> processVideosBatch(
+            String token, List<String> videoIds, VideoType confirmedType) {
+
+        if (videoIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        log.info("🔧 배치 처리 시작: {}개 영상, confirmedType={}", videoIds.size(), confirmedType);
+
         try {
-            JsonNode rootNode = objectMapper.readTree(searchResponse);
-            JsonNode itemsNode = rootNode.path("items");
-            String nextPageToken = rootNode.path("nextPageToken").asText(null);
-
+            List<VideoData> videoDataList = fetchVideosInBatch(videoIds);
             List<VideoSummaryResponse> results = new ArrayList<>();
-            int skippedCount = 0;
 
-            if (itemsNode.isArray()) {
-                for (JsonNode item : itemsNode) {
-                    // 비디오만 처리
-                    String kind = item.path("id").path("kind").asText();
-                    if (!"youtube#video".equals(kind)) {
-                        skippedCount++;
-                        continue;
+            for (VideoData data : videoDataList) {
+                try {
+                    // ✅ redetectType=false로 타입 재판별 방지
+                    VideoSummaryResponse summary = videoProcessingService
+                            .processAndGetSummary(
+                                    token,
+                                    data.apiVideoId,
+                                    data.thumbnails,
+                                    confirmedType,
+                                    false  // ← 재판별 안 함!
+                            );
+
+                    if (summary != null) {
+                        results.add(summary);
                     }
 
-                    String apiVideoId = item.path("id").path("videoId").asText();
-                    if (apiVideoId == null || apiVideoId.isEmpty()) {
-                        continue;
-                    }
-
-                    try {
-                        // Fast Path: DB 저장 및 응답 생성
-                        VideoSummaryResponse videoResponse = processSingleVideo(token, apiVideoId, videoType);
-                        results.add(videoResponse);
-
-                    } catch (Exception e) {
-                        log.warn("개별 영상 처리 실패: apiVideoId={}, error={}",
-                                apiVideoId, e.getMessage());
-                    }
+                } catch (Exception e) {
+                    log.warn("영상 처리 실패: apiVideoId={}, error={}",
+                            data.apiVideoId, e.getMessage());
                 }
             }
 
-            boolean hasMore = nextPageToken != null && !nextPageToken.isEmpty();
-
-            log.info("검색 완료: query={}, 결과={}개, hasMore={}", query, results.size(), hasMore);
-
-            return new SearchResultPageResponse(results, nextPageToken, results.size(), hasMore);
+            log.info("✅ 배치 처리 완료: 입력={}개, 성공={}개", videoIds.size(), results.size());
+            return results;
 
         } catch (Exception e) {
-            log.error("검색 결과 파싱 실패: {}", e.getMessage(), e);
+            log.error("❌ 배치 처리 실패: {}", e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * ✅ 비동기 배치 처리
+     */
+    @Async("videoProcessingExecutor")
+    public void processVideosAsync(String token, List<String> videoIds, VideoType targetType) {
+        log.info("🔄 백그라운드 처리 시작: {}개 영상", videoIds.size());
+        processVideosBatch(token, videoIds, targetType);
+        log.info("✅ 백그라운드 처리 완료: {}개 영상", videoIds.size());
+    }
+
+    /**
+     * ✅ YouTube Search API 호출
+     */
+    private SearchBatchResult callSearchAPI(String query, String pageToken) {
+        try {
+            UriComponentsBuilder builder = UriComponentsBuilder
+                    .fromUriString(YOUTUBE_SEARCH_API_URL)
+                    .queryParam("part", "snippet")
+                    .queryParam("q", query)
+                    .queryParam("type", "video")
+                    .queryParam("maxResults", 50) // ✅ 대량으로
+                    .queryParam("key", apiConfig.getKey());
+
+            if (pageToken != null && !pageToken.isEmpty()) {
+                builder.queryParam("pageToken", pageToken);
+            }
+
+            String apiUrl = builder.build(false).toUriString();
+            log.debug("Search API 호출: query={}, maxResults=50", query);
+
+            String response = restTemplate.getForObject(apiUrl, String.class);
+            return parseSearchResponse(response);
+
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.FORBIDDEN) {
+                log.error("YouTube API 접근 거부");
+                throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
+            }
+            throw new BusinessException(SearchError.YOUTUBE_API_ERROR);
+
+        } catch (Exception e) {
+            log.error("Search API 호출 중 에러", e);
+            throw new BusinessException(CommonError.YOUTUBE_API_ERROR);
+        }
+    }
+
+    /**
+     * ✅ Videos API 배치 호출
+     */
+    private List<VideoData> fetchVideosInBatch(List<String> videoIds) {
+        try {
+            String ids = String.join(",", videoIds);
+
+            String apiUrl = UriComponentsBuilder
+                    .fromUriString(YOUTUBE_VIDEOS_API_URL)
+                    .queryParam("part", "snippet,statistics")
+                    .queryParam("id", ids)
+                    .queryParam("key", apiConfig.getKey())
+                    .build(false)
+                    .toUriString();
+
+            log.debug("Videos API 호출: {}개 영상", videoIds.size());
+
+            String response = restTemplate.getForObject(apiUrl, String.class);
+            return parseVideosResponse(response);
+
+        } catch (Exception e) {
+            log.error("Videos API 호출 실패", e);
+            throw new BusinessException(SearchError.YOUTUBE_API_ERROR);
+        }
+    }
+
+    /**
+     * ✅ Videos API 응답 파싱
+     */
+    private List<VideoData> parseVideosResponse(String response) {
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            JsonNode items = root.path("items");
+
+            List<VideoData> results = new ArrayList<>();
+            for (JsonNode item : items) {
+                String apiVideoId = item.path("id").asText();
+                JsonNode snippet = item.path("snippet");
+                JsonNode thumbnails = snippet.path("thumbnails");
+                results.add(new VideoData(apiVideoId, snippet, thumbnails));
+            }
+            return results;
+
+        } catch (Exception e) {
+            log.error("Videos API 응답 파싱 실패", e);
             throw new BusinessException(CommonError.DATA_PARSING_ERROR);
         }
     }
 
     /**
-     * 단일 영상 처리
+     * ✅ Search API 응답 파싱
      */
-    private VideoSummaryResponse processSingleVideo(String token, String apiVideoId,
-                                                    VideoType videoType) {
-        Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
+    private SearchBatchResult parseSearchResponse(String response) {
+        try {
+            JsonNode root = objectMapper.readTree(response);
+            JsonNode items = root.path("items");
+            String nextPageToken = root.path("nextPageToken").asText(null);
 
-        if (existingVideo.isPresent()) {
-            Video video = existingVideo.get();
-
-            // DB에 타입 없으면 업데이트
-            if (video.getVideoType() == null) {
-                video.setVideoType(videoType);
-                videoRepository.save(video);
+            List<String> videoIds = new ArrayList<>();
+            for (JsonNode item : items) {
+                String kind = item.path("id").path("kind").asText();
+                if ("youtube#video".equals(kind)) {
+                    videoIds.add(item.path("id").path("videoId").asText());
+                }
             }
 
-            return mapVideoToSummaryResponse(video);
+            return new SearchBatchResult(videoIds, nextPageToken);
+
+        } catch (Exception e) {
+            log.error("Search API 응답 파싱 실패", e);
+            throw new BusinessException(CommonError.DATA_PARSING_ERROR);
         }
+    }
 
-        log.info("새 영상 처리: apiVideoId={}, type={}", apiVideoId, videoType);
+    // ==================== 내부 클래스 ====================
 
-        Video newVideo = videoProcessingService.processNewVideo(apiVideoId, videoType);
+    /**
+     * Search API 결과
+     */
+    private static class SearchBatchResult {
+        final List<String> videoIds;
+        final String nextPageToken;
 
-        log.info("새 영상 저장 완료: videoId={}, status={}",
-                newVideo.getId(), newVideo.getAiAnalysisStatus());
-
-        return mapVideoToSummaryResponse(newVideo);
+        SearchBatchResult(List<String> videoIds, String nextPageToken) {
+            this.videoIds = videoIds != null ? videoIds : Collections.emptyList();
+            this.nextPageToken = nextPageToken;
+        }
     }
 
     /**
-     * Video → VideoSummaryResponse 변환
+     * 타입별로 분류된 결과
      */
-    private VideoSummaryResponse mapVideoToSummaryResponse(Video video) {
-        VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
-                video.getApiVideoId(),
-                video.getTitle(),
-                video.getDescription(),
-                video.getUploadedAt(),
-                video.getThumbnailUrl(),
-                parseLong(video.getViewCount()),
-                parseLong(video.getLikeCount()),
-                parseInt(video.getCommentCount())
-        );
+    private static class TypedResult {
+        final List<String> videoIds;   // 일반 영상
+        final List<String> shortsIds;  // 쇼츠
 
-        VideoSummaryResponse.Channel channelDto = new VideoSummaryResponse.Channel(
-                video.getChannelId(),
-                video.getChannelName(),
-                video.getChannelThumbnailUrl(),
-                parseLong(video.getSubscriberCount())
-        );
-
-        VideoSummaryResponse.SentimentDistribution sentimentDist = null;
-        List<String> keywords = null;
-        String summary = null;
-
-        // AI 완료된 경우에만 데이터 파싱
-        if (video.getAiAnalysisStatus() == AIAnalysisStatus.COMPLETED) {
-            summary = video.getSummation();
-
-            // 감정 분포 파싱
-            try {
-                if (video.getSentimentDistribution() != null && !video.getSentimentDistribution().isEmpty()) {
-                    Map<String, Double> sentimentMap = objectMapper.readValue(
-                            video.getSentimentDistribution(),
-                            objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Double.class)
-                    );
-                    sentimentDist = new VideoSummaryResponse.SentimentDistribution(
-                            sentimentMap.getOrDefault("POSITIVE", 0.0),
-                            sentimentMap.getOrDefault("NEGATIVE", 0.0),
-                            sentimentMap.getOrDefault("OTHER", 0.0)
-                    );
-                }
-            } catch (Exception e) {
-                log.warn("감정 분포 파싱 실패: apiVideoId={}", video.getApiVideoId());
-            }
-
-            // 키워드 파싱
-            try {
-                if (video.getKeywords() != null && !video.getKeywords().isEmpty()) {
-                    keywords = objectMapper.readValue(
-                            video.getKeywords(),
-                            objectMapper.getTypeFactory().constructCollectionType(List.class, String.class)
-                    );
-                }
-            } catch (Exception e) {
-                log.warn("키워드 파싱 실패: apiVideoId={}", video.getApiVideoId());
-            }
+        TypedResult(List<String> videoIds, List<String> shortsIds) {
+            this.videoIds = videoIds != null ? videoIds : Collections.emptyList();
+            this.shortsIds = shortsIds != null ? shortsIds : Collections.emptyList();
         }
-
-        VideoSummaryResponse.Analysis analysisDto = new VideoSummaryResponse.Analysis(
-                summary,
-                sentimentDist,
-                keywords != null ? keywords : List.of()
-        );
-
-        return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
     }
 
     /**
-     * HTTP 에러 처리
+     * Videos API 응답
      */
-    private SearchResultPageResponse handleHttpError(HttpClientErrorException e, String query) {
-        if (e.getStatusCode().value() == 403) {
-            String responseBody = e.getResponseBodyAsString();
+    private static class VideoData {
+        final String apiVideoId;
+        final JsonNode snippet;
+        final JsonNode thumbnails;
 
-            if (responseBody.contains("quotaExceeded")) {
-                log.error("YouTube API quota 초과: query={}", query);
-                throw new BusinessException(SearchError.YOUTUBE_API_QUOTA_EXCEEDED);
-            }
-
-            if (responseBody.contains("IP address restriction")) {
-                log.error("YouTube API IP 제한: query={}", query);
-                throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
-            }
-
-            log.error("YouTube API 403 에러: query={}, error={}", query, responseBody);
-            throw new BusinessException(SearchError.YOUTUBE_API_ACCESS_DENIED);
-        }
-
-        log.error("YouTube API 클라이언트 에러: query={}, status={}", query, e.getStatusCode());
-        throw new BusinessException(SearchError.YOUTUBE_API_ERROR);
-    }
-
-    // 유틸리티 메서드
-    private long parseLong(String value) {
-        try {
-            return value != null ? Long.parseLong(value) : 0L;
-        } catch (NumberFormatException e) {
-            return 0L;
+        VideoData(String apiVideoId, JsonNode snippet, JsonNode thumbnails) {
+            this.apiVideoId = apiVideoId;
+            this.snippet = snippet;
+            this.thumbnails = thumbnails;
         }
     }
 
-    private int parseInt(String value) {
-        try {
-            return value != null ? Integer.parseInt(value) : 0;
-        } catch (NumberFormatException e) {
-            return 0;
+    /**
+     * URL 체크 결과
+     */
+    private static class VideoTypeResult {
+        final String videoId;
+        final boolean isShorts;
+
+        VideoTypeResult(String videoId, boolean isShorts) {
+            this.videoId = videoId;
+            this.isShorts = isShorts;
         }
     }
 }

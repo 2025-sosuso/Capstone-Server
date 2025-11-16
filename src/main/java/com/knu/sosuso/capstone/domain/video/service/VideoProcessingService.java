@@ -1,5 +1,6 @@
 package com.knu.sosuso.capstone.domain.video.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisRequest;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
@@ -9,6 +10,7 @@ import com.knu.sosuso.capstone.domain.comment.service.CommentService;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
+import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.AIAnalysisStatus;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
@@ -19,6 +21,7 @@ import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import com.knu.sosuso.capstone.global.service.mapper.ResponseMappingService;
+import com.knu.sosuso.capstone.global.service.mapper.VideoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.Cache;
@@ -48,8 +51,11 @@ public class VideoProcessingService {
     private final ResponseMappingService responseMappingService;
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
+    private final VideoMapper videoMapper;
     private final CacheManager cacheManager;
     private final AppConfig appConfig;
+    private final UserDataService userDataService;
+    private final VideoTypeDetector videoTypeDetector;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ========================================
@@ -62,11 +68,28 @@ public class VideoProcessingService {
      * @return Video 엔티티
      */
     @Transactional
-    public Video processNewVideo(String apiVideoId, VideoType videoType) {
-        log.info("🆕 새 영상 처리: apiVideoId={}, type={}", apiVideoId, videoType);
+    public Video processNewVideo(String apiVideoId, VideoType expectedType) {
+        log.info("🆕 새 영상 처리: apiVideoId={}, expectedType={}", apiVideoId, expectedType);
 
         try {
+            // 1. YouTube API로 메타데이터 가져오기
             VideoApiResponse videoInfo = videoService.getVideoInfo(apiVideoId);
+
+            // 2. 실제 타입 판별 (URL + 썸네일 비율)
+            VideoType actualType = videoTypeDetector.detectVideoType(
+                    apiVideoId,
+                    videoInfo.thumbnails() // JsonNode
+            );
+
+            // 3. 타입 불일치 로그
+            if (expectedType != actualType) {
+                log.warn("⚠️ 영상 타입 불일치: apiVideoId={}, expected={}, actual={}",
+                        apiVideoId, expectedType, actualType);
+            }
+
+            log.info("📹 영상 타입 확정: apiVideoId={}, type={}", apiVideoId, actualType);
+
+            // 4. 댓글 수집
             CommentApiResponse commentResponse = commentService.getComments(apiVideoId);
 
             Video video;
@@ -74,7 +97,7 @@ public class VideoProcessingService {
             if (commentResponse.allComments() == null || commentResponse.allComments().isEmpty()) {
                 log.info("💬 댓글 없는 영상: apiVideoId={}", apiVideoId);
 
-                video = videoService.saveVideoMetadataOnly(videoInfo, videoType);
+                video = videoService.saveVideoMetadataOnly(videoInfo, actualType); // ← actualType 사용!
                 video.setAiAnalysisStatus(AIAnalysisStatus.SKIPPED);
                 video.setHasNoComments(true);
                 videoRepository.save(video);
@@ -88,7 +111,7 @@ public class VideoProcessingService {
                     commentResponse.allComments()
             );
 
-            video = videoService.saveVideoWithAnalysis(videoInfo, commentResponse, videoType);
+            video = videoService.saveVideoWithAnalysis(videoInfo, commentResponse, actualType); // ← actualType 사용!
             videoRepository.flush();
 
             for (Comment comment : comments) {
@@ -97,7 +120,7 @@ public class VideoProcessingService {
             commentRepository.saveAll(comments);
 
             log.info("✅ Video + Comment 저장 완료: videoId={}, type={}, 댓글={}개",
-                    video.getId(), videoType, comments.size());
+                    video.getId(), actualType, comments.size());
 
             return video;
 
@@ -162,6 +185,44 @@ public class VideoProcessingService {
         }
 
         return video;
+    }
+
+    /**
+     * ✅ 배치 검색용 간단 처리 (타입 확정 버전)
+     * - VideoSearchService에서 이미 타입을 확정한 경우 사용
+     * - 타입 재판별 없이 expectedType을 그대로 사용
+     */
+    @Transactional
+    public VideoSummaryResponse processAndGetSummaryWithConfirmedType(
+            String token, String apiVideoId, JsonNode thumbnails, VideoType confirmedType) {
+
+        // 1. DB 확인
+        Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
+
+        if (existingVideo.isPresent()) {
+            Video video = existingVideo.get();
+
+            // 타입 확인 및 업데이트
+            if (video.getVideoType() == null) {
+                video.setVideoType(confirmedType);
+                videoRepository.save(video);
+            } else if (video.getVideoType() != confirmedType) {
+                // 타입 불일치 로그 (정보용)
+                log.info("⚠️ DB 타입 불일치: apiVideoId={}, db={}, confirmed={}",
+                        apiVideoId, video.getVideoType(), confirmedType);
+                return null; // 필터링
+            }
+
+            Long scrapId = getScrapIdSafely(token, apiVideoId);
+            return videoMapper.toSummaryResponse(video, scrapId);
+        }
+
+        // 2. 신규 영상 - confirmedType 그대로 사용 (재판별 X)
+        log.info("🆕 신규 영상 처리: apiVideoId={}, confirmedType={}", apiVideoId, confirmedType);
+
+        Video newVideo = createOrRetrieveVideo(apiVideoId, confirmedType);
+        Long scrapId = getScrapIdSafely(token, apiVideoId);
+        return videoMapper.toSummaryResponse(newVideo, scrapId);
     }
 
     // ========================================
@@ -456,6 +517,119 @@ public class VideoProcessingService {
             }
         } catch (Exception e) {
             log.warn("캐시 무효화 실패: apiVideoId={}, error={}", apiVideoId, e.getMessage());
+        }
+    }
+
+    /**
+     * 배치 검색용 간단 처리
+     * - 이미 Videos API로 메타데이터를 받아온 상태
+     * - DB 저장 + 타입 판별만 수행
+     * - 댓글/AI는 백그라운드 스케줄러가 처리
+     */
+    @Transactional
+    public VideoSummaryResponse processAndGetSummary(String token, String apiVideoId,
+                                                     JsonNode thumbnails, VideoType expectedType) {
+        return processAndGetSummary(token, apiVideoId, thumbnails, expectedType, true);
+    }
+
+    /**
+     * 영상 생성 또는 재조회 (동시성 문제 처리)
+     */
+    private Video createOrRetrieveVideo(String apiVideoId, VideoType actualType) {
+        try {
+            return processNewVideo(apiVideoId, actualType);
+
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            // 동시성 문제로 이미 다른 스레드가 저장함 → DB에서 재조회
+            log.info("동시성으로 인한 중복 저장 시도 감지: apiVideoId={}, 재조회 수행", apiVideoId);
+
+            return videoRepository.findByApiVideoId(apiVideoId)
+                    .orElseThrow(() -> {
+                        log.error("DataIntegrityViolationException 후 재조회 실패: apiVideoId={}", apiVideoId);
+                        return new BusinessException(VideoError.VIDEO_NOT_FOUND);
+                    });
+        }
+    }
+
+    /**
+     * ✅ processAndGetSummary 오버로드 (재판별 옵션)
+     */
+    @Transactional
+    public VideoSummaryResponse processAndGetSummary(
+            String token, String apiVideoId, JsonNode thumbnails,
+            VideoType expectedType, boolean redetectType) {
+
+        // 1. DB 확인
+        Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
+
+        if (existingVideo.isPresent()) {
+            Video video = existingVideo.get();
+
+            if (expectedType != null) {
+                if (video.getVideoType() != null && video.getVideoType() != expectedType) {
+                    log.debug("타입 불일치: apiVideoId={}, expected={}, actual={}",
+                            apiVideoId, expectedType, video.getVideoType());
+                    return null;
+                }
+
+                if (video.getVideoType() == null) {
+                    video.setVideoType(expectedType);
+                    videoRepository.save(video);
+                }
+            }
+
+            Long scrapId = getScrapIdSafely(token, apiVideoId);
+            return videoMapper.toSummaryResponse(video, scrapId);
+        }
+
+        // 2. 신규 영상 - 타입 판별
+        VideoType actualType;
+
+        if (!redetectType && expectedType != null) {
+            // ✅ 재판별 안 함 - expectedType 그대로 사용
+            actualType = expectedType;
+            log.info("🎯 타입 확정: apiVideoId={}, confirmedType={}", apiVideoId, actualType);
+        } else {
+            // 기존 로직: VideoTypeDetector로 판별
+            actualType = videoTypeDetector.detectVideoType(apiVideoId, thumbnails);
+            log.info("🎯 타입 판별: apiVideoId={}, actualType={}, expectedType={}",
+                    apiVideoId, actualType, expectedType);
+        }
+
+        // expectedType이 null이면 타입 무관하게 처리
+        if (expectedType != null && actualType != expectedType) {
+            log.info("새 영상 타입 불일치: apiVideoId={}, expected={}, actual={}",
+                    apiVideoId, expectedType, actualType);
+
+            // DB에는 저장 (올바른 타입으로) - 하지만 결과에서는 제외
+            createOrRetrieveVideo(apiVideoId, actualType);
+            return null;
+        }
+
+        // 3. 타입 일치 또는 expectedType이 null → 처리 후 반환
+        Video finalVideo = createOrRetrieveVideo(apiVideoId, actualType);
+        Long scrapId = getScrapIdSafely(token, apiVideoId);
+        return videoMapper.toSummaryResponse(finalVideo, scrapId);
+    }
+
+    /**
+     * 스크랩 ID 안전하게 조회 (에러 시 null 반환)
+     */
+    private Long getScrapIdSafely(String token, String apiVideoId) {
+        try {
+            return userDataService.getUserScrapId(token, apiVideoId);
+
+        } catch (BusinessException e) {
+            // 비즈니스 로직 상 스크랩 없음 (정상)
+            log.debug("스크랩 정보 없음: apiVideoId={}, reason={}",
+                    apiVideoId, e.getMessage());
+            return null;
+
+        } catch (Exception e) {
+            // 예상치 못한 에러 (경고 레벨)
+            log.warn("스크랩 ID 조회 중 예외 발생: apiVideoId={}, error={}",
+                    apiVideoId, e.getMessage());
+            return null;
         }
     }
 }
