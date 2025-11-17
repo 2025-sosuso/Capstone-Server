@@ -1,7 +1,9 @@
 package com.knu.sosuso.capstone.domain.trending_search.dto.response;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 public record TrendingSearchResponse(
-        int rank,
-        String keyword,
-        String status
+        LocalDateTime updatedAt,
+        List<TrendingSearch> items
 ) {}

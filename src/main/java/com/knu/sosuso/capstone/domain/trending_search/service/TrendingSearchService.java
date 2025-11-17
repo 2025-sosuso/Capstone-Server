@@ -1,5 +1,6 @@
 package com.knu.sosuso.capstone.domain.trending_search.service;
 
+import com.knu.sosuso.capstone.domain.trending_search.dto.response.TrendingSearch;
 import com.knu.sosuso.capstone.domain.trending_search.dto.response.TrendingSearchResponse;
 import com.knu.sosuso.capstone.domain.trending_search.entity.TrendingKeyword;
 import com.knu.sosuso.capstone.domain.trending_search.entity.TrendingKeywordPrev;
@@ -10,6 +11,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -20,7 +22,7 @@ public class TrendingSearchService {
     private final TrendingKeywordPrevRepository trendingKeywordPrevRepository;
 
     @Transactional(readOnly = true)
-    public List<TrendingSearchResponse> getTrendingSearches() {
+    public TrendingSearchResponse getTrendingSearches() {
 
         // 이번 시간 TOP 리스트 (count DESC)
         List<TrendingKeyword> currentList =
@@ -37,10 +39,15 @@ public class TrendingSearchService {
             prevRankMap.put(prev.getKeyword(), rank++);
         }
 
-        List<TrendingSearchResponse> trendingSearchResponses = new ArrayList<>();
+        List<TrendingSearch> trendingSearchResponses = new ArrayList<>();
         int currentRank = 1;
+        LocalDateTime updatedAt = null;
 
         for (TrendingKeyword trendingKeyword : currentList) {
+            if (updatedAt == null) {
+                updatedAt = trendingKeyword.getUpdatedAt();
+            }
+
             String keyword = trendingKeyword.getKeyword();
             String status;
 
@@ -57,7 +64,7 @@ public class TrendingSearchService {
                 }
             }
 
-            trendingSearchResponses.add(new TrendingSearchResponse(
+            trendingSearchResponses.add(new TrendingSearch(
                     currentRank,
                     keyword,
                     status
@@ -65,6 +72,10 @@ public class TrendingSearchService {
             currentRank++;
         }
 
-        return trendingSearchResponses;
+        if (updatedAt == null) {
+            updatedAt = LocalDateTime.now();
+        }
+
+        return new TrendingSearchResponse(updatedAt, trendingSearchResponses);
     }
 }
