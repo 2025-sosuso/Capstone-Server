@@ -48,14 +48,23 @@ public class UserDataService {
      * @return 관심 채널 ID 또는 null
      */
     public Long getUserFavoriteChannelId(String token, String apiChannelId) {
+        log.info("🔍 [UserData] getUserFavoriteChannelId 호출 - apiChannelId={}", apiChannelId);
+
         if (token == null || !jwtUtil.isValidToken(token)) {
+            log.warn("🔍 [UserData] 토큰 없음 또는 유효하지 않음");
             return null;
         }
 
         try {
             Long userId = jwtUtil.getUserId(token);
+            log.info("🔍 [UserData] userId={}, apiChannelId={}", userId, apiChannelId);
+
             Optional<FavoriteChannel> favoriteChannel = favoriteChannelRepository.findByUserIdAndApiChannelId(userId, apiChannelId);
-            return favoriteChannel.map(FavoriteChannel::getId).orElse(null);
+            Long result = favoriteChannel.map(FavoriteChannel::getId).orElse(null);
+
+            log.info("🔍 [UserData] 조회 결과 - favoriteChannelId={}, 존재여부={}", result, favoriteChannel.isPresent());
+            return result;
+
         } catch (Exception e) {
             log.warn("관심 채널 ID 조회 실패: apiChannelId={}, error={}", apiChannelId, e.getMessage());
             return null;

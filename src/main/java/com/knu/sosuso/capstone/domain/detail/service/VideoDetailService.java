@@ -616,15 +616,22 @@ public class VideoDetailService {
         Long scrapId = null;
         Long favoriteChannelId = null;
 
+        log.info("🔍 [VideoDetail] createBasicResponse 시작 - apiVideoId={}", video.getApiVideoId());
+        log.info("🔍 [VideoDetail] video.channelId={}", video.getChannelId());
+        log.info("🔍 [VideoDetail] token 존재={}", token != null);
+
         if (token != null && jwtUtil.isValidToken(token)) {
             Long userId = jwtUtil.getUserId(token);
+            log.info("🔍 [VideoDetail] userId={}", userId);
 
             // 스크랩 조회
             Optional<Scrap> scrap = scrapRepository.findByUserIdAndVideoId(userId, video.getId());
             scrapId = scrap.map(Scrap::getId).orElse(null);
+            log.info("🔍 [VideoDetail] scrapId={}", scrapId);
 
             // 관심 채널 조회 추가!
             favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
+            log.info("🔍 [VideoDetail] favoriteChannelId={}", favoriteChannelId);
         }
 
         DetailVideoDto videoDto = new DetailVideoDto(

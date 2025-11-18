@@ -184,7 +184,7 @@ public interface ScrapControllerSwagger {
                                                           },
                                                           "analysis": {
                                                             "summary": "파이썬 입문자를 위한 친절한 강의입니다.",
-                                                            "sentimentDistribution": {"positive": 0.82, "negative": 0.05, "other": 0.13},
+                                                            "sentimentDistribution": {"positive": 82, "negative": 5, "other": 13},
                                                             "keywords": ["파이썬", "코딩", "강의"]
                                                           }
                                                         },
