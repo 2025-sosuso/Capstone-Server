@@ -16,14 +16,14 @@ public record DetailAnalysisDto(
 ) {
     public record LanguageDistribution(
             String language,
-            Double ratio
+            Integer ratio
     ) {
     }
 
     public record SentimentDistribution(
-            Double positive,
-            Double negative,
-            Double other
+            Integer positive,
+            Integer negative,
+            Integer other
     ) {
     }
 
@@ -41,9 +41,9 @@ public record DetailAnalysisDto(
 
     public record SentimentFlow(
             String date,
-            Double positive,
-            Double negative,
-            Double other
+            Integer positive,
+            Integer negative,
+            Integer other
     ) {
     }
 }

@@ -186,9 +186,9 @@ public interface SearchControllerSwagger {
                                                                     "analysis": {
                                                                       "summary": "이 영상은 Rick Astley의 대표곡으로...",
                                                                       "sentimentDistribution": {
-                                                                        "positive": 0.85,
-                                                                        "negative": 0.05,
-                                                                        "other": 0.10
+                                                                        "positive": 85,
+                                                                        "negative": 5,
+                                                                        "other": 10
                                                                       },
                                                                       "keywords": ["음악", "클래식", "80년대"]
                                                                     }
@@ -266,9 +266,9 @@ public interface SearchControllerSwagger {
                                                                     "analysis": {
                                                                       "summary": "이 영상은...",
                                                                       "sentimentDistribution": {
-                                                                        "positive": 0.70,
-                                                                        "negative": 0.15,
-                                                                        "other": 0.15
+                                                                        "positive": 70,
+                                                                        "negative": 15,
+                                                                        "other": 15
                                                                       },
                                                                       "keywords": ["튜토리얼", "가이드"]
                                                                     }
@@ -347,7 +347,7 @@ public interface SearchControllerSwagger {
                                             value = """
                                                     {
                                                         "httpStatus": "INTERNAL_SERVER_ERROR",
-                                                        "message": "검색 중 오류 발생",
+                                                        "message": "검색 중 오류가 발생했습니다.",
                                                         "timeStamp": "2025-11-07T18:30:00"
                                                     }
                                                     """
@@ -441,9 +441,9 @@ public interface SearchControllerSwagger {
                                                                     "analysis": {
                                                                       "summary": "재미있는 쇼츠 콘텐츠...",
                                                                       "sentimentDistribution": {
-                                                                        "positive": 0.90,
-                                                                        "negative": 0.03,
-                                                                        "other": 0.07
+                                                                        "positive": 90,
+                                                                        "negative": 3,
+                                                                        "other": 7
                                                                       },
                                                                       "keywords": ["재미", "엔터테인먼트", "바이럴"]
                                                                     }
@@ -615,7 +615,7 @@ public interface SearchControllerSwagger {
                                             value = """
                                                     {
                                                         "httpStatus": "INTERNAL_SERVER_ERROR",
-                                                        "message": "채널 검색 중 오류 발생",
+                                                        "message": "검색 중 오류가 발생했습니다.",
                                                         "timeStamp": "2025-11-07T18:30:00"
                                                     }
                                                     """

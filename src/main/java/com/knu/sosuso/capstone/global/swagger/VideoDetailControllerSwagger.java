@@ -109,7 +109,8 @@ public interface VideoDetailControllerSwagger {
                     "**제공 정보:**\n" +
                     "- 댓글 히스토그램 (시간대별 0-23시 분포)\n" +
                     "- 인기 타임스탬프 (댓글에서 가장 많이 언급된 시간대 TOP 5)\n" +
-                    "- 좋아요 TOP 5 댓글\n\n" +
+                    "- 좋아요 TOP 5 댓글\n" +
+                    "- 감정 흐름 (시간 구간별 감정 비율 변화)\n\n" +
                     "**특징:** 인증 불필요, DB 조회만 수행 (1-2초)",
             responses = {
                     @ApiResponse(
@@ -127,11 +128,13 @@ public interface VideoDetailControllerSwagger {
                                                         "commentHistogram": [
                                                           {"hour": "0", "count": 10},
                                                           {"hour": "1", "count": 15},
-                                                          {"hour": "14", "count": 150}
+                                                          {"hour": "14", "count": 150},
+                                                          {"hour": "23", "count": 8}
                                                         ],
                                                         "popularTimestamps": [
                                                           {"time": "1:30", "mentionCount": 50},
-                                                          {"time": "5:30", "mentionCount": 38}
+                                                          {"time": "5:30", "mentionCount": 38},
+                                                          {"time": "10:15", "mentionCount": 25}
                                                         ],
                                                         "topComments": [
                                                           {
@@ -141,7 +144,38 @@ public interface VideoDetailControllerSwagger {
                                                             "likeCount": 150,
                                                             "sentiment": "POSITIVE",
                                                             "publishedAt": "2025-01-15T10:00:00Z",
-                                                            "hasReplies": false
+                                                            "hasReplies": false,
+                                                            "detailSentiments": ["JOY", "GRATITUDE"]
+                                                          },
+                                                          {
+                                                            "id": "comment2",
+                                                            "author": "사용자2",
+                                                            "text": "최고의 설명입니다",
+                                                            "likeCount": 98,
+                                                            "sentiment": "POSITIVE",
+                                                            "publishedAt": "2025-01-15T11:30:00Z",
+                                                            "hasReplies": false,
+                                                            "detailSentiments": ["LOVE"]
+                                                          }
+                                                        ],
+                                                        "sentimentFlow": [
+                                                          {
+                                                            "date": "2025-01-15",
+                                                            "positive": 68,
+                                                            "negative": 12,
+                                                            "other": 20
+                                                          },
+                                                          {
+                                                            "date": "2025-01-16",
+                                                            "positive": 72,
+                                                            "negative": 10,
+                                                            "other": 18
+                                                          },
+                                                          {
+                                                            "date": "2025-01-17",
+                                                            "positive": 70,
+                                                            "negative": 15,
+                                                            "other": 15
                                                           }
                                                         ]
                                                       }
@@ -170,7 +204,7 @@ public interface VideoDetailControllerSwagger {
             description = "영상의 전체 댓글 목록을 제공합니다.\n\n" +
                     "**제공 정보:**\n" +
                     "- 최대 100개 댓글 (관련도순)\n" +
-                    "- 댓글 내용, 작성자, 좋아요, 감정 분석 결과, 작성 시간\n\n" +
+                    "- 댓글 내용, 작성자, 좋아요, 감정 분석 결과, 상세 감정, 작성 시간\n\n" +
                     "**특징:**\n" +
                     "- 인증 불필요\n" +
                     "- 페이징 없음 (한 번에 전체 반환)\n" +
@@ -191,11 +225,32 @@ public interface VideoDetailControllerSwagger {
                                                         {
                                                           "id": "comment1",
                                                           "author": "사용자1",
-                                                          "text": "댓글 내용...",
+                                                          "text": "정말 유익한 영상이네요!",
                                                           "likeCount": 150,
                                                           "sentiment": "POSITIVE",
                                                           "publishedAt": "2025-01-15T10:00:00Z",
-                                                          "hasReplies": true
+                                                          "hasReplies": true,
+                                                          "detailSentiments": ["JOY", "GRATITUDE"]
+                                                        },
+                                                        {
+                                                          "id": "comment2",
+                                                          "author": "사용자2",
+                                                          "text": "설명이 부족한 것 같아요",
+                                                          "likeCount": 25,
+                                                          "sentiment": "NEGATIVE",
+                                                          "publishedAt": "2025-01-15T11:00:00Z",
+                                                          "hasReplies": false,
+                                                          "detailSentiments": ["SADNESS"]
+                                                        },
+                                                        {
+                                                          "id": "comment3",
+                                                          "author": "사용자3",
+                                                          "text": "다음 영상도 기대됩니다",
+                                                          "likeCount": 88,
+                                                          "sentiment": "POSITIVE",
+                                                          "publishedAt": "2025-01-15T12:30:00Z",
+                                                          "hasReplies": true,
+                                                          "detailSentiments": ["LOVE", "JOY"]
                                                         }
                                                       ]
                                                     }
@@ -224,13 +279,14 @@ public interface VideoDetailControllerSwagger {
                     "**제공 정보:**\n" +
                     "- AI 요약문\n" +
                     "- 경고 여부\n" +
-                    "- 언어 분포 (한국어, 영어 등)\n" +
-                    "- 감정 분포 (긍정, 부정, 중립)\n" +
+                    "- 언어 분포 (한국어, 영어 등) - 백분율 정수\n" +
+                    "- 감정 분포 (긍정, 부정, 기타) - 백분율 정수\n" +
                     "- 키워드 TOP 5\n\n" +
                     "**특징:**\n" +
                     "- 인증 불필요\n" +
                     "- AI 미완료 시 빈 데이터 반환 (summary=null)\n" +
-                    "- 백그라운드 AI 처리 중일 수 있음 (Polling 권장)",
+                    "- 백그라운드 AI 처리 중일 수 있음 (Polling 권장)\n\n" +
+                    "**변경사항:** 감정/언어 비율이 백분율 정수로 변경됨 (70, 20, 10)",
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -246,18 +302,18 @@ public interface VideoDetailControllerSwagger {
                                                               "timeStamp": "2025-01-20T10:00:05",
                                                               "message": "AI 분석 결과 조회 성공",
                                                               "data": {
-                                                                "summary": "이 영상은 AI가 분석한 요약입니다...",
+                                                                "summary": "이 영상은 블랙홀의 형성 과정과 최신 연구 결과를 소개합니다. 시청자들은 과학적 설명이 명확하고 시각 자료가 이해하기 쉽다는 긍정적 반응을 보였습니다. 일부는 더 깊이 있는 내용을 원한다는 의견도 있었습니다.",
                                                                 "isWarning": false,
                                                                 "languageDistribution": [
-                                                                  {"language": "ko", "ratio": 0.85},
-                                                                  {"language": "en", "ratio": 0.15}
+                                                                  {"language": "ko", "ratio": 85},
+                                                                  {"language": "en", "ratio": 15}
                                                                 ],
                                                                 "sentimentDistribution": {
-                                                                  "positive": 0.65,
-                                                                  "negative": 0.15,
-                                                                  "other": 0.20
+                                                                  "positive": 70,
+                                                                  "negative": 12,
+                                                                  "other": 18
                                                                 },
-                                                                "keywords": ["키워드1", "키워드2", "키워드3"]
+                                                                "keywords": ["블랙홀", "우주", "과학", "중력파", "연구"]
                                                               }
                                                             }
                                                             """
@@ -273,9 +329,9 @@ public interface VideoDetailControllerSwagger {
                                                                 "isWarning": false,
                                                                 "languageDistribution": [],
                                                                 "sentimentDistribution": {
-                                                                  "positive": 0.0,
-                                                                  "negative": 0.0,
-                                                                  "other": 0.0
+                                                                  "positive": 0,
+                                                                  "negative": 0,
+                                                                  "other": 0
                                                                 },
                                                                 "keywords": []
                                                               }

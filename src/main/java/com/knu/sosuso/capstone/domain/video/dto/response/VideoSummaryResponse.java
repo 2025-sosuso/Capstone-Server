@@ -32,8 +32,8 @@ public record VideoSummaryResponse(
     ) {}
 
     public record SentimentDistribution(
-            Double positive,
-            Double negative,
-            Double other
+            Integer positive,
+            Integer negative,
+            Integer other
     ) {}
 }

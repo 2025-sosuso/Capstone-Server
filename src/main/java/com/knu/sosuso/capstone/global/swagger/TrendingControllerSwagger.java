@@ -77,9 +77,9 @@ public interface TrendingControllerSwagger {
                                                                   "analysis": {
                                                                     "summary": "이 영상은 최근 우리 서비스에서 가장 많이 검색되고 스크랩된 영상입니다. AI 분석 결과 긍정적인 반응이 많으며...",
                                                                     "sentimentDistribution": {
-                                                                      "positive": 0.82,
-                                                                      "negative": 0.10,
-                                                                      "other": 0.08
+                                                                      "positive": 82,
+                                                                      "negative": 10,
+                                                                      "other": 8
                                                                     },
                                                                     "keywords": ["인기", "트렌드", "화제", "추천", "유익함"]
                                                                   }
@@ -104,9 +104,9 @@ public interface TrendingControllerSwagger {
                                                                   "analysis": {
                                                                     "summary": "이 영상은 댓글 분석 결과 긍정적 반응이 많은 영상입니다...",
                                                                     "sentimentDistribution": {
-                                                                      "positive": 0.75,
-                                                                      "negative": 0.15,
-                                                                      "other": 0.10
+                                                                      "positive": 75,
+                                                                      "negative": 15,
+                                                                      "other": 10
                                                                     },
                                                                     "keywords": ["유익", "정보", "도움", "좋아요", "최고"]
                                                                   }
@@ -147,7 +147,7 @@ public interface TrendingControllerSwagger {
                                             value = """
                                                     {
                                                         "httpStatus": "INTERNAL_SERVER_ERROR",
-                                                        "message": "인기 영상 조회 중 오류가 발생했습니다",
+                                                        "message": "인기 영상 조회 중 오류가 발생했습니다.",
                                                         "timeStamp": "2025-11-02T15:30:00"
                                                     }
                                                     """
