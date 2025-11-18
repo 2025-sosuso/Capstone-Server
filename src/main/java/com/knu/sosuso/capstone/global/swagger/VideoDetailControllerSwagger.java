@@ -24,18 +24,23 @@ import java.util.List;
 @Tag(
         name = "영상 상세 페이지 API",
         description = "YouTube 영상의 상세 정보를 섹션별로 제공하는 API입니다. " +
-                "Progressive Loading을 위해 기본 정보, 분석, 댓글, AI 결과를 독립적으로 조회할 수 있습니다."
+                "Progressive Loading을 위해 기본 정보, 분석, 댓글, AI 결과를 독립적으로 조회할 수 있습니다. " +
+                "공통 데이터는 캐시를 통해 빠른 응답을 제공하며, 사용자별 데이터는 별도 API로 최신 정보를 제공합니다."
 )
 public interface VideoDetailControllerSwagger {
 
     @Operation(
-            summary = "영상 기본 정보 조회",
+            summary = "영상 기본 정보 조회 (공통 데이터)",
             description = "YouTube 영상과 채널의 기본 정보를 제공합니다.\n\n" +
                     "**제공 정보:**\n" +
                     "- 영상: 제목, 설명, 썸네일, 조회수, 좋아요, 댓글 수, 업로드 날짜\n" +
-                    "- 채널: 채널명, 썸네일, 구독자 수\n" +
-                    "- 사용자 데이터: 스크랩 ID, 관심 채널 ID (로그인 시)\n\n" +
-                    "**특징:** 가장 빠른 응답 (0.5-1초)",
+                    "- 채널: 채널명, 썸네일, 구독자 수\n\n" +
+                    "**특징:**\n" +
+                    "- 모든 사용자에게 동일한 데이터 반환 (30분 캐시)\n" +
+                    "- 사용자별 데이터(스크랩, 관심채널)는 `/user-state` API로 별도 조회\n" +
+                    "- 가장 빠른 응답 (캐시 시 0.1초 미만)\n\n" +
+                    "**사용 예시:**\n" +
+                    "프론트엔드에서 `/basic`과 `/user-state` API를 병렬 호출하여 조합",
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -54,18 +59,16 @@ public interface VideoDetailControllerSwagger {
                                                           "title": "영상 제목",
                                                           "description": "영상 설명...",
                                                           "publishedAt": "2025-01-15T00:00:00Z",
-                                                          "thumbnailUrl": "https://...",
+                                                          "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
                                                           "viewCount": 1000000,
                                                           "likeCount": 50000,
-                                                          "commentCount": 3000,
-                                                          "scrapId": 123
+                                                          "commentCount": 3000
                                                         },
                                                         "channel": {
                                                           "id": "UCxxxxxxxx",
                                                           "title": "채널명",
-                                                          "thumbnailUrl": "https://...",
-                                                          "subscriberCount": 500000,
-                                                          "favoriteChannelId": 456
+                                                          "thumbnailUrl": "https://yt3.ggpht.com/...",
+                                                          "subscriberCount": 500000
                                                         }
                                                       }
                                                     }
@@ -77,6 +80,112 @@ public interface VideoDetailControllerSwagger {
                             responseCode = "404",
                             description = "영상을 찾을 수 없음",
                             content = @Content(schema = @Schema(implementation = ErrorResponse.class))
+                    )
+            }
+    )
+    @Parameters({
+            @Parameter(
+                    name = "Authorization",
+                    description = "JWT 토큰 (Cookie) - 선택사항 (하위 호환을 위해 유지)",
+                    required = false,
+                    in = ParameterIn.COOKIE,
+                    schema = @Schema(type = "string", format = "jwt")
+            ),
+            @Parameter(
+                    name = "apiVideoId",
+                    description = "YouTube 영상 ID",
+                    required = true,
+                    in = ParameterIn.PATH,
+                    example = "dQw4w9WgXcQ"
+            )
+    })
+    @ErrorCode400
+    @ErrorCode500
+    ResponseEntity<ResponseDto<VideoBasicResponse>> getVideoBasic(
+            @CookieValue(value = "Authorization", required = false) String token,
+            @PathVariable String apiVideoId
+    );
+
+    @Operation(
+            summary = "사용자별 영상 상태 조회",
+            description = "로그인한 사용자의 영상별 상태 정보를 제공합니다.\n\n" +
+                    "**제공 정보:**\n" +
+                    "- scrapId: 스크랩 ID (스크랩하지 않았으면 null)\n" +
+                    "- favoriteChannelId: 관심 채널 ID (관심 채널로 등록하지 않았으면 null)\n\n" +
+                    "**특징:**\n" +
+                    "- 사용자별로 다른 데이터 (캐시 사용 안 함)\n" +
+                    "- 항상 최신 정보 반환\n" +
+                    "- 빠른 응답 (DB 인덱스 조회만, 0.1-0.2초)\n" +
+                    "- 로그인하지 않은 경우 모두 null\n\n" +
+                    "**사용 예시:**\n" +
+                    "```javascript\n" +
+                    "const [basic, userState] = await Promise.all([\n" +
+                    "  fetch('/api/videos/{id}/basic'),\n" +
+                    "  fetch('/api/videos/{id}/user-state')\n" +
+                    "]);\n" +
+                    "```",
+            responses = {
+                    @ApiResponse(
+                            responseCode = "200",
+                            description = "사용자 상태 조회 성공",
+                            content = @Content(
+                                    mediaType = "application/json",
+                                    schema = @Schema(implementation = ResponseDto.class),
+                                    examples = {
+                                            @ExampleObject(
+                                                    name = "로그인 + 스크랩/관심채널 모두 등록",
+                                                    value = """
+                                                            {
+                                                              "timeStamp": "2025-01-20T10:00:00",
+                                                              "message": "사용자 영상 상태 조회 성공",
+                                                              "data": {
+                                                                "scrapId": 123,
+                                                                "favoriteChannelId": 456
+                                                              }
+                                                            }
+                                                            """
+                                            ),
+                                            @ExampleObject(
+                                                    name = "로그인 + 스크랩만 등록",
+                                                    value = """
+                                                            {
+                                                              "timeStamp": "2025-01-20T10:00:00",
+                                                              "message": "사용자 영상 상태 조회 성공",
+                                                              "data": {
+                                                                "scrapId": 123,
+                                                                "favoriteChannelId": null
+                                                              }
+                                                            }
+                                                            """
+                                            ),
+                                            @ExampleObject(
+                                                    name = "로그인 + 아무것도 등록 안 함",
+                                                    value = """
+                                                            {
+                                                              "timeStamp": "2025-01-20T10:00:00",
+                                                              "message": "사용자 영상 상태 조회 성공",
+                                                              "data": {
+                                                                "scrapId": null,
+                                                                "favoriteChannelId": null
+                                                              }
+                                                            }
+                                                            """
+                                            ),
+                                            @ExampleObject(
+                                                    name = "비로그인",
+                                                    value = """
+                                                            {
+                                                              "timeStamp": "2025-01-20T10:00:00",
+                                                              "message": "사용자 영상 상태 조회 성공",
+                                                              "data": {
+                                                                "scrapId": null,
+                                                                "favoriteChannelId": null
+                                                              }
+                                                            }
+                                                            """
+                                            )
+                                    }
+                            )
                     )
             }
     )
@@ -98,7 +207,7 @@ public interface VideoDetailControllerSwagger {
     })
     @ErrorCode400
     @ErrorCode500
-    ResponseEntity<ResponseDto<VideoBasicResponse>> getVideoBasic(
+    ResponseEntity<ResponseDto<UserVideoStateResponse>> getUserVideoState(
             @CookieValue(value = "Authorization", required = false) String token,
             @PathVariable String apiVideoId
     );
@@ -144,38 +253,22 @@ public interface VideoDetailControllerSwagger {
                                                             "likeCount": 150,
                                                             "sentiment": "POSITIVE",
                                                             "publishedAt": "2025-01-15T10:00:00Z",
-                                                            "hasReplies": false,
+                                                            "hasReplies": true,
                                                             "detailSentiments": ["JOY", "GRATITUDE"]
-                                                          },
-                                                          {
-                                                            "id": "comment2",
-                                                            "author": "사용자2",
-                                                            "text": "최고의 설명입니다",
-                                                            "likeCount": 98,
-                                                            "sentiment": "POSITIVE",
-                                                            "publishedAt": "2025-01-15T11:30:00Z",
-                                                            "hasReplies": false,
-                                                            "detailSentiments": ["LOVE"]
                                                           }
                                                         ],
                                                         "sentimentFlow": [
                                                           {
-                                                            "date": "2025-01-15",
-                                                            "positive": 68,
-                                                            "negative": 12,
-                                                            "other": 20
-                                                          },
-                                                          {
-                                                            "date": "2025-01-16",
-                                                            "positive": 72,
-                                                            "negative": 10,
-                                                            "other": 18
-                                                          },
-                                                          {
-                                                            "date": "2025-01-17",
-                                                            "positive": 70,
-                                                            "negative": 15,
+                                                            "date": "2025-01-10 ~ 2025-01-12",
+                                                            "positive": 65,
+                                                            "negative": 20,
                                                             "other": 15
+                                                          },
+                                                          {
+                                                            "date": "2025-01-13 ~ 2025-01-15",
+                                                            "positive": 72,
+                                                            "negative": 15,
+                                                            "other": 13
                                                           }
                                                         ]
                                                       }
@@ -201,18 +294,20 @@ public interface VideoDetailControllerSwagger {
 
     @Operation(
             summary = "전체 댓글 조회",
-            description = "영상의 전체 댓글 목록을 제공합니다.\n\n" +
+            description = "영상의 전체 댓글을 최대 100개까지 제공합니다.\n\n" +
                     "**제공 정보:**\n" +
-                    "- 최대 100개 댓글 (관련도순)\n" +
-                    "- 댓글 내용, 작성자, 좋아요, 감정 분석 결과, 상세 감정, 작성 시간\n\n" +
+                    "- 댓글 ID, 작성자, 내용\n" +
+                    "- 좋아요 수, 감정 분석 결과\n" +
+                    "- 작성 시간, 답글 여부\n" +
+                    "- 세부 감정 분류\n\n" +
                     "**특징:**\n" +
-                    "- 인증 불필요\n" +
-                    "- 페이징 없음 (한 번에 전체 반환)\n" +
-                    "- 클라이언트에서 검색/필터링 가능",
+                    "- 최대 100개 댓글 반환\n" +
+                    "- 댓글 수집 진행 중인 경우 빈 배열\n" +
+                    "- 댓글 비활성화 영상은 빈 배열",
             responses = {
                     @ApiResponse(
                             responseCode = "200",
-                            description = "전체 댓글 조회 성공",
+                            description = "댓글 조회 성공",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = ResponseDto.class),
