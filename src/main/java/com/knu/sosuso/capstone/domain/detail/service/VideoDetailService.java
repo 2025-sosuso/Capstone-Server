@@ -87,20 +87,48 @@ public class VideoDetailService {
     }
 
     /**
-     * 영상 기본 정보 조회 (사용자별 - 캐시 불가)
-     * - 사용자별 데이터(scrapId, favoriteChannelId)는 매번 새로 조회
+     * 영상 기본 정보 조회
      */
-    @Transactional
+    @Cacheable(value = "videoDetail", key = "'basic-' + #apiVideoId", unless = "#result == null")
+    @Transactional(readOnly = true)
     public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
-        log.error("🔥🔥🔥 TEST LOG 3 - Service Start");
-        log.info("📺 영상 기본 정보 조회 (사용자별): apiVideoId={}", apiVideoId);
+        log.info("📺 영상 기본 정보 조회: apiVideoId={}", apiVideoId);
 
         // 캐시된 영상 정보 조회
         Video video = getOrProcessVideo(apiVideoId);
-        log.error("🔥🔥🔥 TEST LOG 4 - Got video, channelId={}", video.getChannelId());
 
-        // 사용자별 데이터는 매번 새로 조회하여 응답 생성
-        return createBasicResponse(token, video);
+        return createBasicResponse(null, video);
+    }
+
+    /**
+     * 사용자별 영상 상태 조회 (캐시 사용 안 함)
+     * - 스크랩 여부
+     * - 관심 채널 여부
+     */
+    @Transactional(readOnly = true)
+    public UserVideoStateResponse getUserVideoState(String token, String apiVideoId) {
+        log.info("👤 사용자 영상 상태 조회: apiVideoId={}", apiVideoId);
+
+        Long scrapId = null;
+        Long favoriteChannelId = null;
+
+        if (token != null && jwtUtil.isValidToken(token)) {
+            Long userId = jwtUtil.getUserId(token);
+
+            // 비디오 조회 (캐시 활용)
+            Video video = getOrProcessVideo(apiVideoId);
+
+            // 스크랩 조회
+            Optional<Scrap> scrap = scrapRepository.findByUserIdAndVideoId(userId, video.getId());
+            scrapId = scrap.map(Scrap::getId).orElse(null);
+
+            // 관심 채널 조회
+            favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
+
+            log.info("✅ 사용자 상태 조회 완료: scrapId={}, favoriteChannelId={}", scrapId, favoriteChannelId);
+        }
+
+        return new UserVideoStateResponse(scrapId, favoriteChannelId);
     }
 
     /**
@@ -615,26 +643,6 @@ public class VideoDetailService {
      * VideoBasicResponse 생성
      */
     private VideoBasicResponse createBasicResponse(String token, Video video) {
-        Long scrapId = null;
-        Long favoriteChannelId = null;
-
-        log.info("🔍 [VideoDetail] createBasicResponse 시작 - apiVideoId={}", video.getApiVideoId());
-        log.info("🔍 [VideoDetail] video.channelId={}", video.getChannelId());
-        log.info("🔍 [VideoDetail] token 존재={}", token != null);
-
-        if (token != null && jwtUtil.isValidToken(token)) {
-            Long userId = jwtUtil.getUserId(token);
-            log.info("🔍 [VideoDetail] userId={}", userId);
-
-            // 스크랩 조회
-            Optional<Scrap> scrap = scrapRepository.findByUserIdAndVideoId(userId, video.getId());
-            scrapId = scrap.map(Scrap::getId).orElse(null);
-            log.info("🔍 [VideoDetail] scrapId={}", scrapId);
-
-            // 관심 채널 조회 추가!
-            favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
-            log.info("🔍 [VideoDetail] favoriteChannelId={}", favoriteChannelId);
-        }
 
         DetailVideoDto videoDto = new DetailVideoDto(
                 video.getApiVideoId(),
@@ -644,16 +652,14 @@ public class VideoDetailService {
                 video.getThumbnailUrl(),
                 Long.parseLong(video.getViewCount()),
                 Long.parseLong(video.getLikeCount()),
-                Integer.parseInt(video.getCommentCount()),
-                scrapId
+                Integer.parseInt(video.getCommentCount())
         );
 
         DetailChannelDto channelDto = new DetailChannelDto(
                 video.getChannelId(),
                 video.getChannelName(),
                 video.getChannelThumbnailUrl(),
-                Long.parseLong(video.getSubscriberCount()),
-                favoriteChannelId
+                Long.parseLong(video.getSubscriberCount())
         );
 
         return new VideoBasicResponse(videoDto, channelDto);

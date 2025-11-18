@@ -4,7 +4,6 @@ public record DetailChannelDto(
         String id,
         String title,
         String thumbnailUrl,
-        Long subscriberCount,
-        Long favoriteChannelId
+        Long subscriberCount
 ) {
 }

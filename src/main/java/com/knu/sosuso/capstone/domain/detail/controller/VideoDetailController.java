@@ -34,7 +34,6 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
             @CookieValue(value = "Authorization", required = false) String token,
             @PathVariable String apiVideoId) {
 
-        log.error("🔥🔥🔥 TEST LOG 1 - Controller Start");
         log.info("영상 기본 정보 조회 요청: apiVideoId={}", apiVideoId);
 
         // 조회 로그 저장
@@ -49,8 +48,28 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
         VideoBasicResponse result = videoDetailService.getVideoBasic(token, apiVideoId);
 
         log.info("영상 기본 정보 조회 완료: apiVideoId={}", apiVideoId);
-        log.error("🔥🔥🔥 TEST LOG 2 - Controller End, result={}", result != null);
         return ResponseEntity.ok(ResponseDto.of(result, "영상 기본 정보 조회 성공"));
+    }
+
+    /**
+     * 사용자별 영상 상태 조회
+     * - 스크랩 여부
+     * - 관심 채널 여부
+     *
+     * 공통 영상 정보는 /basic에서 조회하고,
+     * 사용자 상태는 이 API로 별도 조회하여 프론트에서 조합
+     */
+    @GetMapping("/{apiVideoId}/user-state")
+    public ResponseEntity<ResponseDto<UserVideoStateResponse>> getUserVideoState(
+            @CookieValue(value = "Authorization", required = false) String token,
+            @PathVariable String apiVideoId) {
+
+        log.info("👤 사용자 영상 상태 조회 요청: apiVideoId={}", apiVideoId);
+
+        UserVideoStateResponse result = videoDetailService.getUserVideoState(token, apiVideoId);
+
+        log.info("👤 사용자 영상 상태 조회 완료: apiVideoId={}", apiVideoId);
+        return ResponseEntity.ok(ResponseDto.of(result, "사용자 영상 상태 조회 성공"));
     }
 
     /**

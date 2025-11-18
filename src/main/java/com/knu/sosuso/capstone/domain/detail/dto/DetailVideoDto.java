@@ -8,7 +8,6 @@ public record DetailVideoDto(
         String thumbnailUrl,
         Long viewCount,
         Long likeCount,
-        Integer commentCount,
-        Long scrapId
+        Integer commentCount
 ) {
 }
