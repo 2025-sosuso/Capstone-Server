@@ -52,13 +52,13 @@ public class VideoDetailService {
     // ========================================
 
     /**
-     * 영상 기본 정보 조회
-     * - 새 영상이면 VideoProcessingService에 위임
+     * 영상 엔티티 조회 또는 처리 (사용자 무관 - 캐시 가능)
+     * - 영상 메타데이터만 캐시
      */
-    @Cacheable(value = "videoDetail", key = "'basic-' + #apiVideoId")
+    @Cacheable(value = "videoDetail", key = "'video-' + #apiVideoId")
     @Transactional
-    public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
-        log.info("📺 영상 기본 정보 조회: apiVideoId={}", apiVideoId);
+    public Video getOrProcessVideo(String apiVideoId) {
+        log.info("📺 영상 엔티티 조회: apiVideoId={}", apiVideoId);
 
         // 1. DB에서 먼저 찾기
         Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
@@ -83,6 +83,21 @@ public class VideoDetailService {
             log.info("✅ 새 영상 처리 완료: apiVideoId={}", apiVideoId);
         }
 
+        return video;
+    }
+
+    /**
+     * 영상 기본 정보 조회 (사용자별 - 캐시 불가)
+     * - 사용자별 데이터(scrapId, favoriteChannelId)는 매번 새로 조회
+     */
+    @Transactional
+    public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
+        log.info("📺 영상 기본 정보 조회 (사용자별): apiVideoId={}", apiVideoId);
+
+        // 캐시된 영상 정보 조회
+        Video video = getOrProcessVideo(apiVideoId);
+
+        // 사용자별 데이터는 매번 새로 조회하여 응답 생성
         return createBasicResponse(token, video);
     }
 

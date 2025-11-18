@@ -508,7 +508,7 @@ public class VideoProcessingService {
         try {
             Cache cache = cacheManager.getCache("videoDetail");
             if (cache != null) {
-                cache.evict("basic-" + apiVideoId);
+                cache.evict("video-" + apiVideoId);
                 cache.evict("analysis-" + apiVideoId);
                 cache.evict("ai-" + apiVideoId);
                 cache.evict(apiVideoId);
