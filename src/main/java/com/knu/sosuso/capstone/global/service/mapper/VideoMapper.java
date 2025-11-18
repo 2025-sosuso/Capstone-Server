@@ -82,8 +82,7 @@ public class VideoMapper {
                 video.getThumbnailUrl(),
                 parseLong(video.getViewCount()),
                 parseLong(video.getLikeCount()),
-                parseInt(video.getCommentCount()),
-                scrapId
+                parseInt(video.getCommentCount())
         );
     }
 
@@ -95,8 +94,7 @@ public class VideoMapper {
                 video.getChannelId(),
                 video.getChannelName(),
                 video.getChannelThumbnailUrl(),
-                parseLong(video.getSubscriberCount()),
-                favoriteChannelId
+                parseLong(video.getSubscriberCount())
         );
     }
 
