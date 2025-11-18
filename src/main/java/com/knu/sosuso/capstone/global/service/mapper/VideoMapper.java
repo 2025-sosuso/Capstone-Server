@@ -140,13 +140,13 @@ public class VideoMapper {
         }
 
         try {
-            Map<String, Double> sentimentMap = objectMapper.readValue(
-                    json, new TypeReference<>() {});
+            Map<String, Integer> sentimentMap = objectMapper.readValue(
+                    json, new TypeReference<Map<String, Integer>>() {});
 
             return new VideoSummaryResponse.SentimentDistribution(
-                    sentimentMap.getOrDefault("positive", 0.0),
-                    sentimentMap.getOrDefault("negative", 0.0),
-                    sentimentMap.getOrDefault("other", 0.0)
+                    sentimentMap.getOrDefault("positive", 0),
+                    sentimentMap.getOrDefault("negative", 0),
+                    sentimentMap.getOrDefault("other", 0)
             );
         } catch (Exception e) {
             log.warn("SentimentDistribution 파싱 실패: json={}", json);

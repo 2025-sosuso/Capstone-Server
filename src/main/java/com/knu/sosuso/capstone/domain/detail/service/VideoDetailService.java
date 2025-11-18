@@ -203,7 +203,7 @@ public class VideoDetailService {
                     null,
                     false,
                     new ArrayList<>(),
-                    new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0),
+                    new DetailAnalysisDto.SentimentDistribution(0, 0, 0),
                     new ArrayList<>()
             );
         }
@@ -320,8 +320,8 @@ public class VideoDetailService {
                 return new ArrayList<>();
             }
 
-            Map<String, Double> map = objectMapper.readValue(json,
-                    new TypeReference<Map<String, Double>>() {});
+            Map<String, Integer> map = objectMapper.readValue(json,
+                    new TypeReference<Map<String, Integer>>() {});
 
             return map.entrySet().stream()
                     .map(e -> new DetailAnalysisDto.LanguageDistribution(
@@ -342,20 +342,20 @@ public class VideoDetailService {
     private DetailAnalysisDto.SentimentDistribution parseSentimentDistribution(String json) {
         try {
             if (json == null || json.trim().isEmpty()) {
-                return new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0);
+                return new DetailAnalysisDto.SentimentDistribution(0, 0, 0);
             }
 
-            Map<String, Double> map = objectMapper.readValue(json,
-                    new TypeReference<Map<String, Double>>() {});
+            Map<String, Integer> map = objectMapper.readValue(json,
+                    new TypeReference<Map<String, Integer>>() {});
 
             return new DetailAnalysisDto.SentimentDistribution(
-                    map.getOrDefault("positive", 0.0),
-                    map.getOrDefault("negative", 0.0),
-                    map.getOrDefault("other", 0.0)
+                    map.getOrDefault("positive", 0),
+                    map.getOrDefault("negative", 0),
+                    map.getOrDefault("other", 0)
             );
         } catch (Exception e) {
             log.warn("감정 분포 파싱 실패: {}", e.getMessage());
-            return new DetailAnalysisDto.SentimentDistribution(0.0, 0.0, 0.0);
+            return new DetailAnalysisDto.SentimentDistribution(0, 0, 0);
         }
     }
 
@@ -483,9 +483,9 @@ public class VideoDetailService {
                         .mapToLong(Long::longValue)
                         .sum();
 
-                double positive = (double) sentimentCounts.getOrDefault(SentimentType.POSITIVE, 0L) / total;
-                double negative = (double) sentimentCounts.getOrDefault(SentimentType.NEGATIVE, 0L) / total;
-                double other = 1.0 - positive - negative;
+                int positive = (int) Math.round((double) sentimentCounts.getOrDefault(SentimentType.POSITIVE, 0L) * 100.0 / total);
+                int negative = (int) Math.round((double) sentimentCounts.getOrDefault(SentimentType.NEGATIVE, 0L) * 100.0 / total);
+                int other = 100 - positive - negative;
 
                 // 구간의 중간 날짜를 대표 날짜로 사용
                 LocalDateTime middleDate = sectionStart.plusDays((long) (daysPerSection / 2));
@@ -493,12 +493,12 @@ public class VideoDetailService {
 
                 flows.add(new DetailAnalysisDto.SentimentFlow(
                         representativeDate,
-                        Math.round(positive * 100.0) / 100.0,
-                        Math.round(negative * 100.0) / 100.0,
-                        Math.round(other * 100.0) / 100.0
+                        positive,
+                        negative,
+                        other
                 ));
 
-                log.debug("✅ 구간 {}: {} ~ {}, 댓글={}개, positive={:.1f}%, negative={:.1f}%, other={:.1f}%",
+                log.debug("✅ 구간 {}: {} ~ {}, 댓글={}개, positive={}%, negative={}%, other={}%",
                         i + 1,
                         sectionStart.toLocalDate(),
                         sectionEnd.toLocalDate(),
@@ -561,15 +561,16 @@ public class VideoDetailService {
                             .mapToLong(Long::longValue)
                             .sum();
 
-                    double positive = (double) sentiments.getOrDefault(SentimentType.POSITIVE, 0L) / total;
-                    double negative = (double) sentiments.getOrDefault(SentimentType.NEGATIVE, 0L) / total;
-                    double other = 1.0 - positive - negative;
+                    int positive = (int) Math.round((double) sentiments.getOrDefault(SentimentType.POSITIVE, 0L) * 100.0 / total);
+                    int negative = (int) Math.round((double) sentiments.getOrDefault(SentimentType.NEGATIVE, 0L) * 100.0 / total);
+                    int other = 100 - positive - negative;
+
 
                     return new DetailAnalysisDto.SentimentFlow(
                             date,
-                            Math.round(positive * 100.0) / 100.0,
-                            Math.round(negative * 100.0) / 100.0,
-                            Math.round(other * 100.0) / 100.0
+                            positive,
+                            negative,
+                            other
                     );
                 })
                 .sorted(Comparator.comparing(DetailAnalysisDto.SentimentFlow::date))

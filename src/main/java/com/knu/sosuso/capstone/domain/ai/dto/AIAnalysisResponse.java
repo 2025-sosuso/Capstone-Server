@@ -12,7 +12,7 @@ public record AIAnalysisResponse(
         boolean isWarning, // 논란 감지 유무
         List<String> keywords, // 댓글 주요 키워드
         List<CommentSentimentDetail> sentimentComments, //
-        Map<String, Double> languageRatio, // 언어 비율
-        Map<String, Double> sentimentRatio // 전체 댓글 긍정, 부정, 기타 비율
+        Map<String, Integer> languageRatio, // 언어 비율
+        Map<String, Integer> sentimentRatio // 전체 댓글 긍정, 부정, 기타 비율
 ) {
 }

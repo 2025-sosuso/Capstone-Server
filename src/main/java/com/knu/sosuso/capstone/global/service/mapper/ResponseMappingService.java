@@ -87,19 +87,22 @@ public class ResponseMappingService {
                             .collect(Collectors.toList());
 
             // AI 분석 데이터 (없을 수 있음)
-            Map<String, Double> languageRatio = parseJsonToMap(video.getLanguageDistribution(), String.class, Double.class);
-            Map<String, Double> sentimentRatio = parseJsonToMap(video.getSentimentDistribution(), String.class, Double.class);
+            Map<String, Integer> languageRatio = parseJsonToMap(video.getLanguageDistribution(), String.class, Integer.class);
+            Map<String, Integer> sentimentRatio = parseJsonToMap(video.getSentimentDistribution(), String.class, Integer.class);
 
             List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
                     languageRatio.entrySet().stream()
-                            .map(e -> new DetailAnalysisDto.LanguageDistribution(e.getKey(), e.getValue()))
+                            .map(e -> new DetailAnalysisDto.LanguageDistribution(
+                                    e.getKey(),
+                                    e.getValue()
+                            ))
                             .collect(Collectors.toList());
 
             DetailAnalysisDto.SentimentDistribution sentimentDistribution =
                     new DetailAnalysisDto.SentimentDistribution(
-                            sentimentRatio.getOrDefault("positive", 0.0),
-                            sentimentRatio.getOrDefault("negative", 0.0),
-                            sentimentRatio.getOrDefault("other", 0.0)
+                            sentimentRatio.getOrDefault("positive", 0),
+                            sentimentRatio.getOrDefault("negative", 0),
+                            sentimentRatio.getOrDefault("other", 0)
                     );
 
             List<String> keywords = List.of();
