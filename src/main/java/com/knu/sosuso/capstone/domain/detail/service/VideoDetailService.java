@@ -14,6 +14,7 @@ import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.entity.VideoType;
 import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
+import com.knu.sosuso.capstone.domain.video.service.UserDataService;
 import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
 import com.knu.sosuso.capstone.domain.video.service.VideoService;
 import com.knu.sosuso.capstone.global.config.AppConfig;
@@ -43,6 +44,7 @@ public class VideoDetailService {
     private final ScrapRepository scrapRepository;
     private final JwtUtil jwtUtil;
     private final AppConfig appConfig;
+    private final UserDataService userDataService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     // ========================================
@@ -602,8 +604,12 @@ public class VideoDetailService {
         if (token != null && jwtUtil.isValidToken(token)) {
             Long userId = jwtUtil.getUserId(token);
 
+            // 스크랩 조회
             Optional<Scrap> scrap = scrapRepository.findByUserIdAndVideoId(userId, video.getId());
             scrapId = scrap.map(Scrap::getId).orElse(null);
+
+            // 관심 채널 조회 추가!
+            favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
         }
 
         DetailVideoDto videoDto = new DetailVideoDto(
