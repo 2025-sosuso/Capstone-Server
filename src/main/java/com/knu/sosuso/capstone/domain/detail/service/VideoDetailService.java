@@ -92,10 +92,12 @@ public class VideoDetailService {
      */
     @Transactional
     public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
+        log.error("🔥🔥🔥 TEST LOG 3 - Service Start");
         log.info("📺 영상 기본 정보 조회 (사용자별): apiVideoId={}", apiVideoId);
 
         // 캐시된 영상 정보 조회
         Video video = getOrProcessVideo(apiVideoId);
+        log.error("🔥🔥🔥 TEST LOG 4 - Got video, channelId={}", video.getChannelId());
 
         // 사용자별 데이터는 매번 새로 조회하여 응답 생성
         return createBasicResponse(token, video);

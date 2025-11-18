@@ -34,6 +34,7 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
             @CookieValue(value = "Authorization", required = false) String token,
             @PathVariable String apiVideoId) {
 
+        log.error("🔥🔥🔥 TEST LOG 1 - Controller Start");
         log.info("영상 기본 정보 조회 요청: apiVideoId={}", apiVideoId);
 
         // 조회 로그 저장
@@ -48,6 +49,7 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
         VideoBasicResponse result = videoDetailService.getVideoBasic(token, apiVideoId);
 
         log.info("영상 기본 정보 조회 완료: apiVideoId={}", apiVideoId);
+        log.error("🔥🔥🔥 TEST LOG 2 - Controller End, result={}", result != null);
         return ResponseEntity.ok(ResponseDto.of(result, "영상 기본 정보 조회 성공"));
     }
 
