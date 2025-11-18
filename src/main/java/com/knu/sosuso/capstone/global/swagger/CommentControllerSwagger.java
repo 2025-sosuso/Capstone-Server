@@ -35,6 +35,10 @@ public interface CommentControllerSwagger {
                     "- `POSITIVE`: 긍정적인 댓글\n" +
                     "- `NEGATIVE`: 부정적인 댓글\n" +
                     "- `OTHER`: 중립적이거나 분류되지 않은 댓글\n\n" +
+                    "**세부 감정 타입 (`detailSentiments`):**\n" +
+                    "- **긍정 감정**: `JOY`(기쁨), `LOVE`(사랑), `GRATITUDE`(감사)\n" +
+                    "- **부정 감정**: `ANGER`(분노), `SADNESS`(슬픔), `FEAR`(두려움)\n" +
+                    "- **중립 감정**: `NEUTRAL`(중립)\n\n" +
                     "**주의사항:**\n" +
                     "- 세 개의 파라미터 중 **정확히 하나만** 사용해야 합니다\n" +
                     "- 여러 조건을 동시에 사용하면 400 에러가 발생합니다\n" +
@@ -64,7 +68,8 @@ public interface CommentControllerSwagger {
                                                                     "likeCount": 42,
                                                                     "sentiment": "positive",
                                                                     "publishedAt": "2025-06-08T14:30:00Z",
-                                                                    "hasReplies": true
+                                                                    "hasReplies": true,
+                                                                    "detailSentiments": ["joy", "love"]
                                                                   },
                                                                   {
                                                                     "id": "UgxKHjF2Mn1wcPdO_9J4AaABAg",
@@ -73,7 +78,8 @@ public interface CommentControllerSwagger {
                                                                     "likeCount": 28,
                                                                     "sentiment": "positive",
                                                                     "publishedAt": "2025-06-08T16:45:00Z",
-                                                                    "hasReplies": false
+                                                                    "hasReplies": false,
+                                                                    "detailSentiments": ["joy"]
                                                                   }
                                                                 ]
                                                               }
@@ -97,7 +103,8 @@ public interface CommentControllerSwagger {
                                                                     "likeCount": 156,
                                                                     "sentiment": "positive",
                                                                     "publishedAt": "2025-06-08T12:15:00Z",
-                                                                    "hasReplies": true
+                                                                    "hasReplies": true,
+                                                                    "detailSentiments": ["joy", "love", "gratitude"]
                                                                   },
                                                                   {
                                                                     "id": "UgwABC987zyx654wvu321_BbB",
@@ -106,7 +113,8 @@ public interface CommentControllerSwagger {
                                                                     "likeCount": 89,
                                                                     "sentiment": "positive",
                                                                     "publishedAt": "2025-06-08T13:22:00Z",
-                                                                    "hasReplies": false
+                                                                    "hasReplies": false,
+                                                                    "detailSentiments": ["love", "gratitude"]
                                                                   }
                                                                 ]
                                                               }
@@ -152,7 +160,7 @@ public interface CommentControllerSwagger {
                                                     value = """
                                                             {
                                                               "httpStatus": "BAD_REQUEST",
-                                                              "message": "검색 조건이 필요합니다. (q, keyword, sentiment 중 하나)",
+                                                              "message": "검색 조건이 필요합니다.",
                                                               "timeStamp": "2025-06-09T16:00:00"
                                                             }
                                                             """
@@ -162,7 +170,7 @@ public interface CommentControllerSwagger {
                                                     value = """
                                                             {
                                                               "httpStatus": "BAD_REQUEST",
-                                                              "message": "하나의 검색 조건만 사용할 수 있습니다.",
+                                                              "message": "검색 조건이 필요합니다.",
                                                               "timeStamp": "2025-06-09T16:00:00"
                                                             }
                                                             """

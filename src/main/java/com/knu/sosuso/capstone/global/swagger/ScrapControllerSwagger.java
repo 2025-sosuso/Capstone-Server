@@ -207,7 +207,7 @@ public interface ScrapControllerSwagger {
                                                           },
                                                           "analysis": {
                                                             "summary": "간단하고 맛있는 김치찌개 레시피입니다.",
-                                                            "sentimentDistribution": {"positive": 0.91, "negative": 0.02, "other": 0.07},
+                                                            "sentimentDistribution": {"positive": 91, "negative": 2, "other": 7},
                                                             "keywords": ["요리", "김치찌개", "레시피"]
                                                           }
                                                         }

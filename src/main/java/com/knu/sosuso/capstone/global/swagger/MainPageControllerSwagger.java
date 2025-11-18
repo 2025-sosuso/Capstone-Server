@@ -62,7 +62,7 @@ public interface MainPageControllerSwagger {
                                                                   {
                                                                     "favoriteChannelId": 2,
                                                                     "apiChannelId": "UC-lHJZR3Gqxm24_Vd_AJ5Yw",
-                                                                    "apiChannelName": "PewDiePie",
+                                                                    "apiChannelName": "채널명2",
                                                                     "apiChannelThumbnail": "https://yt3.ggpht.com/..."
                                                                   }
                                                                 ],
@@ -86,31 +86,11 @@ public interface MainPageControllerSwagger {
                                                                   "analysis": {
                                                                     "summary": "블랙홀의 형성 과정과 중력파 관측 성과를 다룬 영상입니다. 시청자들은 과학적 설명이 명확하고 시각 자료가 이해하기 쉽다는 반응을 보였습니다.",
                                                                     "sentimentDistribution": {
-                                                                      "positive": 0.72,
-                                                                      "negative": 0.08,
-                                                                      "other": 0.20
+                                                                      "positive": 72,
+                                                                      "negative": 8,
+                                                                      "other": 20
                                                                     },
-                                                                    "keywords": ["블랙홀", "우주", "중력파", "과학"],
-                                                                    "topComments": [
-                                                                      {
-                                                                        "id": "comment1",
-                                                                        "author": "과학덕후",
-                                                                        "text": "정말 명쾌한 설명입니다! 블랙홀에 대해 이해가 잘 됐어요",
-                                                                        "likeCount": 285,
-                                                                        "sentiment": "POSITIVE",
-                                                                        "publishedAt": "2025-01-20T10:30:00Z",
-                                                                        "hasReplies": false
-                                                                      },
-                                                                      {
-                                                                        "id": "comment2",
-                                                                        "author": "우주탐험가",
-                                                                        "text": "시각 자료가 정말 인상적이네요",
-                                                                        "likeCount": 142,
-                                                                        "sentiment": "POSITIVE",
-                                                                        "publishedAt": "2025-01-20T11:00:00Z",
-                                                                        "hasReplies": false
-                                                                      }
-                                                                    ]
+                                                                    "keywords": ["블랙홀", "우주", "중력파", "과학"]
                                                                   }
                                                                 }
                                                               }
@@ -118,8 +98,22 @@ public interface MainPageControllerSwagger {
                                                             """
                                             ),
                                             @ExampleObject(
-                                                    name = "비로그인 사용자 또는 관심 채널 없음",
-                                                    summary = "빈 데이터 반환",
+                                                    name = "로그인 사용자 - 관심 채널 없음",
+                                                    summary = "관심 채널을 등록하지 않은 경우",
+                                                    value = """
+                                                            {
+                                                              "timeStamp": "2025-01-20T10:00:00",
+                                                              "message": "관심 채널 섹션 조회 완료",
+                                                              "data": {
+                                                                "favoriteChannelList": [],
+                                                                "videoSummary": null
+                                                              }
+                                                            }
+                                                            """
+                                            ),
+                                            @ExampleObject(
+                                                    name = "비로그인 사용자",
+                                                    summary = "토큰이 없거나 유효하지 않은 경우",
                                                     value = """
                                                             {
                                                               "timeStamp": "2025-01-20T10:00:00",
@@ -143,6 +137,7 @@ public interface MainPageControllerSwagger {
             in = ParameterIn.COOKIE,
             schema = @Schema(type = "string", format = "jwt")
     )
+    @ErrorCode400
     @ErrorCode500
     ResponseEntity<ResponseDto<MainPageResponse.FavoriteChannelResponse>> getFavoriteChannels(
             @CookieValue(value = "Authorization", required = false) String token
@@ -150,14 +145,13 @@ public interface MainPageControllerSwagger {
 
     @Operation(
             summary = "메인 페이지 - 인기 급상승 섹션",
-            description = "한국(KR) 기준 최신 인기 급상승 영상 3개를 제공합니다.\n\n" +
+            description = "최신 인기 급상승 영상 3개를 제공합니다.\n\n" +
                     "**제공 정보:**\n" +
-                    "- 영상 기본 정보\n" +
-                    "- 채널 정보\n" +
-                    "- AI 분석 결과 (요약, 감정, 키워드 등)\n\n" +
+                    "- 자체 알고리즘 기반 인기 영상 (검색/조회 + 스크랩 데이터)\n" +
+                    "- 영상 정보, 채널 정보, AI 분석 결과 포함\n\n" +
                     "**특징:**\n" +
-                    "- 인증 불필요 (모든 사용자 동일 데이터)\n" +
-                    "- 로그인 시 스크랩/관심채널 ID 추가 제공",
+                    "- 인증 불필요 (모든 사용자에게 동일하게 제공)\n" +
+                    "- 실시간 업데이트 반영",
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -167,7 +161,6 @@ public interface MainPageControllerSwagger {
                                     schema = @Schema(implementation = ResponseDto.class),
                                     examples = @ExampleObject(
                                             name = "인기 급상승 영상 목록",
-                                            summary = "최대 3개의 인기 영상",
                                             value = """
                                                     {
                                                       "timeStamp": "2025-01-20T10:00:00",
@@ -175,83 +168,83 @@ public interface MainPageControllerSwagger {
                                                       "data": [
                                                         {
                                                           "video": {
-                                                            "id": "abc123def456",
-                                                            "title": "[MV] 뉴진스(NewJeans) - OMG",
-                                                            "description": "NewJeans 'OMG' Official MV...",
+                                                            "id": "trending_video_1",
+                                                            "title": "2025 기술 트렌드 TOP 10",
+                                                            "description": "올해 주목해야 할 기술 트렌드를 소개합니다",
                                                             "publishedAt": "2025-01-19T15:00:00Z",
-                                                            "thumbnailUrl": "https://i.ytimg.com/vi/abc123def456/maxresdefault.jpg",
-                                                            "viewCount": 5234567,
-                                                            "likeCount": 423000,
-                                                            "commentCount": 12450
+                                                            "thumbnailUrl": "https://i.ytimg.com/vi/trending_video_1/maxresdefault.jpg",
+                                                            "viewCount": 850000,
+                                                            "likeCount": 42000,
+                                                            "commentCount": 2145
                                                           },
                                                           "channel": {
-                                                            "id": "UCOmHUn--16B90oW2L6FRR3A",
-                                                            "title": "HYBE LABELS",
+                                                            "id": "UCxxxxTech",
+                                                            "title": "테크 리뷰어",
                                                             "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                            "subscriberCount": 68500000
+                                                            "subscriberCount": 2500000
                                                           },
                                                           "analysis": {
-                                                            "summary": "NewJeans의 신곡 OMG에 대한 반응이 뜨겁습니다. 중독성 있는 멜로디와 독특한 컨셉에 대한 호평이 이어지고 있습니다.",
+                                                            "summary": "AI, 양자컴퓨팅, 메타버스 등 2025년 핵심 기술 트렌드를 다룹니다. 시청자들은 정보의 깊이와 전망에 대해 긍정적으로 평가했습니다.",
                                                             "sentimentDistribution": {
-                                                              "positive": 0.85,
-                                                              "negative": 0.05,
-                                                              "other": 0.10
+                                                              "positive": 78,
+                                                              "negative": 5,
+                                                              "other": 17
                                                             },
-                                                            "keywords": ["뉴진스", "OMG", "케이팝", "중독성", "신곡"]
+                                                            "keywords": ["AI", "기술", "트렌드", "2025", "미래"]
                                                           }
                                                         },
                                                         {
                                                           "video": {
-                                                            "id": "xyz789ghi012",
-                                                            "title": "이번주 LOL 챔피언스 하이라이트",
-                                                            "description": "2025 LCK Spring 1주차 최고의 순간들",
-                                                            "publishedAt": "2025-01-19T20:30:00Z",
-                                                            "thumbnailUrl": "https://i.ytimg.com/vi/xyz789ghi012/maxresdefault.jpg",
-                                                            "viewCount": 892000,
-                                                            "likeCount": 45200,
-                                                            "commentCount": 3890
-                                                          },
-                                                          "channel": {
-                                                            "id": "UCXePl3KM0Ix_dbNikDATbAg",
-                                                            "title": "LCK Korea",
-                                                            "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                            "subscriberCount": 3250000
-                                                          },
-                                                          "analysis": {
-                                                            "summary": "이번 주 LCK 경기의 명장면을 모은 하이라이트입니다. 특히 T1의 화려한 플레이가 화제입니다.",
-                                                            "sentimentDistribution": {
-                                                              "positive": 0.78,
-                                                              "negative": 0.12,
-                                                              "other": 0.10
-                                                            },
-                                                            "keywords": ["LCK", "롤", "T1", "하이라이트"]
-                                                          }
-                                                        },
-                                                        {
-                                                          "video": {
-                                                            "id": "qwe456rty789",
-                                                            "title": "[리뷰] 갤럭시 S25 울트라 개봉기",
-                                                            "description": "삼성 갤럭시 S25 울트라 실물 리뷰",
+                                                            "id": "trending_video_2",
+                                                            "title": "초보자를 위한 주식 투자 가이드",
+                                                            "description": "주식 투자 기초부터 실전까지",
                                                             "publishedAt": "2025-01-19T12:00:00Z",
-                                                            "thumbnailUrl": "https://i.ytimg.com/vi/qwe456rty789/maxresdefault.jpg",
-                                                            "viewCount": 645000,
-                                                            "likeCount": 28900,
-                                                            "commentCount": 2340
+                                                            "thumbnailUrl": "https://i.ytimg.com/vi/trending_video_2/maxresdefault.jpg",
+                                                            "viewCount": 620000,
+                                                            "likeCount": 31000,
+                                                            "commentCount": 1580
                                                           },
                                                           "channel": {
-                                                            "id": "UCOfOHs0vE8JKdV1uLVq42XQ",
-                                                            "title": "잇섭 itSub",
+                                                            "id": "UCxxxxFinance",
+                                                            "title": "재테크 전문가",
                                                             "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                            "subscriberCount": 1850000
+                                                            "subscriberCount": 1800000
                                                           },
                                                           "analysis": {
-                                                            "summary": "갤럭시 S25 울트라의 디자인과 성능에 대한 첫 인상 리뷰입니다. 카메라 성능 향상이 주목받고 있습니다.",
+                                                            "summary": "주식 투자의 기본 개념과 실전 노하우를 쉽게 설명합니다. 초보자들에게 유용한 내용이라는 평가가 많았습니다.",
                                                             "sentimentDistribution": {
-                                                              "positive": 0.68,
-                                                              "negative": 0.18,
-                                                              "other": 0.14
+                                                              "positive": 82,
+                                                              "negative": 8,
+                                                              "other": 10
                                                             },
-                                                            "keywords": ["갤럭시", "S25", "스마트폰", "리뷰", "개봉"]
+                                                            "keywords": ["주식", "투자", "재테크", "초보자", "가이드"]
+                                                          }
+                                                        },
+                                                        {
+                                                          "video": {
+                                                            "id": "trending_video_3",
+                                                            "title": "겨울 제주도 여행 브이로그",
+                                                            "description": "겨울 제주의 숨은 명소를 소개합니다",
+                                                            "publishedAt": "2025-01-18T18:00:00Z",
+                                                            "thumbnailUrl": "https://i.ytimg.com/vi/trending_video_3/maxresdefault.jpg",
+                                                            "viewCount": 480000,
+                                                            "likeCount": 28500,
+                                                            "commentCount": 892
+                                                          },
+                                                          "channel": {
+                                                            "id": "UCxxxxTravel",
+                                                            "title": "여행 브이로거",
+                                                            "thumbnailUrl": "https://yt3.ggpht.com/...",
+                                                            "subscriberCount": 950000
+                                                          },
+                                                          "analysis": {
+                                                            "summary": "겨울 제주도의 매력적인 풍경과 맛집을 소개합니다. 영상미와 정보성 모두 좋다는 반응입니다.",
+                                                            "sentimentDistribution": {
+                                                              "positive": 88,
+                                                              "negative": 3,
+                                                              "other": 9
+                                                            },
+                                                            "keywords": ["제주도", "여행", "겨울", "브이로그", "맛집"]
                                                           }
                                                         }
                                                       ]
@@ -269,6 +262,7 @@ public interface MainPageControllerSwagger {
             in = ParameterIn.COOKIE,
             schema = @Schema(type = "string", format = "jwt")
     )
+    @ErrorCode400
     @ErrorCode500
     ResponseEntity<ResponseDto<List<VideoSummaryResponse>>> getTrending(
             @CookieValue(value = "Authorization", required = false) String token
@@ -276,13 +270,14 @@ public interface MainPageControllerSwagger {
 
     @Operation(
             summary = "메인 페이지 - 스크랩 섹션",
-            description = "사용자가 스크랩한 영상 목록을 최대 3개까지 제공합니다.\n\n" +
+            description = "사용자가 스크랩한 영상 목록을 제공합니다.\n\n" +
                     "**제공 정보:**\n" +
-                    "- 스크랩한 영상 정보 (최신순)\n" +
-                    "- 채널 정보\n" +
-                    "- AI 분석 결과\n" +
-                    "- 삭제된 영상 포함 (표시만 다르게)\n\n" +
-                    "**인증:** 필수 (토큰 없으면 401 에러)",
+                    "- 최대 3개의 스크랩 영상 (최신순)\n" +
+                    "- 영상 정보, 채널 정보, AI 분석 결과 포함\n" +
+                    "- 삭제된 영상 표시 지원\n\n" +
+                    "**특징:**\n" +
+                    "- 인증 필수\n" +
+                    "- 스크랩 없으면 빈 배열 반환",
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -292,8 +287,8 @@ public interface MainPageControllerSwagger {
                                     schema = @Schema(implementation = ResponseDto.class),
                                     examples = {
                                             @ExampleObject(
-                                                    name = "스크랩 영상 목록 (정상)",
-                                                    summary = "정상적인 스크랩 영상들",
+                                                    name = "스크랩 영상 목록",
+                                                    summary = "스크랩한 영상이 있는 경우",
                                                     value = """
                                                             {
                                                               "timeStamp": "2025-01-20T10:00:00",
@@ -302,28 +297,28 @@ public interface MainPageControllerSwagger {
                                                                 {
                                                                   "video": {
                                                                     "id": "scrap_video_1",
-                                                                    "title": "파이썬 코딩 기초 강좌 #1",
-                                                                    "description": "파이썬 기초부터 차근차근...",
+                                                                    "title": "프로그래밍 기초 강의 #1",
+                                                                    "description": "파이썬 기초부터 시작하기",
                                                                     "publishedAt": "2025-01-15T10:00:00Z",
                                                                     "thumbnailUrl": "https://i.ytimg.com/vi/scrap_video_1/maxresdefault.jpg",
-                                                                    "viewCount": 89000,
-                                                                    "likeCount": 3200,
-                                                                    "commentCount": 450
+                                                                    "viewCount": 52000,
+                                                                    "likeCount": 2800,
+                                                                    "commentCount": 185
                                                                   },
                                                                   "channel": {
-                                                                    "id": "UCxxxxPython",
-                                                                    "title": "코딩애플",
+                                                                    "id": "UCxxxxCoding",
+                                                                    "title": "코딩 강사",
                                                                     "thumbnailUrl": "https://yt3.ggpht.com/...",
                                                                     "subscriberCount": 450000
                                                                   },
                                                                   "analysis": {
-                                                                    "summary": "파이썬 입문자를 위한 친절한 강의입니다. 실습 위주로 구성되어 초보자도 쉽게 따라할 수 있습니다.",
+                                                                    "summary": "파이썬 프로그래밍의 기초를 다루는 입문 강의입니다. 초보자도 따라하기 쉽다는 평가가 많습니다.",
                                                                     "sentimentDistribution": {
-                                                                      "positive": 0.82,
-                                                                      "negative": 0.05,
-                                                                      "other": 0.13
+                                                                      "positive": 85,
+                                                                      "negative": 5,
+                                                                      "other": 10
                                                                     },
-                                                                    "keywords": ["파이썬", "코딩", "프로그래밍", "강의"]
+                                                                    "keywords": ["파이썬", "프로그래밍", "코딩", "기초", "강의"]
                                                                   }
                                                                 },
                                                                 {
@@ -346,9 +341,9 @@ public interface MainPageControllerSwagger {
                                                                   "analysis": {
                                                                     "summary": "간단하고 맛있는 김치찌개 레시피입니다. 재료 손질부터 완성까지 상세히 설명합니다.",
                                                                     "sentimentDistribution": {
-                                                                      "positive": 0.91,
-                                                                      "negative": 0.02,
-                                                                      "other": 0.07
+                                                                      "positive": 91,
+                                                                      "negative": 2,
+                                                                      "other": 7
                                                                     },
                                                                     "keywords": ["요리", "김치찌개", "레시피", "집밥"]
                                                                   }

@@ -248,9 +248,9 @@ public interface FavoriteChannelControllerSwagger {
                                                         "analysis": {
                                                           "summary": "블랙홀의 형성 과정과 중력파 관측 성과를 다룬 영상입니다.",
                                                           "sentimentDistribution": {
-                                                            "positive": 0.72,
-                                                            "negative": 0.08,
-                                                            "other": 0.20
+                                                            "positive": 72,
+                                                            "negative": 8,
+                                                            "other": 20
                                                           },
                                                           "keywords": ["블랙홀", "우주", "중력파", "과학"],
                                                           "topComments": [
@@ -424,6 +424,6 @@ public interface FavoriteChannelControllerSwagger {
     @ErrorCode500
     ResponseDto<CancelFavoriteChannelResponse> cancelFavoriteChannel(
             @CookieValue("Authorization") String token,
-            @PathVariable("id") Long channelId
+            @PathVariable("channelId") Long channelId
     );
 }
