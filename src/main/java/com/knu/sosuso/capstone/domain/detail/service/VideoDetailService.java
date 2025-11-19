@@ -257,51 +257,6 @@ public class VideoDetailService {
     }
 
     // ========================================
-    // 5. Deprecated - 통합 API (하위 호환)
-    // ========================================
-
-    /**
-     * @deprecated 기존 통합 API
-     * 프론트엔드 마이그레이션 후 제거 예정
-     */
-    @Deprecated
-    @Transactional
-    public DetailPageResponse getVideoDetail(String token, String apiVideoId) {
-        log.warn("⚠️ Deprecated API 사용: getVideoDetail - 분리된 API 사용 권장");
-
-        // 기본 정보
-        VideoBasicResponse basic = getVideoBasic(token, apiVideoId);
-
-        // 댓글 조회 (이때 수집됨)
-        List<CommentDto> comments = getVideoComments(apiVideoId);
-
-        // 백엔드 분석
-        VideoAnalysisResponse backendAnalysis = getVideoAnalysis(apiVideoId);
-
-        // AI 분석
-        AIAnalysisResponse aiAnalysis = getAIAnalysis(apiVideoId);
-
-        // DetailAnalysisDto로 통합
-        DetailAnalysisDto analysis = new DetailAnalysisDto(
-                aiAnalysis.summary(),
-                aiAnalysis.isWarning(),
-                backendAnalysis.topComments(),
-                aiAnalysis.languageDistribution(),
-                aiAnalysis.sentimentDistribution(),
-                backendAnalysis.popularTimestamps(),
-                backendAnalysis.commentHistogram(),
-                aiAnalysis.keywords()
-        );
-
-        return new DetailPageResponse(
-                basic.video(),
-                basic.channel(),
-                analysis,
-                comments
-        );
-    }
-
-    // ========================================
     // 6. 파싱 헬퍼 메서드
     // ========================================
 

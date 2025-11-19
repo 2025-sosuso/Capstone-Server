@@ -126,25 +126,6 @@ public class VideoDetailController implements VideoDetailControllerSwagger {
     }
 
     /**
-     * @deprecated 기존 통합 API - 하위 호환성을 위해 유지
-     * 프론트엔드 마이그레이션 후 제거 예정
-     */
-    @Deprecated
-    @GetMapping("/{apiVideoId}")
-    public ResponseEntity<ResponseDto<DetailPageResponse>> getVideoDetail(
-            @CookieValue(value = "Authorization", required = false) String token,
-            @PathVariable String apiVideoId) {
-
-        log.warn("Deprecated API 호출: GET /api/videos/{} - 새로운 분리된 API 사용을 권장합니다.", apiVideoId);
-        log.info("비디오 상세 정보 요청: apiVideoId={}", apiVideoId);
-
-        DetailPageResponse result = videoDetailService.getVideoDetail(token, apiVideoId);
-
-        log.info("비디오 상세 정보 조회 완료: apiVideoId={}", apiVideoId);
-        return ResponseEntity.ok(ResponseDto.of(result, "비디오 상세 정보 조회 성공 (Deprecated)"));
-    }
-
-    /**
      * 토큰에서 userId 추출
      */
     private Long extractUserId(String token) {

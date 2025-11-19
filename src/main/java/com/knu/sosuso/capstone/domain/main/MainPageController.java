@@ -68,19 +68,4 @@ public class MainPageController implements MainPageControllerSwagger {
         log.info("스크랩 섹션 조회 성공: 영상 수={}", response.size());
         return ResponseEntity.ok(ResponseDto.of(response, "스크랩 섹션 조회 완료"));
     }
-
-    /**
-     * @deprecated 기존 통합 API - 하위 호환성을 위해 유지
-     * 프론트엔드 마이그레이션 후 제거 예정
-     */
-    @Deprecated
-    @GetMapping
-    public ResponseEntity<ResponseDto<MainPageResponse>> getMainPageData(
-            @CookieValue(value = "Authorization", required = false) String token) {
-
-        log.warn("Deprecated API 호출: GET /api/main - 새로운 분리된 API 사용을 권장합니다.");
-
-        MainPageResponse response = mainPageService.getMainPageData(token);
-        return ResponseEntity.ok(ResponseDto.of(response, "메인 페이지 조회 완료 (Deprecated)"));
-    }
 }
