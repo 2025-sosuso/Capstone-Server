@@ -2,6 +2,8 @@ package com.knu.sosuso.capstone.global.service.mapper;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailChannelDto;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailVideoDto;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
@@ -37,7 +39,7 @@ public class VideoMapper {
      */
     public VideoSummaryResponse toSummaryResponse(Video video, Long scrapId) {
         try {
-            var videoDto = new VideoSummaryResponse.Video(
+            var videoDto = new VideoBasicDto(
                     video.getApiVideoId(),
                     video.getTitle(),
                     video.getDescription(),
@@ -48,7 +50,7 @@ public class VideoMapper {
                     parseInt(video.getCommentCount())
             );
 
-            var channelDto = new VideoSummaryResponse.Channel(
+            var channelDto = new ChannelBasicDto(
                     video.getChannelId(),
                     video.getChannelName(),
                     video.getChannelThumbnailUrl(),
@@ -102,7 +104,7 @@ public class VideoMapper {
      * 삭제된 영상용 VideoSummaryResponse 생성
      */
     public VideoSummaryResponse toDeletedVideoResponse(Video video, Long scrapId) {
-        var videoDto = new VideoSummaryResponse.Video(
+        var videoDto = new VideoBasicDto(
                 video.getApiVideoId(),
                 "[삭제된 영상] " + video.getTitle(),
                 "이 영상은 삭제되었거나 비공개 처리되었습니다.",
@@ -111,7 +113,7 @@ public class VideoMapper {
                 0L, 0L, 0
         );
 
-        var channelDto = new VideoSummaryResponse.Channel(
+        var channelDto = new ChannelBasicDto(
                 video.getChannelId(),
                 video.getChannelName(),
                 video.getChannelThumbnailUrl(),

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
+import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
@@ -141,7 +143,7 @@ public class ResponseMappingService {
             var channel = detailResponse.channel();
             var analysis = detailResponse.analysis();
 
-            VideoSummaryResponse.Video videoDto = new VideoSummaryResponse.Video(
+            VideoBasicDto videoDto = new VideoBasicDto(
                     video.id(),
                     video.title(),
                     video.description(),
@@ -152,7 +154,7 @@ public class ResponseMappingService {
                     video.commentCount()
             );
 
-            VideoSummaryResponse.Channel channelDto = new VideoSummaryResponse.Channel(
+            ChannelBasicDto channelDto = new ChannelBasicDto(
                     channel.id(),
                     channel.title(),
                     channel.thumbnailUrl(),

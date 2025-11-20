@@ -1,30 +1,18 @@
 package com.knu.sosuso.capstone.domain.video.dto.response;
 
+import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
+
 import java.util.List;
 
+/**
+ * 영상 요약 정보 응답 DTO
+ */
 public record VideoSummaryResponse(
-        Video video,
-        Channel channel,
+        VideoBasicDto video,
+        ChannelBasicDto channel,
         Analysis analysis
 ) {
-    public record Video(
-            String id,
-            String title,
-            String description,
-            String publishedAt,
-            String thumbnailUrl,
-            Long viewCount,
-            Long likeCount,
-            Integer commentCount
-    ) {}
-
-    public record Channel(
-            String id,
-            String title,
-            String thumbnailUrl,
-            Long subscriberCount
-    ) {}
-
     public record Analysis(
             String summary,
             SentimentDistribution sentimentDistribution,
