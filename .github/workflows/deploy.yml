@@ -67,3 +67,5 @@ jobs:
               -e OPENAI_API_URL="${{ secrets.OPENAI_API_URL }}" \
               -e FASTAPI_URL="${{ secrets.FASTAPI_URL }}" \
               ${{ secrets.DOCKERHUB_USERNAME }}/myapp:latest
+            
+            docker image prune -a -f
