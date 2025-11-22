@@ -2,8 +2,9 @@ package com.knu.sosuso.capstone.global.service.mapper;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knu.sosuso.capstone.domain.detail.dto.DetailChannelDto;
-import com.knu.sosuso.capstone.domain.detail.dto.DetailVideoDto;
+import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
@@ -37,7 +38,7 @@ public class VideoMapper {
      */
     public VideoSummaryResponse toSummaryResponse(Video video, Long scrapId) {
         try {
-            var videoDto = new VideoSummaryResponse.Video(
+            var videoDto = new VideoBasicDto(
                     video.getApiVideoId(),
                     video.getTitle(),
                     video.getDescription(),
@@ -48,7 +49,7 @@ public class VideoMapper {
                     parseInt(video.getCommentCount())
             );
 
-            var channelDto = new VideoSummaryResponse.Channel(
+            var channelDto = new ChannelBasicDto(
                     video.getChannelId(),
                     video.getChannelName(),
                     video.getChannelThumbnailUrl(),
@@ -71,10 +72,10 @@ public class VideoMapper {
     }
 
     /**
-     * Video -> DetailVideoDto 변환
+     * Video -> VideoBasicDto 변환
      */
-    public DetailVideoDto toDetailVideoDto(Video video, Long scrapId) {
-        return new DetailVideoDto(
+    public VideoBasicDto toVideoBasicDto(Video video, Long scrapId) {
+        return new VideoBasicDto(
                 video.getApiVideoId(),
                 video.getTitle(),
                 video.getDescription(),
@@ -87,10 +88,10 @@ public class VideoMapper {
     }
 
     /**
-     * Video -> DetailChannelDto 변환
+     * Video -> ChannelBasicDto 변환
      */
-    public DetailChannelDto toDetailChannelDto(Video video, Long favoriteChannelId) {
-        return new DetailChannelDto(
+    public ChannelBasicDto toChannelBasicDto(Video video, Long favoriteChannelId) {
+        return new ChannelBasicDto(
                 video.getChannelId(),
                 video.getChannelName(),
                 video.getChannelThumbnailUrl(),
@@ -102,7 +103,7 @@ public class VideoMapper {
      * 삭제된 영상용 VideoSummaryResponse 생성
      */
     public VideoSummaryResponse toDeletedVideoResponse(Video video, Long scrapId) {
-        var videoDto = new VideoSummaryResponse.Video(
+        var videoDto = new VideoBasicDto(
                 video.getApiVideoId(),
                 "[삭제된 영상] " + video.getTitle(),
                 "이 영상은 삭제되었거나 비공개 처리되었습니다.",
@@ -111,7 +112,7 @@ public class VideoMapper {
                 0L, 0L, 0
         );
 
-        var channelDto = new VideoSummaryResponse.Channel(
+        var channelDto = new ChannelBasicDto(
                 video.getChannelId(),
                 video.getChannelName(),
                 video.getChannelThumbnailUrl(),
@@ -132,7 +133,7 @@ public class VideoMapper {
     /**
      * SentimentDistribution JSON 파싱
      */
-    private VideoSummaryResponse.SentimentDistribution parseSentimentDistribution(String json) {
+    private SentimentDistribution parseSentimentDistribution(String json) {
         if (json == null || json.trim().isEmpty()) {
             return null;
         }
@@ -141,7 +142,7 @@ public class VideoMapper {
             Map<String, Integer> sentimentMap = objectMapper.readValue(
                     json, new TypeReference<Map<String, Integer>>() {});
 
-            return new VideoSummaryResponse.SentimentDistribution(
+            return new SentimentDistribution(
                     sentimentMap.getOrDefault("positive", 0),
                     sentimentMap.getOrDefault("negative", 0),
                     sentimentMap.getOrDefault("other", 0)

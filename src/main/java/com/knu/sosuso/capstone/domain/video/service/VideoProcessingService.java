@@ -9,7 +9,6 @@ import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.comment.service.CommentService;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
-import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.AIAnalysisStatus;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
@@ -139,7 +138,7 @@ public class VideoProcessingService {
      * - processNewVideo() 래퍼
      */
     @Transactional
-    public DetailPageResponse processVideoToSearchResult(String token, String apiVideoId,
+    public Video processVideoToSearchResult(String token, String apiVideoId,
                                                          boolean enableAIAnalysis) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new BusinessException(VideoError.VIDEO_ID_REQUIRED);
@@ -156,7 +155,7 @@ public class VideoProcessingService {
             video = processNewVideo(apiVideoId, VideoType.VIDEO);
         }
 
-        return responseMappingService.mapFromDbToSearchResult(token, video);
+        return video;
     }
 
     /**

@@ -37,7 +37,7 @@ public class MainPageService {
      * - 토큰이 없거나 유효하지 않으면 빈 데이터 반환
      */
     @Transactional
-    public MainPageResponse.FavoriteChannelResponse getFavoriteChannelResponse(String token) {
+    public FavoriteChannelSectionResponse getFavoriteChannelResponse(String token) {
         log.info("관심 채널 섹션 데이터 조회 시작");
 
         try {
@@ -55,7 +55,7 @@ public class MainPageService {
 
             if (favoriteChannelList.isEmpty()) {
                 log.info("관심 채널이 없습니다");
-                return new MainPageResponse.FavoriteChannelResponse(
+                return new FavoriteChannelSectionResponse(
                         new ArrayList<>(),
                         null
                 );
@@ -79,14 +79,14 @@ public class MainPageService {
                 log.info("관심 채널 섹션 조회 성공: 채널 수={}, 최신 영상 있음",
                         favoriteChannelList.size());
 
-                return new MainPageResponse.FavoriteChannelResponse(
+                return new FavoriteChannelSectionResponse(
                         favoriteChannelList,
                         channelVideo
                 );
             }
 
             log.warn("관심 채널을 찾을 수 없음: favoriteChannelId={}", favoriteChannelId);
-            return new MainPageResponse.FavoriteChannelResponse(
+            return new FavoriteChannelSectionResponse(
                     favoriteChannelList,
                     null
             );
@@ -160,66 +160,10 @@ public class MainPageService {
     /**
      * 빈 관심 채널 응답 생성
      */
-    private MainPageResponse.FavoriteChannelResponse createEmptyFavoriteChannelResponse() {
-        return new MainPageResponse.FavoriteChannelResponse(
+    private FavoriteChannelSectionResponse createEmptyFavoriteChannelResponse() {
+        return new FavoriteChannelSectionResponse(
                 Collections.emptyList(),
                 null
-        );
-    }
-
-    // ==================== 기존 통합 API (Deprecated) ====================
-
-    /**
-     * @deprecated 기존 통합 메인 페이지 데이터 조회
-     * 프론트엔드 마이그레이션 후 제거 예정
-     */
-    @Deprecated
-    @Transactional
-    public MainPageResponse getMainPageData(String token) {
-        log.warn("Deprecated 메서드 호출: getMainPageData() - 분리된 메서드 사용 권장");
-
-        try {
-            if (StringUtils.hasText(token) && jwtUtil.isValidToken(token)) {
-                return getAuthenticatedMainPageData(token);
-            } else {
-                return getGuestMainPageData();
-            }
-
-        } catch (BusinessException e) {
-            log.error("메인 페이지 데이터 조회 비즈니스 예외: {}", e.getMessage());
-            throw e;
-
-        } catch (Exception e) {
-            log.error("메인 페이지 데이터 조회 실패: {}", e.getMessage(), e);
-            throw e;
-        }
-    }
-
-    @Deprecated
-    @Transactional
-    public MainPageResponse getAuthenticatedMainPageData(String token) {
-        List<VideoSummaryResponse> scrapVideos = getScrapVideos(token);
-        List<VideoSummaryResponse> trendingVideos = getTrendingVideos(token);
-        MainPageResponse.FavoriteChannelResponse favoriteChannelResponse = getFavoriteChannelResponse(token);
-
-        return new MainPageResponse(
-                favoriteChannelResponse,
-                trendingVideos,
-                scrapVideos
-        );
-    }
-
-    @Deprecated
-    @Transactional
-    public MainPageResponse getGuestMainPageData() {
-        List<VideoSummaryResponse> trendingVideos = getTrendingVideos(null);
-        MainPageResponse.FavoriteChannelResponse emptyFavoriteChannelResponse =
-                createEmptyFavoriteChannelResponse();
-
-        return new MainPageResponse(
-                emptyFavoriteChannelResponse,
-                trendingVideos,
-                Collections.emptyList()
         );
     }
 }

@@ -1,6 +1,5 @@
 package com.knu.sosuso.capstone.domain.video.service;
 
-import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.entity.VideoStats;
@@ -84,11 +83,8 @@ public class PopularVideoService {
                     }
 
                     // DB 데이터를 DTO로 변환
-                    DetailPageResponse detailResponse = responseMappingService
-                            .mapFromDbToSearchResult(token, video);
-
                     VideoSummaryResponse summaryResponse = responseMappingService
-                            .convertToVideoSummaryResponse(detailResponse);
+                            .mapDbToVideoSummaryResponse(token, video);
 
                     results.add(summaryResponse);
 

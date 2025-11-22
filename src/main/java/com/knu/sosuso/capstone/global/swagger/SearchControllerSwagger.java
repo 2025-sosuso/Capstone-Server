@@ -1,7 +1,6 @@
 package com.knu.sosuso.capstone.global.swagger;
 
 import com.knu.sosuso.capstone.global.ResponseDto;
-import com.knu.sosuso.capstone.domain.video.dto.response.SearchApiResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.SearchResultPageResponse;
 import com.knu.sosuso.capstone.global.exception.ErrorResponse;
 import com.knu.sosuso.capstone.global.swagger.annotation.ErrorCode400;
@@ -24,115 +23,6 @@ import org.springframework.web.bind.annotation.RequestParam;
         description = "YouTube 영상, 쇼츠, 채널 검색 API입니다. Fast Path 아키텍처를 사용하여 캐시된 데이터를 즉시 반환하고, 백그라운드에서 AI 분석을 수행합니다."
 )
 public interface SearchControllerSwagger {
-
-    @Deprecated
-    @Operation(
-            summary = "[Deprecated] 통합 검색",
-            description = "⚠️ **이 API는 Deprecated 되었습니다.** 새로운 분리된 API를 사용해주세요:\n" +
-                    "- 동영상: `/api/search/videos`\n" +
-                    "- 쇼츠: `/api/search/shorts`\n" +
-                    "- 채널: `/api/search/channels`\n\n" +
-                    "YouTube URL 또는 검색어를 통한 통합 검색 기능입니다.\n\n" +
-                    "**검색 타입:**\n" +
-                    "- **YouTube URL 입력**: apiVideoId 반환 → 프론트엔드가 상세 페이지(/videos/{apiVideoId})로 이동하여 분리된 API 호출\n" +
-                    "- **일반 검색어 입력**: 채널 검색 결과 반환\n\n" +
-                    "**지원하는 YouTube URL 형식:**\n" +
-                    "- `https://www.youtube.com/watch?v=VIDEO_ID`\n" +
-                    "- `https://youtu.be/VIDEO_ID`",
-            responses = {
-                    @ApiResponse(
-                            responseCode = "200",
-                            description = "검색 성공",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    schema = @Schema(implementation = ResponseDto.class),
-                                    examples = {
-                                            @ExampleObject(
-                                                    name = "YouTube URL 검색",
-                                                    summary = "YouTube URL로 검색 시 apiVideoId 반환",
-                                                    value = """
-                                                            {
-                                                              "timeStamp": "2025-11-07T18:30:00",
-                                                              "message": "영상 URL 검색이 완료되었습니다.",
-                                                              "data": {
-                                                                "searchType": "URL",
-                                                                "results": [
-                                                                  {
-                                                                    "apiVideoId": "dQw4w9WgXcQ"
-                                                                  }
-                                                                ]
-                                                              }
-                                                            }
-                                                            """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "채널 검색",
-                                                    summary = "채널 검색 결과",
-                                                    value = """
-                                                            {
-                                                                "timeStamp": "2025-11-07T18:30:00",
-                                                                "message": "채널 검색이 완료되었습니다.",
-                                                                "data": {
-                                                                    "searchType": "CHANNEL",
-                                                                    "results": [
-                                                                        {
-                                                                            "id": "UCmGSJVG3mCRXVOP4yZrU1Dw",
-                                                                            "title": "채널명",
-                                                                            "handle": "@channelhandle",
-                                                                            "description": "채널 설명...",
-                                                                            "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                                            "subscriberCount": 1000000,
-                                                                            "favoriteChannelId": null
-                                                                        }
-                                                                    ]
-                                                                }
-                                                            }
-                                                            """
-                                            )
-                                    }
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "400",
-                            description = "잘못된 요청",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    schema = @Schema(implementation = ErrorResponse.class)
-                            )
-                    ),
-                    @ApiResponse(
-                            responseCode = "500",
-                            description = "서버 오류",
-                            content = @Content(
-                                    mediaType = "application/json",
-                                    schema = @Schema(implementation = ErrorResponse.class)
-                            )
-                    )
-            }
-    )
-    @Parameters({
-            @Parameter(
-                    name = "Authorization",
-                    description = "JWT 토큰 (선택사항)",
-                    required = false,
-                    in = ParameterIn.COOKIE,
-                    schema = @Schema(type = "string")
-            ),
-            @Parameter(
-                    name = "query",
-                    description = "YouTube URL 또는 채널 검색어",
-                    required = true,
-                    in = ParameterIn.QUERY,
-                    schema = @Schema(type = "string"),
-                    example = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-            )
-    })
-    @ErrorCode400
-    @ErrorCode500
-    ResponseEntity<ResponseDto<SearchApiResponse<?>>> search(
-            @CookieValue(value = "Authorization", required = false) String token,
-            @RequestParam String query
-    );
 
     @Operation(
             summary = "동영상 검색 (쇼츠 제외)",
@@ -202,8 +92,8 @@ public interface SearchControllerSwagger {
                                                             """
                                             ),
                                             @ExampleObject(
-                                                    name = "첫 페이지 - AI 분석 진행중",
-                                                    summary = "첫 페이지 조회, AI 분석이 아직 진행중인 영상",
+                                                    name = "첫 페이지 - AI 분석 미완료",
+                                                    summary = "첫 페이지 조회, AI 분석이 아직 완료되지 않은 영상",
                                                     value = """
                                                             {
                                                               "timeStamp": "2025-11-07T18:30:00",
@@ -212,18 +102,18 @@ public interface SearchControllerSwagger {
                                                                 "results": [
                                                                   {
                                                                     "video": {
-                                                                      "id": "abc123XYZ",
+                                                                      "id": "xyz123",
                                                                       "title": "최신 업로드 영상",
-                                                                      "description": "방금 올라온 영상입니다...",
-                                                                      "publishedAt": "2025-11-07T09:00:00Z",
-                                                                      "thumbnailUrl": "https://i.ytimg.com/vi/abc123XYZ/maxresdefault.jpg",
+                                                                      "description": "방금 업로드된 영상...",
+                                                                      "publishedAt": "2025-11-07T18:00:00Z",
+                                                                      "thumbnailUrl": "https://i.ytimg.com/vi/xyz123/maxresdefault.jpg",
                                                                       "viewCount": 1000,
                                                                       "likeCount": 50,
                                                                       "commentCount": 10
                                                                     },
                                                                     "channel": {
                                                                       "id": "UCabc123",
-                                                                      "title": "테스트 채널",
+                                                                      "title": "새로운 채널",
                                                                       "thumbnailUrl": "https://yt3.ggpht.com/...",
                                                                       "subscriberCount": 10000
                                                                     },
@@ -248,20 +138,20 @@ public interface SearchControllerSwagger {
                                                                 "results": [
                                                                   {
                                                                     "video": {
-                                                                      "id": "xyz789ABC",
+                                                                      "id": "abc456",
                                                                       "title": "두 번째 페이지 영상",
-                                                                      "description": "다음 페이지의 영상입니다...",
-                                                                      "publishedAt": "2025-11-06T15:00:00Z",
-                                                                      "thumbnailUrl": "https://i.ytimg.com/vi/xyz789ABC/maxresdefault.jpg",
-                                                                      "viewCount": 50000,
-                                                                      "likeCount": 2000,
-                                                                      "commentCount": 300
+                                                                      "description": "검색 결과 중...",
+                                                                      "publishedAt": "2025-11-06T12:00:00Z",
+                                                                      "thumbnailUrl": "https://i.ytimg.com/vi/abc456/maxresdefault.jpg",
+                                                                      "viewCount": 500000,
+                                                                      "likeCount": 25000,
+                                                                      "commentCount": 1200
                                                                     },
                                                                     "channel": {
-                                                                      "id": "UCxyz789",
-                                                                      "title": "다른 채널",
+                                                                      "id": "UCdef789",
+                                                                      "title": "인기 채널",
                                                                       "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                                      "subscriberCount": 100000
+                                                                      "subscriberCount": 1000000
                                                                     },
                                                                     "analysis": {
                                                                       "summary": "이 영상은...",
@@ -270,48 +160,12 @@ public interface SearchControllerSwagger {
                                                                         "negative": 15,
                                                                         "other": 15
                                                                       },
-                                                                      "keywords": ["튜토리얼", "가이드"]
+                                                                      "keywords": ["리뷰", "제품", "추천"]
                                                                     }
                                                                   }
                                                                 ],
-                                                                "nextPageToken": "CBQQAA",
+                                                                "nextPageToken": "CAoQFA",
                                                                 "totalResults": 2,
-                                                                "hasMore": true
-                                                              }
-                                                            }
-                                                            """
-                                            ),
-                                            @ExampleObject(
-                                                    name = "마지막 페이지",
-                                                    summary = "더 이상 결과가 없는 경우",
-                                                    value = """
-                                                            {
-                                                              "timeStamp": "2025-11-07T18:30:00",
-                                                              "message": "동영상 검색 완료",
-                                                              "data": {
-                                                                "results": [
-                                                                  {
-                                                                    "video": {
-                                                                      "id": "last123",
-                                                                      "title": "마지막 영상",
-                                                                      "description": "검색 결과의 마지막 영상입니다",
-                                                                      "publishedAt": "2025-11-05T12:00:00Z",
-                                                                      "thumbnailUrl": "https://i.ytimg.com/vi/last123/maxresdefault.jpg",
-                                                                      "viewCount": 10000,
-                                                                      "likeCount": 500,
-                                                                      "commentCount": 50
-                                                                    },
-                                                                    "channel": {
-                                                                      "id": "UClast123",
-                                                                      "title": "마지막 채널",
-                                                                      "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                                      "subscriberCount": 50000
-                                                                    },
-                                                                    "analysis": null
-                                                                  }
-                                                                ],
-                                                                "nextPageToken": null,
-                                                                "totalResults": 15,
                                                                 "hasMore": false
                                                               }
                                                             }
@@ -322,7 +176,7 @@ public interface SearchControllerSwagger {
                     ),
                     @ApiResponse(
                             responseCode = "400",
-                            description = "잘못된 요청 - 검색어가 비어있거나 유효하지 않음",
+                            description = "잘못된 요청",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -339,7 +193,7 @@ public interface SearchControllerSwagger {
                     ),
                     @ApiResponse(
                             responseCode = "500",
-                            description = "서버 오류 - YouTube API 오류 또는 내부 서버 오류",
+                            description = "서버 오류",
                             content = @Content(
                                     mediaType = "application/json",
                                     schema = @Schema(implementation = ErrorResponse.class),
@@ -359,7 +213,7 @@ public interface SearchControllerSwagger {
     @Parameters({
             @Parameter(
                     name = "Authorization",
-                    description = "JWT 토큰 (선택사항) - 로그인 시 스크랩 여부 포함",
+                    description = "JWT 토큰 (선택사항) - 로그인 시 스크랩 정보 포함",
                     required = false,
                     in = ParameterIn.COOKIE,
                     schema = @Schema(type = "string")
@@ -370,11 +224,11 @@ public interface SearchControllerSwagger {
                     required = true,
                     in = ParameterIn.QUERY,
                     schema = @Schema(type = "string"),
-                    example = "코딩 튜토리얼"
+                    example = "프로그래밍 강의"
             ),
             @Parameter(
                     name = "pageToken",
-                    description = "페이지네이션 토큰 (다음 페이지 조회 시 사용, 첫 페이지는 생략)",
+                    description = "다음 페이지 토큰 (첫 요청 시 생략, 이후 응답의 nextPageToken 사용)",
                     required = false,
                     in = ParameterIn.QUERY,
                     schema = @Schema(type = "string"),
@@ -391,7 +245,7 @@ public interface SearchControllerSwagger {
 
     @Operation(
             summary = "쇼츠 검색",
-            description = "YouTube 쇼츠를 검색합니다. (60초 미만의 세로형 영상)\n\n" +
+            description = "YouTube 쇼츠를 검색합니다.\n\n" +
                     "**Fast Path 아키텍처:**\n" +
                     "- 캐시된 데이터를 즉시 반환 (0.1초 이내)\n" +
                     "- 백그라운드에서 AI 분석 비동기 처리\n" +
@@ -399,11 +253,10 @@ public interface SearchControllerSwagger {
                     "**무한 스크롤 지원:**\n" +
                     "- `nextPageToken`을 사용하여 다음 페이지 조회\n" +
                     "- `hasMore`로 추가 데이터 존재 여부 확인\n\n" +
-                    "**응답 데이터:**\n" +
-                    "- 쇼츠 기본 정보 (제목, 조회수, 좋아요 등)\n" +
-                    "- 채널 정보 (이름, 구독자 수 등)\n" +
-                    "- AI 분석 결과 (요약, 감정 분포, 키워드) - 분석 완료 시에만\n" +
-                    "- 스크랩 여부 (로그인 사용자만)",
+                    "**쇼츠 특징:**\n" +
+                    "- 세로형 영상 (9:16 비율)\n" +
+                    "- 60초 이하 길이\n" +
+                    "- 모바일 최적화",
             responses = {
                     @ApiResponse(
                             responseCode = "200",
@@ -424,28 +277,28 @@ public interface SearchControllerSwagger {
                                                                   {
                                                                     "video": {
                                                                       "id": "shorts123",
-                                                                      "title": "재미있는 쇼츠 #shorts",
-                                                                      "description": "짧은 영상입니다",
+                                                                      "title": "1분 코딩 팁",
+                                                                      "description": "간단한 파이썬 팁...",
                                                                       "publishedAt": "2025-11-07T10:00:00Z",
                                                                       "thumbnailUrl": "https://i.ytimg.com/vi/shorts123/maxresdefault.jpg",
-                                                                      "viewCount": 500000,
-                                                                      "likeCount": 25000,
-                                                                      "commentCount": 1500
+                                                                      "viewCount": 100000,
+                                                                      "likeCount": 5000,
+                                                                      "commentCount": 200
                                                                     },
                                                                     "channel": {
-                                                                      "id": "UCshorts123",
-                                                                      "title": "쇼츠 크리에이터",
+                                                                      "id": "UCshorts",
+                                                                      "title": "코딩 쇼츠",
                                                                       "thumbnailUrl": "https://yt3.ggpht.com/...",
-                                                                      "subscriberCount": 200000
+                                                                      "subscriberCount": 50000
                                                                     },
                                                                     "analysis": {
-                                                                      "summary": "재미있는 쇼츠 콘텐츠...",
+                                                                      "summary": "파이썬 기초 팁을 설명하는...",
                                                                       "sentimentDistribution": {
                                                                         "positive": 90,
                                                                         "negative": 3,
                                                                         "other": 7
                                                                       },
-                                                                      "keywords": ["재미", "엔터테인먼트", "바이럴"]
+                                                                      "keywords": ["파이썬", "코딩", "팁"]
                                                                     }
                                                                   }
                                                                 ],
@@ -464,7 +317,16 @@ public interface SearchControllerSwagger {
                             description = "잘못된 요청",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = ErrorResponse.class)
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(
+                                            value = """
+                                                    {
+                                                        "httpStatus": "BAD_REQUEST",
+                                                        "message": "검색어는 필수입니다.",
+                                                        "timeStamp": "2025-11-07T18:30:00"
+                                                    }
+                                                    """
+                                    )
                             )
                     ),
                     @ApiResponse(
@@ -472,7 +334,16 @@ public interface SearchControllerSwagger {
                             description = "서버 오류",
                             content = @Content(
                                     mediaType = "application/json",
-                                    schema = @Schema(implementation = ErrorResponse.class)
+                                    schema = @Schema(implementation = ErrorResponse.class),
+                                    examples = @ExampleObject(
+                                            value = """
+                                                    {
+                                                        "httpStatus": "INTERNAL_SERVER_ERROR",
+                                                        "message": "검색 중 오류가 발생했습니다.",
+                                                        "timeStamp": "2025-11-07T18:30:00"
+                                                    }
+                                                    """
+                                    )
                             )
                     )
             }
@@ -480,7 +351,7 @@ public interface SearchControllerSwagger {
     @Parameters({
             @Parameter(
                     name = "Authorization",
-                    description = "JWT 토큰 (선택사항) - 로그인 시 스크랩 여부 포함",
+                    description = "JWT 토큰 (선택사항) - 로그인 시 스크랩 정보 포함",
                     required = false,
                     in = ParameterIn.COOKIE,
                     schema = @Schema(type = "string")
@@ -491,11 +362,11 @@ public interface SearchControllerSwagger {
                     required = true,
                     in = ParameterIn.QUERY,
                     schema = @Schema(type = "string"),
-                    example = "댄스 챌린지"
+                    example = "댄스"
             ),
             @Parameter(
                     name = "pageToken",
-                    description = "페이지네이션 토큰 (다음 페이지 조회 시 사용, 첫 페이지는 생략)",
+                    description = "다음 페이지 토큰 (첫 요청 시 생략, 이후 응답의 nextPageToken 사용)",
                     required = false,
                     in = ParameterIn.QUERY,
                     schema = @Schema(type = "string"),
@@ -513,10 +384,16 @@ public interface SearchControllerSwagger {
     @Operation(
             summary = "채널 검색",
             description = "YouTube 채널을 검색합니다.\n\n" +
-                    "**응답 데이터:**\n" +
-                    "- 채널 기본 정보 (이름, 핸들, 설명 등)\n" +
-                    "- 구독자 수\n" +
-                    "- 관심 채널 여부 (로그인 사용자만)",
+                    "**검색 기능:**\n" +
+                    "- 채널명으로 검색\n" +
+                    "- 구독자 수 기준 정렬 (내림차순)\n" +
+                    "- 로그인 사용자: 관심 채널 정보 포함\n\n" +
+                    "**캐싱:**\n" +
+                    "- YouTube API 호출 절감을 위해 1시간 캐싱\n" +
+                    "- 사용자별로 다른 결과 (관심 채널 정보)\n\n" +
+                    "**검색 로그:**\n" +
+                    "- 모든 검색어는 자동으로 로그에 저장\n" +
+                    "- 인기 검색어 분석에 활용",
             responses = {
                     @ApiResponse(
                             responseCode = "200",
