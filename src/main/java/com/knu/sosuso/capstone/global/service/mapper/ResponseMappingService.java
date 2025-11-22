@@ -84,7 +84,7 @@ public class ResponseMappingService {
     public FavoriteVideoInfoResponse mapDbToFavoriteVideoInfoResponse(String token, Video video) {
         try {
             // 영상 정보
-            FavoriteVideoInfoResponse.Video videoDto = new FavoriteVideoInfoResponse.Video(
+            VideoBasicDto videoDto = new VideoBasicDto(
                     video.getApiVideoId(),
                     video.getTitle(),
                     video.getDescription(),
@@ -96,7 +96,7 @@ public class ResponseMappingService {
             );
 
             // 채널 정보
-            FavoriteVideoInfoResponse.Channel channelDto = new FavoriteVideoInfoResponse.Channel(
+            ChannelBasicDto channelDto = new ChannelBasicDto(
                     video.getChannelId(),
                     video.getChannelName(),
                     video.getChannelThumbnailUrl(),
