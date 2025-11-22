@@ -7,7 +7,9 @@ import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.comment.entity.value.DetailSentimentType;
 import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
+import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
 import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
+import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.scrap.entity.Scrap;
 import com.knu.sosuso.capstone.domain.scrap.repository.ScrapRepository;
@@ -600,7 +602,7 @@ public class VideoDetailService {
      */
     private VideoBasicResponse createBasicResponse(String token, Video video) {
 
-        DetailVideoDto videoDto = new DetailVideoDto(
+        VideoBasicDto videoDto = new VideoBasicDto(
                 video.getApiVideoId(),
                 video.getTitle(),
                 video.getDescription(),
@@ -611,7 +613,7 @@ public class VideoDetailService {
                 Integer.parseInt(video.getCommentCount())
         );
 
-        DetailChannelDto channelDto = new DetailChannelDto(
+        ChannelBasicDto channelDto = new ChannelBasicDto(
                 video.getChannelId(),
                 video.getChannelName(),
                 video.getChannelThumbnailUrl(),

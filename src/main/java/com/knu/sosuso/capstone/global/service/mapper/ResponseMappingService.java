@@ -41,12 +41,12 @@ public class ResponseMappingService {
      */
     public DetailPageResponse mapFromDbToSearchResult(String token, Video video) {
         try {
-            DetailVideoDto detailVideoDto = mapDbVideoToVideoResponse(token, video);
-            DetailChannelDto detailChannelDto = mapDbVideoToChannelResponse(token, video);
+            VideoBasicDto videoBasicDto = mapDbVideoToVideoResponse(token, video);
+            ChannelBasicDto channelBasicDto = mapDbVideoToChannelResponse(token, video);
             DetailAnalysisDto detailAnalysisDto = mapDbVideoToAnalysisResponse(video);
             List<CommentDto> commentDtos = mapDbCommentsToCommentResponses(video.getId());
 
-            return new DetailPageResponse(detailVideoDto, detailChannelDto, detailAnalysisDto, commentDtos);
+            return new DetailPageResponse(videoBasicDto, channelBasicDto, detailAnalysisDto, commentDtos);
 
         } catch (Exception e) {
             log.error("DB 데이터 매핑 실패: videoId={}, error={}", video.getId(), e.getMessage());
@@ -57,17 +57,17 @@ public class ResponseMappingService {
     /**
      * DB Video -> VideoResponse 변환
      */
-    private DetailVideoDto mapDbVideoToVideoResponse(String token, Video video) {
+    private VideoBasicDto mapDbVideoToVideoResponse(String token, Video video) {
         Long scrapId = userDataService.getUserScrapId(token, video.getApiVideoId());
-        return videoMapper.toDetailVideoDto(video, scrapId);
+        return videoMapper.toVideoBasicDto(video, scrapId);
     }
 
     /**
      * DB Video -> ChannelResponse 변환
      */
-    private DetailChannelDto mapDbVideoToChannelResponse(String token, Video video) {
+    private ChannelBasicDto mapDbVideoToChannelResponse(String token, Video video) {
         Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
-        return videoMapper.toDetailChannelDto(video, favoriteChannelId);
+        return videoMapper.toChannelBasicDto(video, favoriteChannelId);
     }
 
     /**

@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
 import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
 import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
-import com.knu.sosuso.capstone.domain.detail.dto.DetailChannelDto;
-import com.knu.sosuso.capstone.domain.detail.dto.DetailVideoDto;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
@@ -74,10 +72,10 @@ public class VideoMapper {
     }
 
     /**
-     * Video -> DetailVideoDto 변환
+     * Video -> VideoBasicDto 변환
      */
-    public DetailVideoDto toDetailVideoDto(Video video, Long scrapId) {
-        return new DetailVideoDto(
+    public VideoBasicDto toVideoBasicDto(Video video, Long scrapId) {
+        return new VideoBasicDto(
                 video.getApiVideoId(),
                 video.getTitle(),
                 video.getDescription(),
@@ -90,10 +88,10 @@ public class VideoMapper {
     }
 
     /**
-     * Video -> DetailChannelDto 변환
+     * Video -> ChannelBasicDto 변환
      */
-    public DetailChannelDto toDetailChannelDto(Video video, Long favoriteChannelId) {
-        return new DetailChannelDto(
+    public ChannelBasicDto toChannelBasicDto(Video video, Long favoriteChannelId) {
+        return new ChannelBasicDto(
                 video.getChannelId(),
                 video.getChannelName(),
                 video.getChannelThumbnailUrl(),
