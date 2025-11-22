@@ -23,12 +23,12 @@ public class MainPageController implements MainPageControllerSwagger {
      * 관심 채널 목록 + 첫 번째 채널의 최신 영상 1개
      */
     @GetMapping("/favorite-channels")
-    public ResponseEntity<ResponseDto<MainPageResponse.FavoriteChannelResponse>> getFavoriteChannels(
+    public ResponseEntity<ResponseDto<FavoriteChannelSectionResponse>> getFavoriteChannels(
             @CookieValue(value = "Authorization", required = false) String token) {
 
         log.info("메인 페이지 - 관심 채널 섹션 조회 요청");
 
-        MainPageResponse.FavoriteChannelResponse response =
+        FavoriteChannelSectionResponse response =
                 mainPageService.getFavoriteChannelResponse(token);
 
         log.info("관심 채널 섹션 조회 성공: 채널 수={}",

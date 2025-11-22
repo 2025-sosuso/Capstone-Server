@@ -1,6 +1,6 @@
 package com.knu.sosuso.capstone.global.swagger;
 
-import com.knu.sosuso.capstone.domain.main.MainPageResponse;
+import com.knu.sosuso.capstone.domain.main.FavoriteChannelSectionResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.global.ResponseDto;
 import com.knu.sosuso.capstone.global.exception.ErrorResponse;
@@ -139,7 +139,7 @@ public interface MainPageControllerSwagger {
     )
     @ErrorCode400
     @ErrorCode500
-    ResponseEntity<ResponseDto<MainPageResponse.FavoriteChannelResponse>> getFavoriteChannels(
+    ResponseEntity<ResponseDto<FavoriteChannelSectionResponse>> getFavoriteChannels(
             @CookieValue(value = "Authorization", required = false) String token
     );
 
