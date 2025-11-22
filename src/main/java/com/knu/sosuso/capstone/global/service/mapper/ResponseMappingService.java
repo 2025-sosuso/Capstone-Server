@@ -2,10 +2,10 @@ package com.knu.sosuso.capstone.global.service.mapper;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteVideoInfoResponse;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.common.dto.*;
-import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
@@ -18,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -31,150 +30,41 @@ public class ResponseMappingService {
     private final CommentRepository commentRepository;
     private final UserDataService userDataService;
     private final AppConfig appConfig;
-    private final VideoMapper videoMapper;
     private final CommentMapper commentMapper;
 
     /**
-     * DB 데이터를 SearchResultResponse로 변환 (기존 데이터)
+     * DB Video → VideoSummaryResponse 변환
      */
-    public DetailPageResponse mapFromDbToSearchResult(String token, Video video) {
+    @Transactional(readOnly = true)
+    public VideoSummaryResponse mapDbToVideoSummaryResponse(String token, Video video) {
         try {
-            VideoBasicDto videoBasicDto = mapDbVideoToVideoResponse(token, video);
-            ChannelBasicDto channelBasicDto = mapDbVideoToChannelResponse(token, video);
-            DetailAnalysisDto detailAnalysisDto = mapDbVideoToAnalysisResponse(video);
-            List<CommentDto> commentDtos = mapDbCommentsToCommentResponses(video.getId());
-
-            return new DetailPageResponse(videoBasicDto, channelBasicDto, detailAnalysisDto, commentDtos);
-
-        } catch (Exception e) {
-            log.error("DB 데이터 매핑 실패: videoId={}, error={}", video.getId(), e.getMessage());
-            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
-        }
-    }
-
-    /**
-     * DB Video -> VideoResponse 변환
-     */
-    private VideoBasicDto mapDbVideoToVideoResponse(String token, Video video) {
-        Long scrapId = userDataService.getUserScrapId(token, video.getApiVideoId());
-        return videoMapper.toVideoBasicDto(video, scrapId);
-    }
-
-    /**
-     * DB Video -> ChannelResponse 변환
-     */
-    private ChannelBasicDto mapDbVideoToChannelResponse(String token, Video video) {
-        Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
-        return videoMapper.toChannelBasicDto(video, favoriteChannelId);
-    }
-
-    /**
-     * DB Video -> AnalysisResponse 변환
-     */
-    public DetailAnalysisDto mapDbVideoToAnalysisResponse(Video video) {
-        try {
-            // 백엔드 분석 데이터 (항상 있음)
-            Map<Integer, Integer> commentHistogramData = parseJsonToMap(video.getCommentHistogram(), Integer.class, Integer.class);
-            Map<String, Integer> popularTimestampsData = parseJsonToMap(video.getPopularTimestamps(), String.class, Integer.class);
-
-            List<CommentHistogram> commentHistogram =
-                    commentHistogramData.entrySet().stream()
-                            .map(e -> new CommentHistogram(String.valueOf(e.getKey()), e.getValue()))
-                            .collect(Collectors.toList());
-
-            List<PopularTimestamp> popularTimestamps =
-                    popularTimestampsData.entrySet().stream()
-                            .map(e -> new PopularTimestamp(e.getKey(), e.getValue()))
-                            .collect(Collectors.toList());
-
-            // AI 분석 데이터 (없을 수 있음)
-            Map<String, Integer> languageRatio = parseJsonToMap(video.getLanguageDistribution(), String.class, Integer.class);
-            Map<String, Integer> sentimentRatio = parseJsonToMap(video.getSentimentDistribution(), String.class, Integer.class);
-
-            List<LanguageDistribution> languageDistribution =
-                    languageRatio.entrySet().stream()
-                            .map(e -> new LanguageDistribution(
-                                    e.getKey(),
-                                    e.getValue()
-                            ))
-                            .collect(Collectors.toList());
-
-            SentimentDistribution sentimentDistribution = new SentimentDistribution(
-                    sentimentRatio.getOrDefault("positive", 0),
-                    sentimentRatio.getOrDefault("negative", 0),
-                    sentimentRatio.getOrDefault("other", 0)
-            );
-
-            List<String> keywords = List.of();
-            try {
-                if (video.getKeywords() != null && !video.getKeywords().trim().isEmpty()) {
-                    keywords = objectMapper.readValue(video.getKeywords(), new TypeReference<>() {
-                    });
-                }
-            } catch (Exception e) {
-                log.warn("키워드 파싱 실패: {}", e.getMessage());
-            }
-
-            return new DetailAnalysisDto(
-                    video.getSummation(),
-                    video.isWarning(),
-                    mapToTopCommentsFromDb(video.getId()),
-                    languageDistribution,
-                    sentimentDistribution,
-                    popularTimestamps,
-                    commentHistogram,
-                    keywords
-            );
-
-        } catch (Exception e) {
-            log.error("DB AnalysisResponse 매핑 실패: videoId={}, error={}", video.getId(), e.getMessage());
-            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
-        }
-    }
-
-    /**
-     * DetailPageResponse를 VideoSummaryResponse로 변환
-     */
-    public VideoSummaryResponse convertToVideoSummaryResponse(DetailPageResponse detailResponse) {
-        try {
-            var video = detailResponse.video();
-            var channel = detailResponse.channel();
-            var analysis = detailResponse.analysis();
-
+            // 영상 기본 정보
             VideoBasicDto videoDto = new VideoBasicDto(
-                    video.id(),
-                    video.title(),
-                    video.description(),
-                    video.publishedAt(),
-                    video.thumbnailUrl(),
-                    video.viewCount(),
-                    video.likeCount(),
-                    video.commentCount()
+                    video.getApiVideoId(),
+                    video.getTitle(),
+                    video.getDescription(),
+                    video.getUploadedAt(),
+                    video.getThumbnailUrl(),
+                    parseLongOrDefault(video.getViewCount(), 0L),
+                    parseLongOrDefault(video.getLikeCount(), 0L),
+                    parseIntOrDefault(video.getCommentCount(), 0)
             );
 
+            // 채널 기본 정보
+            Long favoriteChannelId = userDataService.getUserFavoriteChannelId(token, video.getChannelId());
             ChannelBasicDto channelDto = new ChannelBasicDto(
-                    channel.id(),
-                    channel.title(),
-                    channel.thumbnailUrl(),
-                    channel.subscriberCount()
+                    video.getChannelId(),
+                    video.getChannelName(),
+                    video.getChannelThumbnailUrl(),
+                    parseLongOrDefault(video.getSubscriberCount(), 0L)
             );
 
-            SentimentDistribution sentimentDto = null;
-            if (analysis != null && analysis.sentimentDistribution() != null) {
-                var s = analysis.sentimentDistribution();
-                sentimentDto = new SentimentDistribution(
-                        s.positive(), s.negative(), s.other()
-                );
-            }
-
-            List<String> keywords = (analysis != null && analysis.keywords() != null)
-                    ? analysis.keywords()
-                    : List.of();
-
-            String summary = (analysis != null) ? analysis.summary() : null;
+            // 분석 정보 (AI 분석)
+            SentimentDistribution sentimentDto = parseSentimentDistribution(video.getSentimentDistribution());
+            List<String> keywords = parseKeywords(video.getKeywords());
 
             VideoSummaryResponse.Analysis analysisDto = new VideoSummaryResponse.Analysis(
-                    summary,
+                    video.getSummation(),
                     sentimentDto,
                     keywords
             );
@@ -182,22 +72,63 @@ public class ResponseMappingService {
             return new VideoSummaryResponse(videoDto, channelDto, analysisDto);
 
         } catch (Exception e) {
-            log.error("VideoSummaryResponse 변환 실패: error={}", e.getMessage(), e);
+            log.error("VideoSummaryResponse 변환 실패: videoId={}, error={}", video.getId(), e.getMessage(), e);
             throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
         }
     }
 
     /**
-     * DB 댓글을 CommentResponse로 변환
+     * DB Video → FavoriteVideoInfoResponse 변환
      */
-    private List<CommentDto> mapDbCommentsToCommentResponses(Long videoId) {
-        List<Comment> comments = commentRepository.findByVideoIdOrderByIdAsc(videoId);
-        return commentMapper.toDtoList(comments);
+    @Transactional(readOnly = true)
+    public FavoriteVideoInfoResponse mapDbToFavoriteVideoInfoResponse(String token, Video video) {
+        try {
+            // 영상 정보
+            FavoriteVideoInfoResponse.Video videoDto = new FavoriteVideoInfoResponse.Video(
+                    video.getApiVideoId(),
+                    video.getTitle(),
+                    video.getDescription(),
+                    video.getUploadedAt(),
+                    video.getThumbnailUrl(),
+                    parseLongOrDefault(video.getViewCount(), 0L),
+                    parseLongOrDefault(video.getLikeCount(), 0L),
+                    parseIntOrDefault(video.getCommentCount(), 0)
+            );
+
+            // 채널 정보
+            FavoriteVideoInfoResponse.Channel channelDto = new FavoriteVideoInfoResponse.Channel(
+                    video.getChannelId(),
+                    video.getChannelName(),
+                    video.getChannelThumbnailUrl(),
+                    parseLongOrDefault(video.getSubscriberCount(), 0L)
+            );
+
+            // 분석 정보
+            SentimentDistribution sentimentDto = parseSentimentDistribution(video.getSentimentDistribution());
+            List<String> keywords = parseKeywords(video.getKeywords());
+            List<CommentDto> topComments = mapToTopCommentsFromDb(video.getId());
+
+            FavoriteVideoInfoResponse.Analysis analysisDto = new FavoriteVideoInfoResponse.Analysis(
+                    video.getSummation(),
+                    sentimentDto,
+                    keywords,
+                    topComments
+            );
+
+            return new FavoriteVideoInfoResponse(videoDto, channelDto, analysisDto);
+
+        } catch (Exception e) {
+            log.error("FavoriteVideoInfoResponse 변환 실패: videoId={}, error={}", video.getId(), e.getMessage(), e);
+            throw new BusinessException(CommonError.DATA_CONVERSION_ERROR);
+        }
     }
+
+    // ========================================
+    // 🔧 내부 헬퍼 메서드들
+    // ========================================
 
     /**
      * DB에서 좋아요 TOP 5 댓글 추출
-     * TOP 5 댓글은 hasReplies를 무조건 false로 설정
      */
     @Transactional(readOnly = true)
     public List<CommentDto> mapToTopCommentsFromDb(Long videoId) {
@@ -208,22 +139,66 @@ public class ResponseMappingService {
         return commentMapper.toTopCommentDtoList(topComments);
     }
 
-    private List<PopularTimestamp> mapToPopularTimestamps(Map<String, Integer> popularTimestampsData) {
-        return popularTimestampsData.entrySet().stream()
-                .map(entry -> new PopularTimestamp(entry.getKey(), entry.getValue()))
-                .collect(Collectors.toList());
-    }
+    /**
+     * JSON 감정 분포 파싱
+     */
+    private SentimentDistribution parseSentimentDistribution(String sentimentJson) {
+        try {
+            if (sentimentJson == null || sentimentJson.trim().isEmpty()) {
+                return new SentimentDistribution(0, 0, 0);
+            }
 
-    private List<CommentHistogram> mapToCommentHistogram(Map<Integer, Integer> commentHistogramData) {
-        return commentHistogramData.entrySet().stream()
-                .map(entry -> new CommentHistogram(String.valueOf(entry.getKey()), entry.getValue()))
-                .collect(Collectors.toList());
-    }
+            Map<String, Integer> sentimentRatio = objectMapper.readValue(
+                    sentimentJson,
+                    objectMapper.getTypeFactory().constructMapType(Map.class, String.class, Integer.class)
+            );
 
-    private <K, V> Map<K, V> parseJsonToMap(String json, Class<K> keyClass, Class<V> valueClass) throws Exception {
-        if (json == null || json.trim().isEmpty()) {
-            return new HashMap<>();
+            return new SentimentDistribution(
+                    sentimentRatio.getOrDefault("positive", 0),
+                    sentimentRatio.getOrDefault("negative", 0),
+                    sentimentRatio.getOrDefault("other", 0)
+            );
+
+        } catch (Exception e) {
+            log.warn("감정 분포 파싱 실패: {}", e.getMessage());
+            return new SentimentDistribution(0, 0, 0);
         }
-        return objectMapper.readValue(json, objectMapper.getTypeFactory().constructMapType(Map.class, keyClass, valueClass));
+    }
+
+    /**
+     * JSON 키워드 파싱
+     */
+    private List<String> parseKeywords(String keywordsJson) {
+        try {
+            if (keywordsJson == null || keywordsJson.trim().isEmpty()) {
+                return List.of();
+            }
+            return objectMapper.readValue(keywordsJson, new TypeReference<>() {});
+        } catch (Exception e) {
+            log.warn("키워드 파싱 실패: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
+     * String → Long 변환 (안전)
+     */
+    private Long parseLongOrDefault(String value, Long defaultValue) {
+        try {
+            return (value != null && !value.isEmpty()) ? Long.parseLong(value) : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * String → Integer 변환 (안전)
+     */
+    private Integer parseIntOrDefault(String value, Integer defaultValue) {
+        try {
+            return (value != null && !value.isEmpty()) ? Integer.parseInt(value) : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
     }
 }
