@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
 import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailChannelDto;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailVideoDto;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
@@ -134,7 +135,7 @@ public class VideoMapper {
     /**
      * SentimentDistribution JSON 파싱
      */
-    private VideoSummaryResponse.SentimentDistribution parseSentimentDistribution(String json) {
+    private SentimentDistribution parseSentimentDistribution(String json) {
         if (json == null || json.trim().isEmpty()) {
             return null;
         }
@@ -143,7 +144,7 @@ public class VideoMapper {
             Map<String, Integer> sentimentMap = objectMapper.readValue(
                     json, new TypeReference<Map<String, Integer>>() {});
 
-            return new VideoSummaryResponse.SentimentDistribution(
+            return new SentimentDistribution(
                     sentimentMap.getOrDefault("positive", 0),
                     sentimentMap.getOrDefault("negative", 0),
                     sentimentMap.getOrDefault("other", 0)

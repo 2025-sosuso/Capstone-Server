@@ -4,6 +4,7 @@ import com.knu.sosuso.capstone.domain.channel.entity.FavoriteChannel;
 import com.knu.sosuso.capstone.domain.auth.User;
 import com.knu.sosuso.capstone.domain.channel.dto.request.RegisterFavoriteChannelRequest;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
+import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
 import com.knu.sosuso.capstone.domain.detail.dto.DetailPageResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.CancelFavoriteChannelResponse;
 import com.knu.sosuso.capstone.domain.channel.dto.response.FavoriteChannelListResponse;
@@ -107,7 +108,6 @@ public class FavoriteChannelService {
 
         return favoriteChannelListResponses;
     }
-
     /**
      * 관심 채널 취소
      * 취소 후 관심 채널 목록 캐시를 무효화
@@ -173,10 +173,10 @@ public class FavoriteChannelService {
                     channel.subscriberCount()
             );
 
-            FavoriteVideoInfoResponse.SentimentDistribution sentimentDto = null;
+            SentimentDistribution sentimentDto = null;
             if (analysis != null && analysis.sentimentDistribution() != null) {
                 var s = analysis.sentimentDistribution();
-                sentimentDto = new FavoriteVideoInfoResponse.SentimentDistribution(
+                sentimentDto = new SentimentDistribution(
                         s.positive(), s.negative(), s.other());
             }
 

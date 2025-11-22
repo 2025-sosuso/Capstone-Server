@@ -6,6 +6,7 @@ import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
 import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
@@ -100,12 +101,11 @@ public class ResponseMappingService {
                             ))
                             .collect(Collectors.toList());
 
-            DetailAnalysisDto.SentimentDistribution sentimentDistribution =
-                    new DetailAnalysisDto.SentimentDistribution(
-                            sentimentRatio.getOrDefault("positive", 0),
-                            sentimentRatio.getOrDefault("negative", 0),
-                            sentimentRatio.getOrDefault("other", 0)
-                    );
+            SentimentDistribution sentimentDistribution = new SentimentDistribution(
+                    sentimentRatio.getOrDefault("positive", 0),
+                    sentimentRatio.getOrDefault("negative", 0),
+                    sentimentRatio.getOrDefault("other", 0)
+            );
 
             List<String> keywords = List.of();
             try {
@@ -161,10 +161,10 @@ public class ResponseMappingService {
                     channel.subscriberCount()
             );
 
-            VideoSummaryResponse.SentimentDistribution sentimentDto = null;
+            SentimentDistribution sentimentDto = null;
             if (analysis != null && analysis.sentimentDistribution() != null) {
                 var s = analysis.sentimentDistribution();
-                sentimentDto = new VideoSummaryResponse.SentimentDistribution(
+                sentimentDto = new SentimentDistribution(
                         s.positive(), s.negative(), s.other()
                 );
             }

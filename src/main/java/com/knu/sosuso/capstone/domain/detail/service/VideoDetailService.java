@@ -7,6 +7,7 @@ import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.comment.entity.value.DetailSentimentType;
 import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
+import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.scrap.entity.Scrap;
 import com.knu.sosuso.capstone.domain.scrap.repository.ScrapRepository;
@@ -226,7 +227,7 @@ public class VideoDetailService {
                     parseLanguageDistribution(video.getLanguageDistribution());
 
             // 2. 감정 분포
-            DetailAnalysisDto.SentimentDistribution sentimentDistribution =
+            SentimentDistribution sentimentDistribution =
                     parseSentimentDistribution(video.getSentimentDistribution());
 
             // 3. 키워드
@@ -250,7 +251,7 @@ public class VideoDetailService {
                     null,
                     false,
                     new ArrayList<>(),
-                    new DetailAnalysisDto.SentimentDistribution(0, 0, 0),
+                    new SentimentDistribution(0, 0, 0),
                     new ArrayList<>()
             );
         }
@@ -341,23 +342,23 @@ public class VideoDetailService {
     /**
      * 감정 분포 파싱
      */
-    private DetailAnalysisDto.SentimentDistribution parseSentimentDistribution(String json) {
+    private SentimentDistribution parseSentimentDistribution(String json) {
         try {
             if (json == null || json.trim().isEmpty()) {
-                return new DetailAnalysisDto.SentimentDistribution(0, 0, 0);
+                return new SentimentDistribution(0, 0, 0);
             }
 
             Map<String, Integer> map = objectMapper.readValue(json,
                     new TypeReference<Map<String, Integer>>() {});
 
-            return new DetailAnalysisDto.SentimentDistribution(
+            return new SentimentDistribution(
                     map.getOrDefault("positive", 0),
                     map.getOrDefault("negative", 0),
                     map.getOrDefault("other", 0)
             );
         } catch (Exception e) {
             log.warn("감정 분포 파싱 실패: {}", e.getMessage());
-            return new DetailAnalysisDto.SentimentDistribution(0, 0, 0);
+            return new SentimentDistribution(0, 0, 0);
         }
     }
 

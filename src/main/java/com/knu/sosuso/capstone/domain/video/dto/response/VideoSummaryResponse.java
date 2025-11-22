@@ -1,6 +1,7 @@
 package com.knu.sosuso.capstone.domain.video.dto.response;
 
 import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
 import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
 
 import java.util.List;
@@ -17,11 +18,5 @@ public record VideoSummaryResponse(
             String summary,
             SentimentDistribution sentimentDistribution,
             List<String> keywords
-    ) {}
-
-    public record SentimentDistribution(
-            Integer positive,
-            Integer negative,
-            Integer other
     ) {}
 }

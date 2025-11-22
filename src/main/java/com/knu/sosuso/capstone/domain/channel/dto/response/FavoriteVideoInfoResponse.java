@@ -1,6 +1,7 @@
 package com.knu.sosuso.capstone.domain.channel.dto.response;
 
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
+import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
 
 import java.util.List;
 
@@ -30,14 +31,8 @@ public record FavoriteVideoInfoResponse (
 
     public record Analysis(
             String summary,
-            FavoriteVideoInfoResponse.SentimentDistribution sentimentDistribution,
+            SentimentDistribution sentimentDistribution,
             List<String> keywords,
             List<CommentDto> topComments
-    ) {}
-
-    public record SentimentDistribution(
-            Integer positive,
-            Integer negative,
-            Integer other
     ) {}
 }
