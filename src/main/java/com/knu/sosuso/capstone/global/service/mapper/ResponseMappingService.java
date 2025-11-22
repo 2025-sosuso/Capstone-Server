@@ -4,9 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.comment.dto.CommentDto;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
-import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
-import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
-import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
+import com.knu.sosuso.capstone.domain.common.dto.*;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
@@ -79,23 +77,23 @@ public class ResponseMappingService {
             Map<Integer, Integer> commentHistogramData = parseJsonToMap(video.getCommentHistogram(), Integer.class, Integer.class);
             Map<String, Integer> popularTimestampsData = parseJsonToMap(video.getPopularTimestamps(), String.class, Integer.class);
 
-            List<DetailAnalysisDto.CommentHistogram> commentHistogram =
+            List<CommentHistogram> commentHistogram =
                     commentHistogramData.entrySet().stream()
-                            .map(e -> new DetailAnalysisDto.CommentHistogram(String.valueOf(e.getKey()), e.getValue()))
+                            .map(e -> new CommentHistogram(String.valueOf(e.getKey()), e.getValue()))
                             .collect(Collectors.toList());
 
-            List<DetailAnalysisDto.PopularTimestamp> popularTimestamps =
+            List<PopularTimestamp> popularTimestamps =
                     popularTimestampsData.entrySet().stream()
-                            .map(e -> new DetailAnalysisDto.PopularTimestamp(e.getKey(), e.getValue()))
+                            .map(e -> new PopularTimestamp(e.getKey(), e.getValue()))
                             .collect(Collectors.toList());
 
             // AI 분석 데이터 (없을 수 있음)
             Map<String, Integer> languageRatio = parseJsonToMap(video.getLanguageDistribution(), String.class, Integer.class);
             Map<String, Integer> sentimentRatio = parseJsonToMap(video.getSentimentDistribution(), String.class, Integer.class);
 
-            List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
+            List<LanguageDistribution> languageDistribution =
                     languageRatio.entrySet().stream()
-                            .map(e -> new DetailAnalysisDto.LanguageDistribution(
+                            .map(e -> new LanguageDistribution(
                                     e.getKey(),
                                     e.getValue()
                             ))
@@ -210,15 +208,15 @@ public class ResponseMappingService {
         return commentMapper.toTopCommentDtoList(topComments);
     }
 
-    private List<DetailAnalysisDto.PopularTimestamp> mapToPopularTimestamps(Map<String, Integer> popularTimestampsData) {
+    private List<PopularTimestamp> mapToPopularTimestamps(Map<String, Integer> popularTimestampsData) {
         return popularTimestampsData.entrySet().stream()
-                .map(entry -> new DetailAnalysisDto.PopularTimestamp(entry.getKey(), entry.getValue()))
+                .map(entry -> new PopularTimestamp(entry.getKey(), entry.getValue()))
                 .collect(Collectors.toList());
     }
 
-    private List<DetailAnalysisDto.CommentHistogram> mapToCommentHistogram(Map<Integer, Integer> commentHistogramData) {
+    private List<CommentHistogram> mapToCommentHistogram(Map<Integer, Integer> commentHistogramData) {
         return commentHistogramData.entrySet().stream()
-                .map(entry -> new DetailAnalysisDto.CommentHistogram(String.valueOf(entry.getKey()), entry.getValue()))
+                .map(entry -> new CommentHistogram(String.valueOf(entry.getKey()), entry.getValue()))
                 .collect(Collectors.toList());
     }
 

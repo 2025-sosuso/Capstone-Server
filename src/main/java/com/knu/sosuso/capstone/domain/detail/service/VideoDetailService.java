@@ -7,9 +7,7 @@ import com.knu.sosuso.capstone.domain.comment.entity.Comment;
 import com.knu.sosuso.capstone.domain.comment.entity.value.DetailSentimentType;
 import com.knu.sosuso.capstone.domain.comment.entity.value.SentimentType;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
-import com.knu.sosuso.capstone.domain.common.dto.ChannelBasicDto;
-import com.knu.sosuso.capstone.domain.common.dto.SentimentDistribution;
-import com.knu.sosuso.capstone.domain.common.dto.VideoBasicDto;
+import com.knu.sosuso.capstone.domain.common.dto.*;
 import com.knu.sosuso.capstone.domain.detail.dto.*;
 import com.knu.sosuso.capstone.domain.scrap.entity.Scrap;
 import com.knu.sosuso.capstone.domain.scrap.repository.ScrapRepository;
@@ -145,15 +143,15 @@ public class VideoDetailService {
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
 
         try {
-            List<DetailAnalysisDto.CommentHistogram> commentHistogram =
+            List<CommentHistogram> commentHistogram =
                     parseCommentHistogram(video.getCommentHistogram());
 
-            List<DetailAnalysisDto.PopularTimestamp> popularTimestamps =
+            List<PopularTimestamp> popularTimestamps =
                     parsePopularTimestamps(video.getPopularTimestamps());
 
             List<CommentDto> topComments = getTopComments(video.getId());
 
-            List<DetailAnalysisDto.SentimentFlow> sentimentFlow =
+            List<SentimentFlow> sentimentFlow =
                     calculateSentimentFlow(video.getId());
 
             log.info("✅ 백엔드 분석 정보 조회 완료: apiVideoId={}", apiVideoId);
@@ -225,7 +223,7 @@ public class VideoDetailService {
 
         try {
             // 1. 언어 분포
-            List<DetailAnalysisDto.LanguageDistribution> languageDistribution =
+            List<LanguageDistribution> languageDistribution =
                     parseLanguageDistribution(video.getLanguageDistribution());
 
             // 2. 감정 분포
@@ -266,7 +264,7 @@ public class VideoDetailService {
     /**
      * 댓글 히스토그램 파싱
      */
-    private List<DetailAnalysisDto.CommentHistogram> parseCommentHistogram(String json) {
+    private List<CommentHistogram> parseCommentHistogram(String json) {
         try {
             log.debug("댓글 히스토그램 파싱: json={}", json);
 
@@ -279,7 +277,7 @@ public class VideoDetailService {
                     new TypeReference<Map<String, Integer>>() {});
 
             return map.entrySet().stream()
-                    .map(e -> new DetailAnalysisDto.CommentHistogram(
+                    .map(e -> new CommentHistogram(
                             e.getKey(),
                             e.getValue()
                     ))
@@ -294,7 +292,7 @@ public class VideoDetailService {
     /**
      * 인기 타임스탬프 파싱
      */
-    private List<DetailAnalysisDto.PopularTimestamp> parsePopularTimestamps(String json) {
+    private List<PopularTimestamp> parsePopularTimestamps(String json) {
         try {
             if (json == null || json.trim().isEmpty() || json.equals("{}")) {
                 return new ArrayList<>();
@@ -304,11 +302,11 @@ public class VideoDetailService {
                     new TypeReference<Map<String, Integer>>() {});
 
             return map.entrySet().stream()
-                    .map(e -> new DetailAnalysisDto.PopularTimestamp(
+                    .map(e -> new PopularTimestamp(
                             e.getKey(),
                             e.getValue()
                     ))
-                    .sorted(Comparator.comparing(DetailAnalysisDto.PopularTimestamp::mentionCount).reversed())
+                    .sorted(Comparator.comparing(PopularTimestamp::mentionCount).reversed())
                     .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("인기 타임스탬프 파싱 실패: {}", e.getMessage());
@@ -319,7 +317,7 @@ public class VideoDetailService {
     /**
      * 언어 분포 파싱
      */
-    private List<DetailAnalysisDto.LanguageDistribution> parseLanguageDistribution(String json) {
+    private List<LanguageDistribution> parseLanguageDistribution(String json) {
         try {
             if (json == null || json.trim().isEmpty()) {
                 return new ArrayList<>();
@@ -329,11 +327,11 @@ public class VideoDetailService {
                     new TypeReference<Map<String, Integer>>() {});
 
             return map.entrySet().stream()
-                    .map(e -> new DetailAnalysisDto.LanguageDistribution(
+                    .map(e -> new LanguageDistribution(
                             e.getKey(),
                             e.getValue()
                     ))
-                    .sorted(Comparator.comparing(DetailAnalysisDto.LanguageDistribution::ratio).reversed())
+                    .sorted(Comparator.comparing(LanguageDistribution::ratio).reversed())
                     .collect(Collectors.toList());
         } catch (Exception e) {
             log.warn("언어 분포 파싱 실패: {}", e.getMessage());
@@ -417,7 +415,7 @@ public class VideoDetailService {
      * 감정 흐름 시간 구간별 집계
      * 전체 기간을 N등분하여 각 시간 구간의 감정 비율 계산
      */
-    private List<DetailAnalysisDto.SentimentFlow> calculateSentimentFlow(Long videoId) {
+    private List<SentimentFlow> calculateSentimentFlow(Long videoId) {
         try {
             // AI 분석된 댓글만 조회
             List<Comment> comments = commentRepository.findByVideoId(videoId).stream()
@@ -449,7 +447,7 @@ public class VideoDetailService {
             }
 
             double daysPerSection = (double) totalDays / maxDataPoints;
-            List<DetailAnalysisDto.SentimentFlow> flows = new ArrayList<>();
+            List<SentimentFlow> flows = new ArrayList<>();
 
             log.info("📊 시간 기반 구간 분할: 전체={}일, 구간당={:.1f}일, {}개 구간",
                     totalDays, daysPerSection, maxDataPoints);
@@ -496,7 +494,7 @@ public class VideoDetailService {
                 LocalDateTime middleDate = sectionStart.plusDays((long) (daysPerSection / 2));
                 String representativeDate = middleDate.toLocalDate().toString();
 
-                flows.add(new DetailAnalysisDto.SentimentFlow(
+                flows.add(new SentimentFlow(
                         representativeDate,
                         positive,
                         negative,
@@ -547,7 +545,7 @@ public class VideoDetailService {
     /**
      * 일별 감정 집계 (댓글이 적을 때)
      */
-    private List<DetailAnalysisDto.SentimentFlow> calculateDailySentiment(List<Comment> comments) {
+    private List<SentimentFlow> calculateDailySentiment(List<Comment> comments) {
         Map<String, Map<SentimentType, Long>> dailySentiments = comments.stream()
                 .collect(Collectors.groupingBy(
                         c -> extractDate(c.getWrittenAt()),
@@ -571,14 +569,14 @@ public class VideoDetailService {
                     int other = 100 - positive - negative;
 
 
-                    return new DetailAnalysisDto.SentimentFlow(
+                    return new SentimentFlow(
                             date,
                             positive,
                             negative,
                             other
                     );
                 })
-                .sorted(Comparator.comparing(DetailAnalysisDto.SentimentFlow::date))
+                .sorted(Comparator.comparing(SentimentFlow::date))
                 .collect(Collectors.toList());
     }
 
