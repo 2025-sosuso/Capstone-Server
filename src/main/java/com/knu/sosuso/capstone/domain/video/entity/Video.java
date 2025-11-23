@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 @Table(name = "video")
 public class Video extends BaseEntity {
 
-    @Column(name = "api_video_id")
+    @Column(name = "api_video_id", unique = true)
     private String apiVideoId;
 
     @Enumerated(EnumType.STRING)
