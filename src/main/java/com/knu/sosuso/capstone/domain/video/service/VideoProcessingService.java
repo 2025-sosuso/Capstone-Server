@@ -35,7 +35,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * 비디오 처리 서비스 (단순화 버전)
+ * 비디오 처리 서비스
  * - 검색 시: AI 없이 즉시 응답
  * - 스케줄러: 주기적으로 미분석 영상 AI 처리
  */
@@ -47,7 +47,6 @@ public class VideoProcessingService {
     private final VideoService videoService;
     private final CommentService commentService;
     private final AnalysisService analysisService;
-    private final ResponseMappingService responseMappingService;
     private final CommentRepository commentRepository;
     private final VideoRepository videoRepository;
     private final VideoMapper videoMapper;
@@ -64,6 +63,7 @@ public class VideoProcessingService {
     /**
      * 새 영상 처리 (공통 로직)
      * - VideoDetailService와 검색 페이지 모두 사용
+     *
      * @return Video 엔티티
      */
     @Transactional
@@ -96,7 +96,7 @@ public class VideoProcessingService {
             if (commentResponse.allComments() == null || commentResponse.allComments().isEmpty()) {
                 log.info("💬 댓글 없는 영상: apiVideoId={}", apiVideoId);
 
-                video = videoService.saveVideoMetadataOnly(videoInfo, actualType); // ← actualType 사용!
+                video = videoService.saveVideoMetadataOnly(videoInfo, actualType);
                 video.setAiAnalysisStatus(AIAnalysisStatus.SKIPPED);
                 video.setHasNoComments(true);
                 videoRepository.save(video);
@@ -110,7 +110,7 @@ public class VideoProcessingService {
                     commentResponse.allComments()
             );
 
-            video = videoService.saveVideoWithAnalysis(videoInfo, commentResponse, actualType); // ← actualType 사용!
+            video = videoService.saveVideoWithAnalysis(videoInfo, commentResponse, actualType);
             videoRepository.flush();
 
             for (Comment comment : comments) {
@@ -130,16 +130,15 @@ public class VideoProcessingService {
     }
 
     // ========================================
-    // 2. 검색용 래퍼 메서드
+    // 2. 검색용 래퍼 메서드 (트랜잭션 최적화)
     // ========================================
 
     /**
      * 비디오 처리 메인 진입점 (검색용)
-     * - processNewVideo() 래퍼
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public Video processVideoToSearchResult(String token, String apiVideoId,
-                                                         boolean enableAIAnalysis) {
+                                            boolean enableAIAnalysis) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new BusinessException(VideoError.VIDEO_ID_REQUIRED);
         }
@@ -148,20 +147,19 @@ public class VideoProcessingService {
 
         Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
 
-        Video video;
         if (existingVideo.isPresent()) {
-            video = handleExistingVideo(existingVideo.get());
+            return handleExistingVideoWithTransaction(existingVideo.get());
         } else {
-            video = processNewVideo(apiVideoId, VideoType.VIDEO);
+            // 쓰기 작업은 별도 트랜잭션
+            return processNewVideo(apiVideoId, VideoType.VIDEO);
         }
-
-        return video;
     }
 
     /**
-     * 기존 영상 처리 (검색용)
+     * 기존 영상 처리 (검색용) - 쓰기 작업 분리
      */
-    private Video handleExistingVideo(Video video) {
+    @Transactional
+    public Video handleExistingVideoWithTransaction(Video video) {
         String apiVideoId = video.getApiVideoId();
 
         // 삭제 확인
@@ -180,18 +178,16 @@ public class VideoProcessingService {
         // 메타데이터 갱신
         if (shouldUpdateMetadata(video)) {
             log.info("메타데이터 갱신 필요: apiVideoId={}", apiVideoId);
-            updateMetadata(video);
+            updateMetadataInternal(video);
         }
 
         return video;
     }
 
     /**
-     * ✅ 배치 검색용 간단 처리 (타입 확정 버전)
-     * - VideoSearchService에서 이미 타입을 확정한 경우 사용
-     * - 타입 재판별 없이 expectedType을 그대로 사용
+     * 배치 검색용 간단 처리 (타입 확정 버전)
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public VideoSummaryResponse processAndGetSummaryWithConfirmedType(
             String token, String apiVideoId, JsonNode thumbnails, VideoType confirmedType) {
 
@@ -203,20 +199,42 @@ public class VideoProcessingService {
 
             // 타입 확인 및 업데이트
             if (video.getVideoType() == null) {
-                video.setVideoType(confirmedType);
-                videoRepository.save(video);
+                // 쓰기 작업 - 별도 트랜잭션
+                return updateVideoTypeAndReturnSummary(token, video, confirmedType);
             } else if (video.getVideoType() != confirmedType) {
-                // 타입 불일치 로그 (정보용)
-                log.info("⚠️ DB 타입 불일치: apiVideoId={}, db={}, confirmed={}",
-                        apiVideoId, video.getVideoType(), confirmedType);
-                return null; // 필터링
+                log.debug("타입 불일치: apiVideoId={}, expected={}, actual={}",
+                        apiVideoId, confirmedType, video.getVideoType());
+                return null;
             }
 
             Long scrapId = getScrapIdSafely(token, apiVideoId);
             return videoMapper.toSummaryResponse(video, scrapId);
         }
 
-        // 2. 신규 영상 - confirmedType 그대로 사용 (재판별 X)
+        // 2. 신규 영상 - 쓰기 작업
+        return createNewVideoAndReturnSummary(token, apiVideoId, confirmedType);
+    }
+
+    /**
+     * 비디오 타입 업데이트 (쓰기 작업 분리)
+     */
+    @Transactional
+    public VideoSummaryResponse updateVideoTypeAndReturnSummary(
+            String token, Video video, VideoType confirmedType) {
+        video.setVideoType(confirmedType);
+        videoRepository.save(video);
+
+        Long scrapId = getScrapIdSafely(token, video.getApiVideoId());
+        return videoMapper.toSummaryResponse(video, scrapId);
+    }
+
+    /**
+     * 신규 비디오 생성 (쓰기 작업)
+     */
+    @Transactional
+    public VideoSummaryResponse createNewVideoAndReturnSummary(
+            String token, String apiVideoId, VideoType confirmedType) {
+
         log.info("🆕 신규 영상 처리: apiVideoId={}, confirmedType={}", apiVideoId, confirmedType);
 
         Video newVideo = createOrRetrieveVideo(apiVideoId, confirmedType);
@@ -225,7 +243,7 @@ public class VideoProcessingService {
     }
 
     // ========================================
-    // 2. 스케줄러: 주기적 AI 분석
+    // 3. 스케줄러: 주기적 AI 분석
     // ========================================
 
     /**
@@ -240,9 +258,8 @@ public class VideoProcessingService {
         try {
             int batchSize = appConfig.getAiBatchSize();
 
-            // PENDING 상태 영상 조회
-            List<Video> videos = videoRepository
-                    .findTop10ByAiAnalysisStatusOrderByUpdatedAtDesc(AIAnalysisStatus.PENDING);
+            // ✅ 읽기 전용 트랜잭션으로 조회
+            List<Video> videos = findPendingVideosReadOnly();
 
             if (videos.isEmpty()) {
                 log.debug("처리할 미분석 영상 없음");
@@ -262,6 +279,7 @@ public class VideoProcessingService {
 
             for (Video video : targetVideos) {
                 try {
+                    // ✅ 각 영상 처리는 별도 트랜잭션
                     ProcessResult result = processAIAnalysis(video);
 
                     switch (result) {
@@ -283,6 +301,15 @@ public class VideoProcessingService {
         } catch (Exception e) {
             log.error("❌ 배치 처리 중 오류: {}", e.getMessage(), e);
         }
+    }
+
+    /**
+     * PENDING 영상 조회 (읽기 전용)
+     */
+    @Transactional(readOnly = true)
+    public List<Video> findPendingVideosReadOnly() {
+        return videoRepository
+                .findTop10ByAiAnalysisStatusOrderByUpdatedAtDesc(AIAnalysisStatus.PENDING);
     }
 
     /**
@@ -325,7 +352,7 @@ public class VideoProcessingService {
                 return ProcessResult.FAILED;
             }
 
-            // 3. Video 업데이트 (AI 응답 받자마자 바로 저장)
+            // 3. Video 업데이트
             log.info("💾 Video 업데이트 시작");
 
             if (response.summation() != null && !response.summation().trim().isEmpty()) {
@@ -384,7 +411,7 @@ public class VideoProcessingService {
     }
 
     // ========================================
-    // 3. 헬퍼 메서드
+    // 4. 헬퍼 메서드
     // ========================================
 
     /**
@@ -418,8 +445,6 @@ public class VideoProcessingService {
      * 메타데이터만 업데이트 (비동기)
      * - 조회수, 좋아요, 댓글 수 등만 갱신
      * - AI 분석은 하지 않음
-     *
-     * 스케줄러가 호출
      */
     @Async("videoProcessingExecutor")
     @Transactional
@@ -479,9 +504,9 @@ public class VideoProcessingService {
     }
 
     /**
-     * 메타데이터 갱신
+     * 메타데이터 갱신 (내부용, 이미 트랜잭션 안)
      */
-    private void updateMetadata(Video video) {
+    private void updateMetadataInternal(Video video) {
         try {
             VideoApiResponse videoInfo = videoService.getVideoInfo(video.getApiVideoId());
 
@@ -520,12 +545,8 @@ public class VideoProcessingService {
     }
 
     /**
-     * 배치 검색용 간단 처리
-     * - 이미 Videos API로 메타데이터를 받아온 상태
-     * - DB 저장 + 타입 판별만 수행
-     * - 댓글/AI는 백그라운드 스케줄러가 처리
+     * 배치 검색용 간단 처리 (기존 호환성 유지)
      */
-    @Transactional
     public VideoSummaryResponse processAndGetSummary(String token, String apiVideoId,
                                                      JsonNode thumbnails, VideoType expectedType) {
         return processAndGetSummary(token, apiVideoId, thumbnails, expectedType, true);
@@ -551,9 +572,9 @@ public class VideoProcessingService {
     }
 
     /**
-     * ✅ processAndGetSummary 오버로드 (재판별 옵션)
+     * processAndGetSummary 오버로드 (재판별 옵션)
      */
-    @Transactional
+    @Transactional(readOnly = true)
     public VideoSummaryResponse processAndGetSummary(
             String token, String apiVideoId, JsonNode thumbnails,
             VideoType expectedType, boolean redetectType) {
@@ -572,8 +593,8 @@ public class VideoProcessingService {
                 }
 
                 if (video.getVideoType() == null) {
-                    video.setVideoType(expectedType);
-                    videoRepository.save(video);
+                    // 쓰기 작업 - 별도 트랜잭션
+                    return updateVideoTypeAndReturnSummary(token, video, expectedType);
                 }
             }
 
@@ -585,7 +606,7 @@ public class VideoProcessingService {
         VideoType actualType;
 
         if (!redetectType && expectedType != null) {
-            // ✅ 재판별 안 함 - expectedType 그대로 사용
+            // 재판별 안 함 - expectedType 그대로 사용
             actualType = expectedType;
             log.info("🎯 타입 확정: apiVideoId={}, confirmedType={}", apiVideoId, actualType);
         } else {
@@ -600,12 +621,30 @@ public class VideoProcessingService {
             log.info("새 영상 타입 불일치: apiVideoId={}, expected={}, actual={}",
                     apiVideoId, expectedType, actualType);
 
-            // DB에는 저장 (올바른 타입으로) - 하지만 결과에서는 제외
-            createOrRetrieveVideo(apiVideoId, actualType);
+            // DB에는 저장 (올바른 타입으로) - 별도 트랜잭션
+            createOrRetrieveVideoWithTransaction(apiVideoId, actualType);
             return null;
         }
 
         // 3. 타입 일치 또는 expectedType이 null → 처리 후 반환
+        return createNewVideoAndReturnSummaryWithType(token, apiVideoId, actualType);
+    }
+
+    /**
+     * 영상 생성 (쓰기 작업 분리)
+     */
+    @Transactional
+    public Video createOrRetrieveVideoWithTransaction(String apiVideoId, VideoType actualType) {
+        return createOrRetrieveVideo(apiVideoId, actualType);
+    }
+
+    /**
+     * 신규 영상 생성 및 응답 반환 (쓰기 작업)
+     */
+    @Transactional
+    public VideoSummaryResponse createNewVideoAndReturnSummaryWithType(
+            String token, String apiVideoId, VideoType actualType) {
+
         Video finalVideo = createOrRetrieveVideo(apiVideoId, actualType);
         Long scrapId = getScrapIdSafely(token, apiVideoId);
         return videoMapper.toSummaryResponse(finalVideo, scrapId);
