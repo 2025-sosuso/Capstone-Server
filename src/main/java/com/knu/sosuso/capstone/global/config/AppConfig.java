@@ -100,6 +100,12 @@ public class AppConfig {
      */
     private final int maxRetryPages = 3;
 
+    /**
+     * 점진적 배치 처리 크기
+     * URL 체크를 몇 개씩 묶어서 처리할지
+     */
+    private final int searchProgressiveBatchSize = 10;
+
     // ========== 메인 페이지 설정 ==========
 
     /**
@@ -158,6 +164,20 @@ public class AppConfig {
      * 비디오 처리 스레드풀 - 큐 크기
      */
     private final int videoProcessingQueueCapacity = 50;
+
+    /**
+     * URL 체크 전용 스레드풀 (I/O 작업, 많은 동시 요청)
+     */
+    private final int urlCheckCorePoolSize = 20;
+    private final int urlCheckMaxPoolSize = 50;
+    private final int urlCheckQueueCapacity = 100;
+
+    /**
+     * 검색 처리 전용 스레드풀 (DB + AI 혼합 작업)
+     */
+    private final int searchProcessingCorePoolSize = 5;
+    private final int searchProcessingMaxPoolSize = 10;
+    private final int searchProcessingQueueCapacity = 50;
 
 
     /**
