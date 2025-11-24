@@ -2,7 +2,6 @@ package com.knu.sosuso.capstone.domain.video.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knu.sosuso.capstone.domain.comment.service.CommentService;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoApiResponse;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.video.entity.AIAnalysisStatus;
@@ -23,7 +22,6 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.time.LocalDateTime;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -42,29 +40,6 @@ public class VideoService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final VideoRepository videoRepository;
-    private final CommentService commentService;
-
-    /**
-     * 비디오 ID 추출
-     */
-    public String extractVideoId(String url) {
-        if (url == null || url.isEmpty()) {
-            return null;
-        }
-
-        if (!url.contains("youtube.com") && !url.contains("youtu.be") && !url.contains("m.youtube.com")) {
-            if (url.matches("[\\w-]{11}")) {
-                return url;
-            }
-            return null;
-        }
-
-        Matcher matcher = VIDEO_ID_PATTERN.matcher(url);
-        if (matcher.find()) {
-            return matcher.group(1);
-        }
-        return null;
-    }
 
     /**
      * YouTube API로 비디오 정보 조회

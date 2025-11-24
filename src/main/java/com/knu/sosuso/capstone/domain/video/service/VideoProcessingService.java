@@ -28,6 +28,7 @@ import org.springframework.cache.CacheManager;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -136,7 +137,7 @@ public class VideoProcessingService {
     /**
      * 비디오 처리 메인 진입점 (검색용)
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public Video processVideoToSearchResult(String token, String apiVideoId,
                                             boolean enableAIAnalysis) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
@@ -185,40 +186,9 @@ public class VideoProcessingService {
     }
 
     /**
-     * 배치 검색용 간단 처리 (타입 확정 버전)
-     */
-    @Transactional(readOnly = true)
-    public VideoSummaryResponse processAndGetSummaryWithConfirmedType(
-            String token, String apiVideoId, JsonNode thumbnails, VideoType confirmedType) {
-
-        // 1. DB 확인
-        Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
-
-        if (existingVideo.isPresent()) {
-            Video video = existingVideo.get();
-
-            // 타입 확인 및 업데이트
-            if (video.getVideoType() == null) {
-                // 쓰기 작업 - 별도 트랜잭션
-                return updateVideoTypeAndReturnSummary(token, video, confirmedType);
-            } else if (video.getVideoType() != confirmedType) {
-                log.debug("타입 불일치: apiVideoId={}, expected={}, actual={}",
-                        apiVideoId, confirmedType, video.getVideoType());
-                return null;
-            }
-
-            Long scrapId = getScrapIdSafely(token, apiVideoId);
-            return videoMapper.toSummaryResponse(video, scrapId);
-        }
-
-        // 2. 신규 영상 - 쓰기 작업
-        return createNewVideoAndReturnSummary(token, apiVideoId, confirmedType);
-    }
-
-    /**
      * 비디오 타입 업데이트 (쓰기 작업 분리)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public VideoSummaryResponse updateVideoTypeAndReturnSummary(
             String token, Video video, VideoType confirmedType) {
         video.setVideoType(confirmedType);
@@ -226,20 +196,6 @@ public class VideoProcessingService {
 
         Long scrapId = getScrapIdSafely(token, video.getApiVideoId());
         return videoMapper.toSummaryResponse(video, scrapId);
-    }
-
-    /**
-     * 신규 비디오 생성 (쓰기 작업)
-     */
-    @Transactional
-    public VideoSummaryResponse createNewVideoAndReturnSummary(
-            String token, String apiVideoId, VideoType confirmedType) {
-
-        log.info("🆕 신규 영상 처리: apiVideoId={}, confirmedType={}", apiVideoId, confirmedType);
-
-        Video newVideo = createOrRetrieveVideo(apiVideoId, confirmedType);
-        Long scrapId = getScrapIdSafely(token, apiVideoId);
-        return videoMapper.toSummaryResponse(newVideo, scrapId);
     }
 
     // ========================================
@@ -545,14 +501,6 @@ public class VideoProcessingService {
     }
 
     /**
-     * 배치 검색용 간단 처리 (기존 호환성 유지)
-     */
-    public VideoSummaryResponse processAndGetSummary(String token, String apiVideoId,
-                                                     JsonNode thumbnails, VideoType expectedType) {
-        return processAndGetSummary(token, apiVideoId, thumbnails, expectedType, true);
-    }
-
-    /**
      * 영상 생성 또는 재조회 (동시성 문제 처리)
      */
     private Video createOrRetrieveVideo(String apiVideoId, VideoType actualType) {
@@ -574,7 +522,7 @@ public class VideoProcessingService {
     /**
      * processAndGetSummary 오버로드 (재판별 옵션)
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public VideoSummaryResponse processAndGetSummary(
             String token, String apiVideoId, JsonNode thumbnails,
             VideoType expectedType, boolean redetectType) {
@@ -633,7 +581,7 @@ public class VideoProcessingService {
     /**
      * 영상 생성 (쓰기 작업 분리)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Video createOrRetrieveVideoWithTransaction(String apiVideoId, VideoType actualType) {
         return createOrRetrieveVideo(apiVideoId, actualType);
     }
@@ -641,7 +589,7 @@ public class VideoProcessingService {
     /**
      * 신규 영상 생성 및 응답 반환 (쓰기 작업)
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public VideoSummaryResponse createNewVideoAndReturnSummaryWithType(
             String token, String apiVideoId, VideoType actualType) {
 
