@@ -12,6 +12,8 @@ import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.SearchError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.*;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -46,31 +49,39 @@ public class VideoSearchService {
     private final ObjectMapper objectMapper;
     private final VideoProcessingService videoProcessingService;
 
+    // URL 체크 전용 스레드풀 주입
+    @Qualifier("urlCheckExecutor")
+    private final Executor urlCheckExecutor;
+
+    // 검색 처리 전용 스레드풀 주입
+    @Qualifier("searchProcessingExecutor")
+    private final Executor searchProcessingExecutor;
+
     /**
      * 동영상 검색 (쇼츠 제외)
      */
-    @Transactional
+    @Cacheable(value = "searchResults", key = "'video-' + #query + '-' + #pageToken", unless = "#result.results.isEmpty()")
     public SearchResultPageResponse searchVideos(String token, String query, String pageToken) {
-        log.info("🔍 동영상 검색: query={}, pageToken={}", query, pageToken);
+        log.info("🔍 동영상 검색 (캐시 미스): query={}, pageToken={}", query, pageToken);
         return searchWithUrlCheck(token, query, pageToken, VideoType.VIDEO);
     }
 
     /**
      * 쇼츠 검색
      */
-    @Transactional
+    @Cacheable(value = "searchResults", key = "'shorts-' + #query + '-' + #pageToken", unless = "#result.results.isEmpty()")
     public SearchResultPageResponse searchShorts(String token, String query, String pageToken) {
-        log.info("🔍 쇼츠 검색: query={}, pageToken={}", query, pageToken);
+        log.info("🔍 쇼츠 검색 (캐시 미스): query={}, pageToken={}", query, pageToken);
         return searchWithUrlCheck(token, query, pageToken, VideoType.SHORTS);
     }
 
     /**
-     * ✅ Shorts URL 체크 기반 검색 로직
+     * Shorts URL 체크 기반 검색 로직
      *
      * 전략:
-     * 1. Search API로 videoId 대량 수집 (50개)
-     * 2. Shorts URL 병렬 체크로 타입 판별
-     * 3. 타입별로 분류 후 필요한 것만 처리
+     * 1. Search API로 videoId 대량 수집 - 외부 HTTP
+     * 2. Shorts URL 병렬 체크로 타입 판별 - 외부 HTTP
+     * 3. 타입별로 분류 후 필요한 것만 처리 - DB 작업만 트랜잭션
      * 4. 4개 채울 때까지 반복
      */
     private SearchResultPageResponse searchWithUrlCheck(
@@ -85,7 +96,7 @@ public class VideoSearchService {
             log.info("🔄 검색 시도 {}/{}: targetType={}, 현재 결과={}/4",
                     retryCount + 1, maxRetries, targetType, results.size());
 
-            // 1. Search API 호출 (50개 대량 수집)
+            // 1. Search API 호출 (대량 수집)
             SearchBatchResult searchResult = callSearchAPI(query, currentPageToken);
 
             if (searchResult.videoIds.isEmpty()) {
@@ -120,7 +131,9 @@ public class VideoSearchService {
             );
 
             // 5. Videos API로 배치 처리
-            List<VideoSummaryResponse> batch = processVideosBatch(token, idsToProcess, targetType);
+            List<VideoSummaryResponse> batch = processVideosBatchWithTransaction(
+                    token, idsToProcess, targetType
+            );
             results.addAll(batch);
 
             log.info("✅ 배치 처리 완료: {}개 추가, 현재 총 {}/4",
@@ -160,19 +173,18 @@ public class VideoSearchService {
     }
 
     /**
-     * ✅ Shorts URL 병렬 체크로 타입 분류 (핵심!)
-     *
-     * CompletableFuture로 병렬 처리 → 빠름!
+     * Shorts URL 병렬 체크로 타입 분류
      */
     private TypedResult classifyByParallelUrlCheck(List<String> videoIds) {
         long startTime = System.currentTimeMillis();
 
         log.info("🚀 Shorts URL 병렬 체크 시작: {}개 영상", videoIds.size());
 
-        // CompletableFuture로 병렬 처리
+        // 전용 스레드풀로 병렬 처리
         List<CompletableFuture<VideoTypeResult>> futures = videoIds.stream()
                 .map(videoId -> CompletableFuture.supplyAsync(() ->
-                        new VideoTypeResult(videoId, checkIfShorts(videoId))
+                                new VideoTypeResult(videoId, checkIfShorts(videoId)),
+                        urlCheckExecutor  // URL 체크 전용 스레드풀
                 ))
                 .collect(Collectors.toList());
 
@@ -204,7 +216,7 @@ public class VideoSearchService {
     }
 
     /**
-     * ✅ Shorts URL 체크 (단일 영상)
+     * Shorts URL 체크 (단일 영상)
      *
      * https://www.youtube.com/shorts/{videoId}
      * → 200 OK: true (쇼츠)
@@ -220,35 +232,27 @@ public class VideoSearchService {
 
             ResponseEntity<String> response = restTemplate.exchange(
                     shortsUrl,
-                    HttpMethod.HEAD,  // HEAD만 사용 (빠름)
+                    HttpMethod.HEAD,
                     entity,
                     String.class
             );
 
+            // 200 OK면 Shorts
             boolean isShorts = response.getStatusCode() == HttpStatus.OK;
-
-            log.debug("URL 체크: {} → {}", videoId, isShorts ? "SHORTS" : "VIDEO");
-
+            log.debug("URL 체크: videoId={}, isShorts={}", videoId, isShorts);
             return isShorts;
 
-        } catch (HttpClientErrorException e) {
-            // 404, 301 등 → 일반 영상
-            log.debug("URL 체크: {} → VIDEO (status={})", videoId, e.getStatusCode());
-            return false;
-
         } catch (Exception e) {
-            log.warn("URL 체크 실패: {}, 기본값 VIDEO로 처리", videoId);
+            // 404, 301 등 모두 일반 영상으로 간주
+            log.debug("URL 체크 실패 (일반 영상으로 판단): videoId={}", videoId);
             return false;
         }
     }
 
     /**
-     * ✅ videoId 배치 처리 (타입 재판별 방지)
+     * Videos API 배치 처리 + DB 저장
      */
-    /**
-     * ✅ videoId 배치 처리 (대안: 오버로드 메서드 사용)
-     */
-    private List<VideoSummaryResponse> processVideosBatch(
+    private List<VideoSummaryResponse> processVideosBatchWithTransaction(
             String token, List<String> videoIds, VideoType confirmedType) {
 
         if (videoIds.isEmpty()) {
@@ -258,33 +262,11 @@ public class VideoSearchService {
         log.info("🔧 배치 처리 시작: {}개 영상, confirmedType={}", videoIds.size(), confirmedType);
 
         try {
+            // 1. Videos API 호출 (외부 HTTP - 트랜잭션 밖)
             List<VideoData> videoDataList = fetchVideosInBatch(videoIds);
-            List<VideoSummaryResponse> results = new ArrayList<>();
 
-            for (VideoData data : videoDataList) {
-                try {
-                    // ✅ redetectType=false로 타입 재판별 방지
-                    VideoSummaryResponse summary = videoProcessingService
-                            .processAndGetSummary(
-                                    token,
-                                    data.apiVideoId,
-                                    data.thumbnails,
-                                    confirmedType,
-                                    false  // ← 재판별 안 함!
-                            );
-
-                    if (summary != null) {
-                        results.add(summary);
-                    }
-
-                } catch (Exception e) {
-                    log.warn("영상 처리 실패: apiVideoId={}, error={}",
-                            data.apiVideoId, e.getMessage());
-                }
-            }
-
-            log.info("✅ 배치 처리 완료: 입력={}개, 성공={}개", videoIds.size(), results.size());
-            return results;
+            // 2. DB 저장 (트랜잭션 적용)
+            return processVideoDataListWithTransaction(token, videoDataList, confirmedType);
 
         } catch (Exception e) {
             log.error("❌ 배치 처리 실패: {}", e.getMessage(), e);
@@ -293,17 +275,52 @@ public class VideoSearchService {
     }
 
     /**
-     * ✅ 비동기 배치 처리
+     * DB 저장 작업만 트랜잭션 적용
      */
-    @Async("videoProcessingExecutor")
+    @Transactional
+    public List<VideoSummaryResponse> processVideoDataListWithTransaction(
+            String token, List<VideoData> videoDataList, VideoType confirmedType) {
+
+        List<VideoSummaryResponse> results = new ArrayList<>();
+
+        for (VideoData data : videoDataList) {
+            try {
+                // redetectType=false로 타입 재판별 방지
+                VideoSummaryResponse summary = videoProcessingService
+                        .processAndGetSummary(
+                                token,
+                                data.apiVideoId,
+                                data.thumbnails,
+                                confirmedType,
+                                false  // ← 재판별 안 함!
+                        );
+
+                if (summary != null) {
+                    results.add(summary);
+                }
+
+            } catch (Exception e) {
+                log.warn("영상 처리 실패: apiVideoId={}, error={}",
+                        data.apiVideoId, e.getMessage());
+            }
+        }
+
+        log.info("✅ DB 저장 완료: 입력={}개, 성공={}개", videoDataList.size(), results.size());
+        return results;
+    }
+
+    /**
+     * 비동기 배치 처리 (전용 스레드풀 사용)
+     */
+    @Async("searchProcessingExecutor")
     public void processVideosAsync(String token, List<String> videoIds, VideoType targetType) {
         log.info("🔄 백그라운드 처리 시작: {}개 영상", videoIds.size());
-        processVideosBatch(token, videoIds, targetType);
+        processVideosBatchWithTransaction(token, videoIds, targetType);
         log.info("✅ 백그라운드 처리 완료: {}개 영상", videoIds.size());
     }
 
     /**
-     * ✅ YouTube Search API 호출
+     * YouTube Search API 호출
      */
     private SearchBatchResult callSearchAPI(String query, String pageToken) {
         try {
@@ -312,7 +329,7 @@ public class VideoSearchService {
                     .queryParam("part", "snippet")
                     .queryParam("q", query)
                     .queryParam("type", "video")
-                    .queryParam("maxResults", 50) // ✅ 대량으로
+                    .queryParam("maxResults", appConfig.getSearchBatchSize())
                     .queryParam("key", apiConfig.getKey());
 
             if (pageToken != null && !pageToken.isEmpty()) {
@@ -320,7 +337,7 @@ public class VideoSearchService {
             }
 
             String apiUrl = builder.build(false).toUriString();
-            log.debug("Search API 호출: query={}, maxResults=50", query);
+            log.debug("Search API 호출: query={}, maxResults={}", query, appConfig.getSearchBatchSize());
 
             String response = restTemplate.getForObject(apiUrl, String.class);
             return parseSearchResponse(response);
@@ -339,7 +356,7 @@ public class VideoSearchService {
     }
 
     /**
-     * ✅ Videos API 배치 호출
+     * Videos API 배치 호출 (트랜잭션 불필요)
      */
     private List<VideoData> fetchVideosInBatch(List<String> videoIds) {
         try {
@@ -365,7 +382,7 @@ public class VideoSearchService {
     }
 
     /**
-     * ✅ Videos API 응답 파싱
+     * Videos API 응답 파싱
      */
     private List<VideoData> parseVideosResponse(String response) {
         try {
@@ -388,7 +405,7 @@ public class VideoSearchService {
     }
 
     /**
-     * ✅ Search API 응답 파싱
+     * Search API 응답 파싱
      */
     private SearchBatchResult parseSearchResponse(String response) {
         try {

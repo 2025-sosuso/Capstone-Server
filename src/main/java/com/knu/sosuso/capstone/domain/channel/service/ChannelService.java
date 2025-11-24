@@ -39,8 +39,8 @@ public class ChannelService {
      * YouTube API 호출 절감을 위해 캐싱 적용 (1시간 유지)
      * 토큰별로 다른 결과를 반환하므로 토큰도 키에 포함
      */
-    @Cacheable(value = "channelInfo",
-            key = "#query + '-' + (#token != null ? #token.hashCode() : 'anonymous')",
+    @Cacheable(value = "searchResults",
+            key = "'channel-' + #query",
             unless = "#result.results().isEmpty()")
     public ChannelSearchResponse searchChannels(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
@@ -145,7 +145,7 @@ public class ChannelService {
      */
     @Cacheable(value = "channelInfo",
             key = "'latest-video-' + #apiChannelId",
-            condition = "#result != null")
+            unless = "#result == null")
     public String getlatestApiVideoId(String apiChannelId) {
         try {
             String apiUrl = UriComponentsBuilder.fromUriString(YOUTUBE_SEARCH_API_URL)
