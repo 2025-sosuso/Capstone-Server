@@ -19,7 +19,6 @@ import com.knu.sosuso.capstone.global.config.AppConfig;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.CommonError;
 import com.knu.sosuso.capstone.global.exception.error.VideoError;
-import com.knu.sosuso.capstone.global.service.mapper.ResponseMappingService;
 import com.knu.sosuso.capstone.global.service.mapper.VideoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -138,8 +137,7 @@ public class VideoProcessingService {
      * 비디오 처리 메인 진입점 (검색용)
      */
     @Transactional
-    public Video processVideoToSearchResult(String token, String apiVideoId,
-                                            boolean enableAIAnalysis) {
+    public Video processVideoToSearchResult(String apiVideoId) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new BusinessException(VideoError.VIDEO_ID_REQUIRED);
         }

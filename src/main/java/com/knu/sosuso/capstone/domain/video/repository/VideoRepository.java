@@ -2,7 +2,6 @@ package com.knu.sosuso.capstone.domain.video.repository;
 
 import com.knu.sosuso.capstone.domain.video.entity.AIAnalysisStatus;
 import com.knu.sosuso.capstone.domain.video.entity.Video;
-import com.knu.sosuso.capstone.domain.video.entity.VideoType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -41,15 +40,4 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
      */
     List<Video> findTop10ByAiAnalysisStatusOrderByUpdatedAtDesc(AIAnalysisStatus status);
 
-    /**
-     * apiVideoId 목록으로 비디오 일괄 조회
-     * @param apiVideoIds 비디오 ID 목록
-     * @return 비디오 엔티티 목록
-     */
-    List<Video> findAllByApiVideoIdIn(List<String> apiVideoIds);
-
-    List<Video> findAllByApiVideoIdInAndVideoType(
-            List<String> apiVideoIds,
-            VideoType videoType
-    );
 }

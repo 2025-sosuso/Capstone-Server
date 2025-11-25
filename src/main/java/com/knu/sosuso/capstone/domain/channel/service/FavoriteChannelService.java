@@ -149,7 +149,7 @@ public class FavoriteChannelService {
         String latestApiVideoId = channelService.getlatestApiVideoId(apiChannelId);
 
         // 2. 영상 처리 (DB에 저장/업데이트) - 반환값은 사용하지 않음
-        videoProcessingService.processVideoToSearchResult(token, latestApiVideoId, true);
+        videoProcessingService.processVideoToSearchResult(latestApiVideoId);
 
         Video video = videoRepository.findByApiVideoId(latestApiVideoId)
                 .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
