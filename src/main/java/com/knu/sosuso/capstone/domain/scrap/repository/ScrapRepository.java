@@ -22,14 +22,6 @@ public interface ScrapRepository extends JpaRepository<Scrap, Long> {
     List<Scrap> findByUserIdOrderByCreatedAtDesc(Long userId);
 
     /**
-     * 특정 비디오의 모든 스크랩 삭제 (하드 삭제 시 사용)
-     * @return 삭제된 스크랩 개수
-     */
-    @Modifying
-    @Query("DELETE FROM Scrap s WHERE s.video.id = :videoId")
-    int deleteByVideoId(@Param("videoId") Long videoId);
-
-    /**
      * 영상별 스크랩 횟수 집계
      */
     @Query("""

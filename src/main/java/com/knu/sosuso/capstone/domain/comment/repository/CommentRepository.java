@@ -17,9 +17,6 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     // 특정 비디오의 댓글들 조회 (Video 엔티티로)
     List<Comment> findByVideo(Video video);
 
-    // 특정 비디오의 댓글들 조회 (DB ID로)
-    List<Comment> findByVideoIdOrderByIdAsc(Long videoId);
-
     // 특정 비디오의 모든 댓글 조회 (DB ID로, 정렬 없음)
     List<Comment> findByVideoId(Long videoId);
 

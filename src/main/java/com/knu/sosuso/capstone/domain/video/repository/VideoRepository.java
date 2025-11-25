@@ -41,15 +41,4 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
      */
     List<Video> findTop10ByAiAnalysisStatusOrderByUpdatedAtDesc(AIAnalysisStatus status);
 
-    /**
-     * apiVideoId 목록으로 비디오 일괄 조회
-     * @param apiVideoIds 비디오 ID 목록
-     * @return 비디오 엔티티 목록
-     */
-    List<Video> findAllByApiVideoIdIn(List<String> apiVideoIds);
-
-    List<Video> findAllByApiVideoIdInAndVideoType(
-            List<String> apiVideoIds,
-            VideoType videoType
-    );
 }
