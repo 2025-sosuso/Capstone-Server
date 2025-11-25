@@ -7,7 +7,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 @Getter
-@Table(name = "user")
+@Table(name = "`user`")
 @Entity
 public class User extends BaseEntity {
 
