@@ -1,0 +1,60 @@
+# 테스트 환경 설정
+# src/test/resources/application.yml
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:A
+      ddl-auto: create-drop
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+
+  h2:
+    console:
+      enabled: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-name: google
+            client-id: dummy-test-client-id
+            client-secret: dummy-test-secret
+            authorization-grant-type: authorization_code
+            redirect-uri: http://localhost:8080/test
+            scope:
+              - email
+              - profile
+
+  cache:
+    type: caffeine
+
+jwt:
+  secret: dummy-test-jwt-secret-key-for-unit-tests-only-minimum-256-bits-required
+
+youtube:
+  api:
+    key: dummy-test-youtube-api-key
+
+openai:
+  model: gpt-4
+  api:
+    key: dummy-test-openai-api-key
+    url: https://api.openai.com/v1/chat/completions
+
+fastapi:
+  url: http://localhost:8000/analyze
+
+logging:
+  level:
+    org.hibernate.SQL: DEBUG
+    com.knu.sosuso.capstone: DEBUG
