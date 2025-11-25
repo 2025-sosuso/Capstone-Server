@@ -32,10 +32,6 @@ public class VideoService {
     private static final String YOUTUBE_VIDEOS_API_URL = "https://www.googleapis.com/youtube/v3/videos";
     private static final String YOUTUBE_CHANNELS_API_URL = "https://www.googleapis.com/youtube/v3/channels";
 
-    private static final Pattern VIDEO_ID_PATTERN = Pattern.compile(
-            "(?:youtube\\.com/(?:watch\\?v=|embed/|v/)|youtu\\.be/|m\\.youtube\\.com/watch\\?v=)([\\w-]{11})"
-    );
-
     private final ApiConfig apiConfig;
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper();

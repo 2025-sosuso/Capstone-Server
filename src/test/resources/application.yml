@@ -9,7 +9,7 @@ spring:
     password:
 
   jpa:
-    hibernate:A
+    hibernate:
       ddl-auto: create-drop
     show-sql: true
     properties:
