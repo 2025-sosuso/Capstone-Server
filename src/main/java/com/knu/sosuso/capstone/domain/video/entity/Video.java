@@ -12,10 +12,22 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @Entity
-@Table(name = "video")
+@Table(
+        name = "video",
+        indexes = {
+                // 가장 중요! apiVideoId로 조회가 매우 빈번함
+                @Index(name = "idx_video_api_video_id", columnList = "api_video_id", unique = true),
+                // AI 분석 상태별 조회 (스케줄러)
+                @Index(name = "idx_video_ai_status", columnList = "ai_analysis_status"),
+                // 삭제 여부 + 삭제 확인 시간 (배치 삭제용)
+                @Index(name = "idx_video_deleted", columnList = "is_deleted, delete_checked_at"),
+                // 채널별 영상 조회 (관심 채널 기능)
+                @Index(name = "idx_video_channel_id", columnList = "channel_id")
+        }
+)
 public class Video extends BaseEntity {
 
-    @Column(name = "api_video_id", unique = true)
+    @Column(name = "api_video_id")
     private String apiVideoId;
 
     @Enumerated(EnumType.STRING)
