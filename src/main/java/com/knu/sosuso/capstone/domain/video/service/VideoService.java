@@ -40,7 +40,6 @@ public class VideoService {
     /**
      * YouTube API로 비디오 정보 조회
      */
-    @Transactional(readOnly = true)
     public VideoApiResponse getVideoInfo(String apiVideoId) {
         try {
             log.info("YouTube API 호출 - 비디오 정보 조회: apiVideoId={}", apiVideoId);

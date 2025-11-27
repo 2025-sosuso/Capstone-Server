@@ -57,7 +57,6 @@ public class VideoDetailService {
      * - 영상 메타데이터만 캐시
      */
     @Cacheable(value = "videoDetail", key = "'video-' + #apiVideoId")
-    @Transactional
     public Video getOrProcessVideo(String apiVideoId) {
         log.info("📺 영상 엔티티 조회: apiVideoId={}", apiVideoId);
 
@@ -91,7 +90,6 @@ public class VideoDetailService {
      * 영상 기본 정보 조회
      */
     @Cacheable(value = "videoDetail", key = "'basic-' + #apiVideoId", unless = "#result == null")
-    @Transactional(readOnly = true)
     public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
         log.info("📺 영상 기본 정보 조회: apiVideoId={}", apiVideoId);
 
@@ -106,7 +104,6 @@ public class VideoDetailService {
      * - 스크랩 여부
      * - 관심 채널 여부
      */
-    @Transactional(readOnly = true)
     public UserVideoStateResponse getUserVideoState(String token, String apiVideoId) {
         log.info("👤 사용자 영상 상태 조회: apiVideoId={}", apiVideoId);
 
@@ -135,7 +132,6 @@ public class VideoDetailService {
     /**
      * 백엔드 분석 정보 조회
      */
-    @Transactional(readOnly = true)
     public VideoAnalysisResponse getVideoAnalysis(String apiVideoId) {
         log.info("📊 백엔드 분석 정보 조회: apiVideoId={}", apiVideoId);
 
@@ -177,7 +173,6 @@ public class VideoDetailService {
     /**
      * 전체 댓글 조회 (단순 DB 조회)
      */
-    @Transactional(readOnly = true)
     public List<CommentDto> getVideoComments(String apiVideoId) {
         log.info("💬 전체 댓글 조회: apiVideoId={}", apiVideoId);
 
@@ -214,7 +209,6 @@ public class VideoDetailService {
      * - 감정 분포
      * - 키워드
      */
-    @Transactional(readOnly = true)
     public AIAnalysisResponse getAIAnalysis(String apiVideoId) {
         log.info("🤖 AI 분석 결과 조회: apiVideoId={}", apiVideoId);
 
@@ -670,7 +664,8 @@ public class VideoDetailService {
         return video.getLastMetadataUpdatedAt().isBefore(updateThreshold);
     }
 
-    private void checkAndUpdateDeletionStatus(Video video) {
+    @Transactional
+    public void checkAndUpdateDeletionStatus(Video video) {
         boolean isDeleted = videoService.checkIfVideoDeleted(video.getApiVideoId());
         if (isDeleted) {
             video.setDeleted(true);
@@ -682,7 +677,8 @@ public class VideoDetailService {
         videoRepository.save(video);
     }
 
-    private void updateMetadata(Video video) {
+    @Transactional
+    public void updateMetadata(Video video) {
         try {
             VideoApiResponse videoInfo = videoService.getVideoInfo(video.getApiVideoId());
 

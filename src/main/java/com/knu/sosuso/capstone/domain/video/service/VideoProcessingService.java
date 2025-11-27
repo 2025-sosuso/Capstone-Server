@@ -66,7 +66,6 @@ public class VideoProcessingService {
      *
      * @return Video 엔티티
      */
-    @Transactional
     public Video processNewVideo(String apiVideoId, VideoType expectedType) {
         log.info("🆕 새 영상 처리: apiVideoId={}, expectedType={}", apiVideoId, expectedType);
 
@@ -82,8 +81,7 @@ public class VideoProcessingService {
 
             // 3. 타입 불일치 로그
             if (expectedType != actualType) {
-                log.warn("⚠️ 영상 타입 불일치: apiVideoId={}, expected={}, actual={}",
-                        apiVideoId, expectedType, actualType);
+                log.warn("⚠️ 영상 타입 불일치: apiVideoId={}, expected={}, actual={}", apiVideoId, expectedType, actualType);
             }
 
             log.info("📹 영상 타입 확정: apiVideoId={}, type={}", apiVideoId, actualType);
@@ -91,8 +89,8 @@ public class VideoProcessingService {
             // 4. 댓글 수집
             CommentApiResponse commentResponse = commentService.getComments(apiVideoId);
 
+            // 4. 비디오 먼저 저장
             Video video;
-
             if (commentResponse.allComments() == null || commentResponse.allComments().isEmpty()) {
                 log.info("💬 댓글 없는 영상: apiVideoId={}", apiVideoId);
 
@@ -104,22 +102,23 @@ public class VideoProcessingService {
                 return video;
             }
 
-            log.info("💬 댓글 수집 완료: {}개", commentResponse.allComments().size());
-
-            List<Comment> comments = commentService.createCommentsWithoutAnalysis(
-                    commentResponse.allComments()
-            );
-
             video = videoService.saveVideoWithAnalysis(videoInfo, commentResponse, actualType);
-            videoRepository.flush();
+            log.info("✅ 비디오 저장 완료: videoId={}", video.getId());
 
-            for (Comment comment : comments) {
-                comment.setVideo(video);
+            // 5. 댓글 저장 시도
+            try {
+                List<Comment> comments = commentService.createCommentsWithoutAnalysis(
+                        commentResponse.allComments()
+                );
+                for (Comment comment : comments) {
+                    comment.setVideo(video);
+                }
+                commentRepository.saveAll(comments);
+                log.info("✅ 댓글 저장 완료: {}개", comments.size());
+
+            } catch (Exception e) {
+                log.warn("⚠️ 댓글 저장 실패 (비디오는 유지): videoId={}, error={}", video.getId(), e.getMessage());
             }
-            commentRepository.saveAll(comments);
-
-            log.info("✅ Video + Comment 저장 완료: videoId={}, type={}, 댓글={}개",
-                    video.getId(), actualType, comments.size());
 
             return video;
 
@@ -501,7 +500,8 @@ public class VideoProcessingService {
     /**
      * 영상 생성 또는 재조회 (동시성 문제 처리)
      */
-    private Video createOrRetrieveVideo(String apiVideoId, VideoType actualType) {
+    @Transactional
+    public Video createOrRetrieveVideo(String apiVideoId, VideoType actualType) {
         try {
             return processNewVideo(apiVideoId, actualType);
 
