@@ -59,8 +59,15 @@ public class VideoSearchService {
 
     /**
      * 동영상 검색 (쇼츠 제외)
+     *
+     * sync = true: 캐시 미스 시 한 스레드만 실행, 나머지는 대기
+     * → 100명 동시 요청해도 YouTube API 1번만 호출
      */
-    @Cacheable(value = "searchResults", key = "'video-' + #query + '-' + #pageToken", unless = "#result.results.isEmpty()")
+    @Cacheable(
+            value = "searchResults",
+            key = "'video-' + #query + '-' + #pageToken",
+            sync = true
+    )
     public SearchResultPageResponse searchVideos(String token, String query, String pageToken) {
         log.info("🔍 동영상 검색 (캐시 미스): query={}, pageToken={}", query, pageToken);
         return searchWithUrlCheck(token, query, pageToken, VideoType.VIDEO);
@@ -69,7 +76,11 @@ public class VideoSearchService {
     /**
      * 쇼츠 검색
      */
-    @Cacheable(value = "searchResults", key = "'shorts-' + #query + '-' + #pageToken", unless = "#result.results.isEmpty()")
+    @Cacheable(
+            value = "searchResults",
+            key = "'shorts-' + #query + '-' + #pageToken",
+            sync = true
+    )
     public SearchResultPageResponse searchShorts(String token, String query, String pageToken) {
         log.info("🔍 쇼츠 검색 (캐시 미스): query={}, pageToken={}", query, pageToken);
         return searchWithUrlCheck(token, query, pageToken, VideoType.SHORTS);
@@ -360,7 +371,7 @@ public class VideoSearchService {
      */
     private List<VideoData> fetchVideosInBatch(List<String> videoIds) {
         try {
-            String ids = String.join(",", videoIds);
+            String ids = String.join(",", videoIds);  // 콤마로 연결하여 한번에 호출
 
             String apiUrl = UriComponentsBuilder
                     .fromUriString(YOUTUBE_VIDEOS_API_URL)

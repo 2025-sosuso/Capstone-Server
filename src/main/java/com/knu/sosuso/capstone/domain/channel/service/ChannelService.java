@@ -39,9 +39,7 @@ public class ChannelService {
      * YouTube API 호출 절감을 위해 캐싱 적용 (1시간 유지)
      * 토큰별로 다른 결과를 반환하므로 토큰도 키에 포함
      */
-    @Cacheable(value = "searchResults",
-            key = "'channel-' + #query",
-            unless = "#result.results().isEmpty()")
+    @Cacheable(value = "searchResults", key = "'channel-' + #query", sync = true)
     public ChannelSearchResponse searchChannels(String token, String query) {
         if (query == null || query.trim().isEmpty()) {
             throw new BusinessException(ChannelError.CHANNEL_QUERY_REQUIRED);

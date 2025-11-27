@@ -56,7 +56,7 @@ public class VideoDetailService {
      * 영상 엔티티 조회 또는 처리 (사용자 무관 - 캐시 가능)
      * - 영상 메타데이터만 캐시
      */
-    @Cacheable(value = "videoDetail", key = "'video-' + #apiVideoId")
+    @Cacheable(value = "videoDetail", key = "'video-' + #apiVideoId", sync = true)
     public Video getOrProcessVideo(String apiVideoId) {
         log.info("📺 영상 엔티티 조회: apiVideoId={}", apiVideoId);
 
@@ -89,7 +89,7 @@ public class VideoDetailService {
     /**
      * 영상 기본 정보 조회
      */
-    @Cacheable(value = "videoDetail", key = "'basic-' + #apiVideoId", unless = "#result == null")
+    @Cacheable(value = "videoDetail", key = "'basic-' + #apiVideoId", sync = true)
     public VideoBasicResponse getVideoBasic(String token, String apiVideoId) {
         log.info("📺 영상 기본 정보 조회: apiVideoId={}", apiVideoId);
 
