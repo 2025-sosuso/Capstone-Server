@@ -4,10 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.domain.comment.entity.value.CommentSentimentDetail;
-import com.knu.sosuso.capstone.domain.video.repository.VideoRepository;
 import com.knu.sosuso.capstone.global.config.ApiConfig;
 import com.knu.sosuso.capstone.domain.comment.entity.Comment;
-import com.knu.sosuso.capstone.domain.video.entity.Video;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse;
 import com.knu.sosuso.capstone.domain.comment.dto.response.CommentApiResponse.CommentData;
 import com.knu.sosuso.capstone.domain.comment.repository.CommentRepository;
@@ -177,43 +175,6 @@ public class CommentService {
 
         log.info("✅ Comment 엔티티 생성 완료: {}개", comments.size());
         return comments;
-    }
-
-    /**
-     * 댓글을 DB에 저장 (sentiment는 null)
-     */
-    @Transactional
-    public void saveCommentsToDb(List<CommentData> comments, Video video) {
-        if (comments == null || comments.isEmpty()) {
-            log.info("저장할 댓글이 없습니다: apiVideoId={}", video.getApiVideoId());
-            return;
-        }
-
-        log.info("댓글 DB 저장 시작: apiVideoId={}, 댓글수={}", video.getApiVideoId(), comments.size());
-
-        try {
-            List<Comment> commentsToSave = comments.stream()
-                    .map(data -> Comment.builder()
-                            .video(video)
-                            .apiCommentId(data.id())
-                            .commentContent(data.commentText())
-                            .likeCount(data.likeCount())
-                            .writer(data.authorName())
-                            .writtenAt(data.publishedAt())
-                            .hasReplies(data.hasReplies())
-                            .sentimentType(null)
-                            .detailSentiments(new ArrayList<>())
-                            .build())
-                    .filter(comment -> !commentRepository.existsByApiCommentId(comment.getApiCommentId()))
-                    .collect(Collectors.toList());
-
-            commentRepository.saveAll(commentsToSave);
-            log.info("댓글 저장 완료: apiVideoId={}, 저장 개수={}", video.getApiVideoId(), commentsToSave.size());
-
-        } catch (Exception e) {
-            log.error("댓글 저장 실패: {}", e.getMessage(), e);
-            throw new BusinessException(CommentError.COMMENT_SAVE_ERROR);
-        }
     }
 
     /**
