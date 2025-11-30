@@ -8,6 +8,7 @@ import com.knu.sosuso.capstone.domain.video.service.VideoProcessingService;
 import com.knu.sosuso.capstone.global.config.AppConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,10 +36,15 @@ public class VideoCleanupService {
      * 오래된 삭제 영상 하드 삭제
      * 매달 1일 새벽 3시에 실행
      */
+    @SchedulerLock(
+            name = "cleanupOldDeletedVideos",
+            lockAtLeastFor = "1m",
+            lockAtMostFor = "30m"
+    )
     @Scheduled(cron = "0 0 3 1 * *")  // 매달 1일 03:00
     @Transactional
     public void cleanupOldDeletedVideos() {
-        log.info("=== 오래된 삭제 영상 정리 시작 ===");
+        log.info("=== 오래된 삭제 영상 정리 시작 (ShedLock 적용) ===");
 
         LocalDateTime retentionThreshold = LocalDateTime.now()
                 .minusDays(appConfig.getDataRetentionDays());
@@ -100,10 +106,15 @@ public class VideoCleanupService {
      * 스크랩된 영상의 메타데이터 정기 갱신
      * 매일 새벽 2시에 실행
      */
+    @SchedulerLock(
+            name = "updateScrappedVideosMetadata",
+            lockAtLeastFor = "1m",
+            lockAtMostFor = "30m"
+    )
     @Scheduled(cron = "0 0 2 * * *")  // 매일 02:00
     @Transactional
     public void updateScrappedVideosMetadata() {
-        log.info("=== 스크랩된 영상 메타데이터 갱신 시작 ===");
+        log.info("=== 스크랩된 영상 메타데이터 갱신 시작 (ShedLock 적용) ===");
 
         LocalDateTime updateThreshold = LocalDateTime.now()
                 .minusDays(appConfig.getMetadataUpdateDays());
