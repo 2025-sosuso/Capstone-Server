@@ -4,19 +4,22 @@ import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisRequest;
 import com.knu.sosuso.capstone.domain.ai.dto.AIAnalysisResponse;
 import com.knu.sosuso.capstone.global.exception.BusinessException;
 import com.knu.sosuso.capstone.global.exception.error.AIError;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
 @Slf4j
-@RequiredArgsConstructor
 @Service
 public class AnalysisService {
 
-    private final RestTemplate restTemplate;
+    private final RestTemplate aiRestTemplate;
+
+    public AnalysisService(@Qualifier("aiRestTemplate") RestTemplate aiRestTemplate) {
+        this.aiRestTemplate = aiRestTemplate;
+    }
 
     @Value("${fastapi.url}")
     private String FASTAPI_URL;
@@ -36,7 +39,7 @@ public class AnalysisService {
 
             long startTime = System.currentTimeMillis();
 
-            ResponseEntity<AIAnalysisResponse> aiAnalysisResponse = restTemplate.postForEntity(
+            ResponseEntity<AIAnalysisResponse> aiAnalysisResponse = aiRestTemplate.postForEntity(
                     FASTAPI_URL,
                     entity,
                     AIAnalysisResponse.class
