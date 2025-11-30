@@ -2,7 +2,6 @@ package com.knu.sosuso.capstone.domain.video.controller;
 
 import com.knu.sosuso.capstone.domain.channel.dto.response.ChannelSearchResponse;
 import com.knu.sosuso.capstone.domain.channel.service.ChannelService;
-import com.knu.sosuso.capstone.domain.trending_search.entity.SearchLog;
 import com.knu.sosuso.capstone.domain.trending_search.repository.SearchLogRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.SearchResultPageResponse;
 import com.knu.sosuso.capstone.domain.video.service.VideoSearchService;
@@ -77,8 +76,7 @@ public class SearchController implements SearchControllerSwagger {
 
         log.info("채널 검색 요청: query={}", query);
 
-        // 검색 로그 저장
-        searchLogRepository.save(new SearchLog(query));
+        videoSearchService.logSearchKeyword(query);
 
         // 채널 검색 수행
         ChannelSearchResponse result = channelService.searchChannels(token, query);
