@@ -6,6 +6,14 @@ spring:
     url: ${DB_URL}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 30
+      minimum-idle: 10
+      connection-timeout: 3000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      leak-detection-threshold: 30000
+      pool-name: SoSuSo-HikariCP
 
   jpa:
     hibernate:
@@ -15,6 +23,8 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQL8Dialect
+        generate_statistics: true
+    open-in-view: false
 
   security:
     oauth2:

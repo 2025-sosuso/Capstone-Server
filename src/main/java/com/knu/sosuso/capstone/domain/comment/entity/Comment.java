@@ -24,7 +24,8 @@ import lombok.Setter;
         indexes = {
                 @Index(name = "idx_comment_video_id", columnList = "video_id"),
                 @Index(name = "idx_comment_video_sentiment", columnList = "video_id, sentiment_type"),
-                @Index(name = "idx_comment_video_like", columnList = "video_id, like_count DESC")
+                @Index(name = "idx_comment_video_like", columnList = "video_id, like_count DESC"),
+                @Index(name = "idx_comment_api_comment_id", columnList = "api_comment_id", unique = true)
         }
 )
 @Entity

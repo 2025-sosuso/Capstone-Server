@@ -46,11 +46,7 @@ public class PopularVideoService {
      * @return 인기 영상 리스트
      * @throws BusinessException maxResults가 유효하지 않을 때
      */
-    @Cacheable(
-            value = "popularVideos",
-            key = "#maxResults",
-            unless = "#result == null || #result.isEmpty()"
-    )
+    @Cacheable(value = "popularVideos", key = "#maxResults", sync = true)
     @Transactional(readOnly = true)
     public List<VideoSummaryResponse> getPopularVideos(String token, int maxResults) {
         log.info("인기 영상 조회 시작: maxResults={}", maxResults);
