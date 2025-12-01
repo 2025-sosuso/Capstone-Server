@@ -60,20 +60,21 @@ public class VideoDetailService {
     public Video getOrProcessVideo(String apiVideoId) {
         log.info("📺 영상 엔티티 조회: apiVideoId={}", apiVideoId);
 
-        // 1. DB에서 먼저 찾기
         Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
 
         Video video;
         if (existingVideo.isPresent()) {
-            // ✅ 기존 영상: 자체 처리
             video = existingVideo.get();
 
             if (shouldCheckDeletion(video)) {
-                checkAndUpdateDeletionStatus(video);
+                boolean isDeleted = videoService.checkAndUpdateDeletionStatus(video);
+                if (isDeleted) {
+                    throw new BusinessException(VideoError.VIDEO_DELETED);
+                }
             }
 
             if (shouldUpdateMetadata(video)) {
-                updateMetadata(video);
+                videoService.refreshMetadata(video);
             }
 
             log.info("✅ 기존 영상 조회: apiVideoId={}", apiVideoId);
@@ -662,40 +663,5 @@ public class VideoDetailService {
         LocalDateTime updateThreshold = LocalDateTime.now()
                 .minusDays(appConfig.getMetadataUpdateDays());
         return video.getLastMetadataUpdatedAt().isBefore(updateThreshold);
-    }
-
-    @Transactional
-    public void checkAndUpdateDeletionStatus(Video video) {
-        boolean isDeleted = videoService.checkIfVideoDeleted(video.getApiVideoId());
-        if (isDeleted) {
-            video.setDeleted(true);
-            video.setDeleteCheckedAt(LocalDateTime.now());
-            videoRepository.save(video);
-            throw new BusinessException(VideoError.VIDEO_DELETED);
-        }
-        video.setDeleteCheckedAt(LocalDateTime.now());
-        videoRepository.save(video);
-    }
-
-    @Transactional
-    public void updateMetadata(Video video) {
-        try {
-            VideoApiResponse videoInfo = videoService.getVideoInfo(video.getApiVideoId());
-
-            video.setViewCount(videoInfo.viewCount());
-            video.setLikeCount(videoInfo.likeCount());
-            video.setCommentCount(videoInfo.commentCount());
-            video.setLastMetadataUpdatedAt(LocalDateTime.now());
-            video.setMetadataUpdateCount(video.getMetadataUpdateCount() + 1);
-
-            videoRepository.save(video);
-
-            log.info("✅ 메타데이터 갱신 완료: apiVideoId={}, updateCount={}",
-                    video.getApiVideoId(), video.getMetadataUpdateCount());
-
-        } catch (Exception e) {
-            log.error("❌ 메타데이터 갱신 실패: apiVideoId={}, error={}",
-                    video.getApiVideoId(), e.getMessage());
-        }
     }
 }
