@@ -136,7 +136,6 @@ public class VideoProcessingService {
     /**
      * 비디오 처리 메인 진입점 (검색용)
      */
-    @Transactional
     public Video processVideoToSearchResult(String apiVideoId) {
         if (apiVideoId == null || apiVideoId.trim().isEmpty()) {
             throw new BusinessException(VideoError.VIDEO_ID_REQUIRED);
@@ -147,9 +146,8 @@ public class VideoProcessingService {
         Optional<Video> existingVideo = videoRepository.findByApiVideoId(apiVideoId);
 
         if (existingVideo.isPresent()) {
-            return handleExistingVideoWithTransaction(existingVideo.get());
+            return handleExistingVideo(existingVideo.get());
         } else {
-            // 쓰기 작업은 별도 트랜잭션
             return processNewVideo(apiVideoId, VideoType.VIDEO);
         }
     }
@@ -157,27 +155,19 @@ public class VideoProcessingService {
     /**
      * 기존 영상 처리 (검색용) - 쓰기 작업 분리
      */
-    @Transactional
-    public Video handleExistingVideoWithTransaction(Video video) {
+    public Video handleExistingVideo(Video video) {
         String apiVideoId = video.getApiVideoId();
 
-        // 삭제 확인
         if (shouldCheckDeletion(video)) {
-            boolean isDeleted = videoService.checkIfVideoDeleted(apiVideoId);
+            boolean isDeleted = videoService.checkAndUpdateDeletionStatus(video);
             if (isDeleted) {
-                video.setDeleted(true);
-                video.setDeleteCheckedAt(LocalDateTime.now());
-                videoRepository.save(video);
                 throw new BusinessException(VideoError.VIDEO_DELETED);
             }
-            video.setDeleteCheckedAt(LocalDateTime.now());
-            videoRepository.save(video);
         }
 
-        // 메타데이터 갱신
         if (shouldUpdateMetadata(video)) {
             log.info("메타데이터 갱신 필요: apiVideoId={}", apiVideoId);
-            updateMetadataInternal(video);
+            videoService.refreshMetadata(video);
         }
 
         return video;
@@ -411,82 +401,9 @@ public class VideoProcessingService {
      * - AI 분석은 하지 않음
      */
     @Async("videoProcessingExecutor")
-    @Transactional
     public void updateMetadata(Long videoId, String apiVideoId) {
         log.info("📊 메타데이터 갱신 시작: videoId={}, apiVideoId={}", videoId, apiVideoId);
-
-        try {
-            // 1. YouTube API에서 최신 정보 가져오기
-            VideoApiResponse latestInfo = videoService.getVideoInfo(apiVideoId);
-
-            // 2. DB에서 비디오 조회
-            Video video = videoRepository.findById(videoId)
-                    .orElseThrow(() -> new BusinessException(VideoError.VIDEO_NOT_FOUND));
-
-            // 3. 메타데이터만 업데이트
-            video.setTitle(latestInfo.title());
-            video.setDescription(latestInfo.description());
-            video.setViewCount(latestInfo.viewCount());
-            video.setLikeCount(latestInfo.likeCount());
-            video.setCommentCount(latestInfo.commentCount());
-            video.setThumbnailUrl(latestInfo.thumbnailUrl());
-            video.setSubscriberCount(latestInfo.subscriberCount());
-
-            // 갱신 시간 기록
-            video.setLastMetadataUpdatedAt(LocalDateTime.now());
-            video.setMetadataUpdateCount(video.getMetadataUpdateCount() + 1);
-
-            videoRepository.save(video);
-
-            log.info("✅ 메타데이터 갱신 완료: videoId={}, 갱신 횟수={}",
-                    videoId, video.getMetadataUpdateCount());
-
-        } catch (BusinessException e) {
-            if (e.getError() == VideoError.VIDEO_NOT_FOUND) {
-                // YouTube에서 삭제됨
-                log.warn("⚠️ YouTube에서 영상 삭제됨: apiVideoId={}", apiVideoId);
-
-                try {
-                    Video video = videoRepository.findById(videoId).orElse(null);
-                    if (video != null) {
-                        video.setDeleted(true);
-                        video.setDeleteCheckedAt(LocalDateTime.now());
-                        videoRepository.save(video);
-                        log.info("🗑️ 영상 삭제 플래그 설정: videoId={}", videoId);
-                    }
-                } catch (Exception ex) {
-                    log.error("❌ 삭제 플래그 설정 실패: {}", ex.getMessage());
-                }
-            } else {
-                throw e;
-            }
-        } catch (Exception e) {
-            log.error("❌ 메타데이터 갱신 실패: videoId={}, apiVideoId={}, error={}",
-                    videoId, apiVideoId, e.getMessage(), e);
-            throw new BusinessException(CommonError.VIDEO_PROCESSING_ERROR);
-        }
-    }
-
-    /**
-     * 메타데이터 갱신 (내부용, 이미 트랜잭션 안)
-     */
-    private void updateMetadataInternal(Video video) {
-        try {
-            VideoApiResponse videoInfo = videoService.getVideoInfo(video.getApiVideoId());
-
-            video.setViewCount(videoInfo.viewCount());
-            video.setLikeCount(videoInfo.likeCount());
-            video.setCommentCount(videoInfo.commentCount());
-            video.setLastMetadataUpdatedAt(LocalDateTime.now());
-            video.setMetadataUpdateCount(video.getMetadataUpdateCount() + 1);
-
-            videoRepository.save(video);
-
-            log.info("메타데이터 갱신 완료: apiVideoId={}", video.getApiVideoId());
-
-        } catch (Exception e) {
-            log.error("메타데이터 갱신 실패: apiVideoId={}", video.getApiVideoId(), e);
-        }
+        videoService.refreshMetadataById(videoId, apiVideoId);
     }
 
     /**
