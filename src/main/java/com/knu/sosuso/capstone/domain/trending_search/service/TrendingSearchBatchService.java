@@ -31,7 +31,7 @@ public class TrendingSearchBatchService {
     private EntityManager em;
 
     @Transactional
-    @Scheduled(cron = "0 */10 * * * *")
+    @Scheduled(cron = "0 0 * * * *")
     public synchronized void updateTrendingKeywords() {
 
         log.info("인기 검색어 배치 실행 시작");
