@@ -2,6 +2,8 @@ package com.knu.sosuso.capstone.domain.video.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knu.sosuso.capstone.domain.trending_search.entity.SearchLog;
+import com.knu.sosuso.capstone.domain.trending_search.repository.SearchLogRepository;
 import com.knu.sosuso.capstone.domain.video.dto.response.SearchResultPageResponse;
 import com.knu.sosuso.capstone.domain.video.dto.response.VideoSummaryResponse;
 import com.knu.sosuso.capstone.domain.video.entity.VideoType;
@@ -48,6 +50,7 @@ public class VideoSearchService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final VideoProcessingService videoProcessingService;
+    private final SearchLogRepository searchLogRepository;
 
     // URL 체크 전용 스레드풀 주입
     @Qualifier("urlCheckExecutor")
@@ -437,6 +440,16 @@ public class VideoSearchService {
         } catch (Exception e) {
             log.error("Search API 응답 파싱 실패", e);
             throw new BusinessException(CommonError.DATA_PARSING_ERROR);
+        }
+    }
+
+    public void logSearchKeyword(String query) {
+        boolean isUrl = query.startsWith("https://")
+                || query.startsWith("http://")
+                || query.startsWith("www.");
+
+        if (!isUrl) {
+            searchLogRepository.save(new SearchLog(query));
         }
     }
 
