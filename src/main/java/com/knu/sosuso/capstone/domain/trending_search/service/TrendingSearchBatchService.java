@@ -31,7 +31,7 @@ public class TrendingSearchBatchService {
     private EntityManager em;
 
     @Transactional
-    @Scheduled(cron = "0 */10 * * * *")
+    @Scheduled(cron = "0 0 * * * *")
     public synchronized void updateTrendingKeywords() {
 
         log.info("인기 검색어 배치 실행 시작");
@@ -59,9 +59,9 @@ public class TrendingSearchBatchService {
         em.clear();
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime oneHourAgo = now.minusHours(4);
+        LocalDateTime oneWeekAgo = now.minusHours(4);
 
-        List<KeywordCount> topKeywords = searchLogRepository.findTopKeywordsSince(oneHourAgo, PageRequest.of(0, 10));
+        List<KeywordCount> topKeywords = searchLogRepository.findTopKeywordsSince(oneWeekAgo, PageRequest.of(0, 10));
 
         for (KeywordCount count : topKeywords) {
             TrendingKeyword trending = TrendingKeyword.builder()
