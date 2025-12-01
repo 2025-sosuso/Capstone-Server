@@ -59,9 +59,9 @@ public class TrendingSearchBatchService {
         em.clear();
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime oneHourAgo = now.minusHours(4);
+        LocalDateTime oneWeekAgo = now.minusHours(4);
 
-        List<KeywordCount> topKeywords = searchLogRepository.findTopKeywordsSince(oneHourAgo, PageRequest.of(0, 10));
+        List<KeywordCount> topKeywords = searchLogRepository.findTopKeywordsSince(oneWeekAgo, PageRequest.of(0, 10));
 
         for (KeywordCount count : topKeywords) {
             TrendingKeyword trending = TrendingKeyword.builder()
