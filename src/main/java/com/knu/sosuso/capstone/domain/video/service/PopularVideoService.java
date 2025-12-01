@@ -20,6 +20,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 인기 영상 관련 Facade 서비스
@@ -41,10 +44,7 @@ public class PopularVideoService {
      * 인기 영상 TOP N 조회
      * Caffeine 캐시 적용 (TTL: 60분)
      *
-     * @param token 사용자 토큰 (스크랩 여부 확인용)
-     * @param maxResults 조회할 영상 개수
-     * @return 인기 영상 리스트
-     * @throws BusinessException maxResults가 유효하지 않을 때
+     * N+1 쿼리 해결: IN 쿼리로 한 번에 조회
      */
     @Cacheable(value = "popularVideos", key = "#maxResults", sync = true)
     @Transactional(readOnly = true)
@@ -65,12 +65,27 @@ public class PopularVideoService {
                 return new ArrayList<>();
             }
 
+            // 1. apiVideoId 리스트 추출
+            List<String> apiVideoIds = topStats.getContent().stream()
+                    .map(VideoStats::getApiVideoId)
+                    .collect(Collectors.toList());
+
+            // 2. IN 쿼리로 한 번에 조회 (N+1 해결!)
+            List<Video> videos = videoRepository.findByApiVideoIdIn(apiVideoIds);
+
+            // 3. Map으로 변환 (빠른 조회용)
+            Map<String, Video> videoMap = videos.stream()
+                    .collect(Collectors.toMap(
+                            Video::getApiVideoId,
+                            Function.identity()
+                    ));
+
+            // 4. 순서 유지하면서 결과 생성
             List<VideoSummaryResponse> results = new ArrayList<>();
 
             for (VideoStats stats : topStats) {
                 try {
-                    Video video = videoRepository.findByApiVideoId(stats.getApiVideoId())
-                            .orElse(null);
+                    Video video = videoMap.get(stats.getApiVideoId());
 
                     if (video == null) {
                         log.warn("VideoStats에는 있지만 Video가 없음: apiVideoId={}",
@@ -87,7 +102,6 @@ public class PopularVideoService {
                 } catch (Exception e) {
                     log.error("인기 영상 변환 실패: apiVideoId={}, error={}",
                             stats.getApiVideoId(), e.getMessage(), e);
-                    // 하나의 영상 변환 실패가 전체에 영향을 주지 않도록 continue
                 }
             }
 
@@ -106,8 +120,6 @@ public class PopularVideoService {
     /**
      * 인기도 점수 재계산 (배치 작업)
      * Scheduler에서 호출
-     *
-     * @return 업데이트된 영상 개수
      */
     public int recalculatePopularity() {
         try {

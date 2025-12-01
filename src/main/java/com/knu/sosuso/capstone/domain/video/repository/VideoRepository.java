@@ -15,6 +15,11 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
     Optional<Video> findByApiVideoId(String apiVideoId);
 
     /**
+     * N+1 해결용: apiVideoId 리스트로 한 번에 조회
+     */
+    List<Video> findByApiVideoIdIn(List<String> apiVideoIds);
+
+    /**
      * 특정 시점 이전에 삭제 확인된 영상 조회 (하드 삭제용)
      */
     List<Video> findByDeletedTrueAndDeleteCheckedAtBefore(LocalDateTime dateTime);
@@ -39,5 +44,4 @@ public interface VideoRepository extends JpaRepository<Video, Long> {
      * 미분석 영상 조회 (최근 업데이트 순, 상위 N개)
      */
     List<Video> findTop10ByAiAnalysisStatusOrderByUpdatedAtDesc(AIAnalysisStatus status);
-
 }

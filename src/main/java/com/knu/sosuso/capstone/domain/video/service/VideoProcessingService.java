@@ -22,6 +22,7 @@ import com.knu.sosuso.capstone.global.exception.error.VideoError;
 import com.knu.sosuso.capstone.global.service.mapper.VideoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.scheduling.annotation.Async;
@@ -203,10 +204,20 @@ public class VideoProcessingService {
      * 스케줄러: 1분마다 미분석 영상 처리
      * - PENDING 상태 영상 최대 10개
      * - 최근 조회순 우선
+     *
+     * @SchedulerLock 설정:
+     * - name: 락 이름 (테이블에 저장됨)
+     * - lockAtLeastFor: 최소 락 유지 시간 (30초) → 빠르게 끝나도 30초간 다른 서버 실행 방지
+     * - lockAtMostFor: 최대 락 유지 시간 (5분) → 서버 죽어도 5분 후 자동 해제
      */
+    @SchedulerLock(
+            name = "processUnanalyzedVideos",
+            lockAtLeastFor = "30s",
+            lockAtMostFor = "5m"
+    )
     @Scheduled(fixedDelayString = "#{${ai.batch.interval.ms:60000}}")
     public void processUnanalyzedVideos() {
-        log.info("🔄 미분석 영상 배치 처리 시작");
+        log.info("🔄 미분석 영상 배치 처리 시작 (ShedLock 적용)");
 
         try {
             int batchSize = appConfig.getAiBatchSize();
