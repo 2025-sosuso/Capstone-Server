@@ -59,7 +59,7 @@ public class TrendingSearchBatchService {
         em.clear();
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime oneWeekAgo = now.minusHours(4);
+        LocalDateTime oneWeekAgo = now.minusWeeks(1);
 
         List<KeywordCount> topKeywords = searchLogRepository.findTopKeywordsSince(oneWeekAgo, PageRequest.of(0, 10));
 
